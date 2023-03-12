@@ -18,7 +18,6 @@ import { AiOutlineShoppingCart } from "react-icons/ai";
 import { HiMenuAlt3 } from "react-icons/hi";
 import { IoMdArrowDropdown } from "react-icons/io";
 import { useSession, signOut } from "next-auth/react";
-import { trpc } from "../../../utils/trpc";
 
 interface Props {
   home?: boolean | undefined;
@@ -26,17 +25,14 @@ interface Props {
 }
 
 const Header = ({ home, buyPage }: Props) => {
-  const [login, setLogin] = useState(null);
   const [nav, setNav] = useState(false);
-  const [hidden, setHidden] = useState(true);
   const [dropdown, setDropdow] = useState(false);
-  const [opacity, setOpacity] = useState(false);
   const [dateState, setDateState] = useState(new Date());
   const [textColor, setTextColor] = useState(home ? "[#252525]" : "white");
 
-  const { data: sessionData } = useSession();
+  const { data: session } = useSession();
 
-  const { data: user } = trpc.auth.getUserById.useQuery(sessionData?.user?.id);
+  // const { data: user } = trpc.auth.getUserById.useQuery(sessionData?.user?.id);
 
   useEffect(() => {
     setInterval(() => setDateState(new Date()), 1);
@@ -47,18 +43,7 @@ const Header = ({ home, buyPage }: Props) => {
   };
 
   const handleDropdown = () => {
-    if (!dropdown) {
-      setOpacity(!opacity);
-      setTimeout(() => {
-        setDropdow(!dropdown);
-        setOpacity(!opacity);
-      }, 1);
-      return;
-    }
     setDropdow(!dropdown);
-    setTimeout(() => {
-      setHidden(!hidden);
-    }, 1);
   };
 
   return (
@@ -128,7 +113,7 @@ const Header = ({ home, buyPage }: Props) => {
                     />
                     <AiOutlineSearch className={style.icon} />
                   </div>
-                  {!user ? (
+                  {!session ? (
                     <div>
                       <Link href="/login">
                         <div
@@ -203,7 +188,7 @@ const Header = ({ home, buyPage }: Props) => {
         </div>
 
         <div className={style.right_container}>
-          {!user ? (
+          {!session ? (
             <>
               <Link href={"/login"}>
                 <div className="cursor-pointer font-bold">Iniciar Sesión</div>
@@ -221,29 +206,32 @@ const Header = ({ home, buyPage }: Props) => {
 
               <div className={style.img_container}>
                 <Image
-                  src={`${user?.image}`}
+                  src={`${session?.user?.image}`}
                   alt="imagen de perfil"
                   width={50}
                   height={50}
-                  layout="responsive"
-                  objectFit="cover"
                 />
               </div>
               <Link href="#">
                 <div className="relative">
-                  <IoMdArrowDropdown
-                    className={style.icon}
-                    onClick={handleDropdown}
-                  />
-                  <div
-                    className={`absolute right-8 top-10 z-10 w-[200px] rounded-lg border border-gray-100 bg-white p-4 shadow-md transition-opacity hover:bg-gray-300 ${
-                      dropdown
-                        ? "opacity-100"
-                        : `opacity-0 ${hidden ? "hidden" : null}`
-                    } ${opacity ? "opacity-0" : null}`}
-                    onClick={() => signOut()}
-                  >
-                    <p className="break-normal text-black">Cerrar Sesión</p>
+                  <div className="dropdown-left dropdown">
+                    <label tabIndex={0}>
+                      <IoMdArrowDropdown className={style.icon} />
+                    </label>
+                    <ul
+                      tabIndex={0}
+                      className="dropdown-content menu rounded-box w-52 bg-base-100 p-2 shadow"
+                    >
+                      <p className="border-b py-2 text-center font-bold">
+                        {session && session.user?.name}
+                      </p>
+                      <li>
+                        <Link href={"/profile"}>Perfil</Link>
+                      </li>
+                      <li onClick={() => signOut()}>
+                        <span>Cerrar Sesión</span>
+                      </li>
+                    </ul>
                   </div>
                 </div>
               </Link>
@@ -275,7 +263,7 @@ const Header = ({ home, buyPage }: Props) => {
           }
         >
           <ul>
-            {!user ? (
+            {!session ? (
               <div>
                 <Link href="/login">
                   <div

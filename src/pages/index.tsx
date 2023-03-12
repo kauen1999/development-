@@ -5,21 +5,29 @@ import { signIn, signOut, useSession } from "next-auth/react";
 
 import { trpc } from "../utils/trpc";
 
-import Categorias from '../components/principal/categorias/Categorias'
-import Eventos from '../components/principal/eventos/Eventos'
-import EventosHoy from '../components/principal/eventos_hoy/EventosHoy'
-import Footer from '../components/principal/footer/Footer'
-import Header from '../components/principal/header/Header'
-import Hero from '../components/principal/hero/Hero'
+import Categorias from "../components/principal/categorias/Categorias";
+import Eventos from "../components/principal/eventos/Eventos";
+import EventosHoy from "../components/principal/eventos_hoy/EventosHoy";
+import Footer from "../components/principal/footer/Footer";
+import Header from "../components/principal/header/Header";
+import Hero from "../components/principal/hero/Hero";
 
 const Home: NextPage = () => {
   const hello = trpc.example.hello.useQuery({
     text: "from tRPC to EntradaMaster",
   });
 
-  const { data: sessionData } = useSession();
+  const { data: session, status } = useSession();
 
-  const { data: user } = trpc.auth.getUserById.useQuery(sessionData?.user?.id);
+  // const { data: user } = trpc.auth.getUserById.useQuery(sessionData?.user?.id);
+
+  if (status === "loading") {
+    return (
+      <div className="flex h-[100vh] w-full items-center justify-center">
+        <h1 className="text-2xl font-bold">Cargando...</h1>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -39,7 +47,7 @@ const Home: NextPage = () => {
 
       <Footer />
     </div>
-  )
+  );
 
   // return (
   //   <>
