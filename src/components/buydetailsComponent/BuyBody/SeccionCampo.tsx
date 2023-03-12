@@ -1,15 +1,21 @@
 import React from "react";
 
-const SeccionCampo = () => {
-  return (
-    <div className="flex justify-between items-center">
-      <div>
-        <p className="font-bold text-lg">Sección Campo</p>
-        <p className="text-slate-600">De pie</p>
-      </div>
+interface Props {
+  seccion: string;
+  precio: number;
+  butacas: string;
+  cant: string;
+}
 
-      <p className="text-slate-600">70.000$</p>
-    </div>
+const SeccionCampo = ({ seccion, precio, butacas, cant }: Props) => {
+  return (
+    <button className="btn-warning btn-lg btn my-2 flex items-center justify-between rounded-lg bg-gray-200">
+      <div>
+        <p className="text-lg font-bold text-black">{seccion}</p>
+        <p className="font-normal text-slate-600">{butacas}</p>
+      </div>
+      <p className="text-black">{precio * Number(cant)}$ARGS</p>
+    </button>
   );
 };
 
