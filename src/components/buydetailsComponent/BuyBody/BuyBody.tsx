@@ -34,8 +34,8 @@ const BuyBody = ({ foto, titulo }: Props) => {
 
   return (
     <div className="border-b border-gray-200">
-      <div className="container mx-auto flex w-[100%]">
-        <div className="flex w-full items-center justify-center">
+      <div className="container mx-auto w-[100%] lg:flex">
+        <div className="flex w-full items-center justify-center sm:mt-10">
           <BelgranoMap
             activeA={activeA}
             setActiveA={setActiveA}
