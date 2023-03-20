@@ -1,5 +1,7 @@
+import { useSession } from "next-auth/react";
 import { StaticImageData } from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import React, { useState } from "react";
 import { GoSettings } from "react-icons/go";
 import BelgranoMap from "../../maps/BelgranoMap";
@@ -13,6 +15,9 @@ interface Props {
 }
 
 const BuyBody = ({ foto, titulo }: Props) => {
+  const router = useRouter();
+  const { data: sessionData } = useSession();
+
   const [open, setOpen] = useState(false);
   const [activeA, setActiveA] = useState(false);
   const [activeB, setActiveB] = useState(false);
@@ -111,29 +116,56 @@ const BuyBody = ({ foto, titulo }: Props) => {
             />
           </div>
           <div className="mt-9 flex items-center justify-center">
-            {disabled ? (
-              <button className="btn-warning btn" disabled={disabled}>
-                <span className="">CONFIRMAR</span>{" "}
-              </button>
-            ) : (
-              <Link
-                href={{
-                  pathname: "../checkout/[id]",
-                  query: {
-                    id: "01",
-                    title: titulo,
-                    price: price * Number(cant),
-                    sector: "Platea A",
-                    cant: cant,
-                    picture: foto,
-                  },
-                }}
-              >
-                <button className="btn-warning btn" disabled={disabled}>
-                  <span className="">CONFIRMAR</span>{" "}
-                </button>
-              </Link>
-            )}
+            {!sessionData ? (
+              <>
+                {disabled ? (
+                  <button className="btn-warning btn" disabled={disabled}>
+                    <span className="">CONFIRMAR</span>
+                  </button>
+                ) : (
+                  <button
+                    className="btn-warning btn"
+                    disabled={disabled}
+                    onClick={() => {
+                      if (!sessionData) router.push("/login");
+                    }}
+                  >
+                    <span className="">CONFIRMAR</span>
+                  </button>
+                )}
+              </>
+            ) : null}
+
+            {sessionData ? (
+              <>
+                {disabled ? (
+                  <button className="btn-warning btn" disabled={disabled}>
+                    <span className="">CONFIRMAR</span>
+                  </button>
+                ) : (
+                  <Link
+                    onClick={() => {
+                      if (!sessionData) router.push("/login");
+                    }}
+                    href={{
+                      pathname: "../checkout/[id]",
+                      query: {
+                        id: "01",
+                        title: titulo,
+                        price: price * Number(cant),
+                        sector: "Platea A",
+                        cant: cant,
+                        picture: foto,
+                      },
+                    }}
+                  >
+                    <button className="btn-warning btn" disabled={disabled}>
+                      <span className="">CONFIRMAR</span>
+                    </button>
+                  </Link>
+                )}
+              </>
+            ) : null}
           </div>
         </div>
       </div>
