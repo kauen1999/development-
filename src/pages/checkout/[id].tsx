@@ -4,6 +4,7 @@ import CheckoutContent from "../../components/checkout/CheckoutContent";
 import Footer from "../../components/principal/footer/Footer";
 import Header from "../../components/principal/header/Header";
 import { StaticImageData } from "next/image";
+import { getSession } from "next-auth/react";
 
 interface Props {
   title: string;
@@ -34,19 +35,20 @@ const Checkout: NextPage<Props> = ({ title, price, sector, cant, picture }) => {
 
 export default Checkout;
 
-export async function getServerSideProps(context: {
-  query: {
-    picture: StaticImageData;
-    price: number;
-    cant: number;
-    title: string;
-    sector: string;
-  };
-}) {
-  console.log(context.query);
-  // returns { id: episode.itunes.episode, title: episode.title}
+export async function getServerSideProps(context: any) {
+  const { req } = context;
 
-  //you can make DB queries using the data in context.query
+  const session = await getSession({ req });
+
+  if (!session) {
+    return {
+      redirect: {
+        destination: "/login",
+        permanent: false,
+      },
+    };
+  }
+
   return {
     props: {
       title: context.query.title,
