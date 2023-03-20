@@ -17,7 +17,7 @@ const EventoCard = ({ duracion, ubicacion, ciudad, foto }: Props) => {
       <Image src={foto} alt="Foto" />
 
       <h3 className="2xl:text:2xl absolute top-5 left-5 text-2xl font-bold text-white lg:left-3 lg:text-xl">
-        Emilia
+        Evento
       </h3>
 
       <div className="absolute bottom-5 left-5 flex flex-col gap-4 lg:left-2 lg:text-sm 2xl:text-base">

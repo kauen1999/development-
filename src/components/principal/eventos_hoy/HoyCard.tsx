@@ -34,7 +34,7 @@ const HoyCard = ({
           style={{
             objectFit: "cover",
             width: "100%",
-            height: "100%"
+            height: "100%",
           }}
           className="rounded-2xl"
         />
@@ -71,7 +71,22 @@ const HoyCard = ({
             </div>
           </div>
 
-          <Link href={"/buydetails"}>
+          <Link
+            href={{
+              pathname: "buydetails/[id]",
+              query: {
+                id: "01",
+                foto: foto.src,
+                titulo: titulo,
+                horas: horas,
+                fecha: fecha,
+                precio: precio,
+                duracion: duracion,
+                ubicacion: ubicacion,
+                ciudad: ciudad,
+              },
+            }}
+          >
             <div className="cursor-pointer rounded-lg bg-primary-100 py-2 px-5 text-center text-xl font-bold text-white lg:text-base">
               Comprar ahora
             </div>

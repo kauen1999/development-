@@ -8,6 +8,8 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { env } from "../../../env/server.mjs";
 import { prisma } from "../../../server/db/client";
 
+import { trpc, type RouterOutputs } from "../../../utils/trpc";
+
 interface SignIn {
   user: {
     /** The user's postal address. */
@@ -19,11 +21,15 @@ export const authOptions: NextAuthOptions = {
   // Include user.id on session
   callbacks: {
     async signIn({ user, account, profile, email, credentials }) {
-      if (user.id) {
+      if (user.email) {
         console.log("existing user signed in");
+
         return true;
       } else {
         console.log("brand new user signed in");
+        console.log(account);
+        console.log(user);
+
         return { redirect: { destination: "newUser" } };
       }
     },

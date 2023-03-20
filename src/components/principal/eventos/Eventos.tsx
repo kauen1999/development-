@@ -30,84 +30,84 @@ const Eventos = () => {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card
           duracion="19:35 hasta las 21:00"
-          ubicacion="Estadium Luna Park"
+          ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p1}
         />
 
         <Card
           duracion="19:35 hasta las 21:00"
-          ubicacion="Estadium Luna Park"
+          ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p2}
         />
 
         <Card
           duracion="19:35 hasta las 21:00"
-          ubicacion="Estadium Luna Park"
+          ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p3}
         />
 
         <Card
           duracion="19:35 hasta las 21:00"
-          ubicacion="Estadium Luna Park"
+          ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p4}
         />
 
         <Card
           duracion="19:35 hasta las 21:00"
-          ubicacion="Estadium Luna Park"
+          ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p5}
         />
 
         <Card
           duracion="19:35 hasta las 21:00"
-          ubicacion="Estadium Luna Park"
+          ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p6}
         />
 
         <Card
           duracion="19:35 hasta las 21:00"
-          ubicacion="Estadium Luna Park"
+          ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p7}
         />
 
         <Card
           duracion="19:35 hasta las 21:00"
-          ubicacion="Estadium Luna Park"
+          ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p8}
         />
 
         <Card
           duracion="19:35 hasta las 21:00"
-          ubicacion="Estadium Luna Park"
+          ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p9}
         />
 
         <Card
           duracion="19:35 hasta las 21:00"
-          ubicacion="Estadium Luna Park"
+          ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p10}
         />
 
         <Card
           duracion="19:35 hasta las 21:00"
-          ubicacion="Estadium Luna Park"
+          ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p11}
         />
 
         <Card
           duracion="19:35 hasta las 21:00"
-          ubicacion="Estadium Luna Park"
+          ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p12}
         />

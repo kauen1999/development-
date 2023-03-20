@@ -14,7 +14,11 @@ const config = {
     defaultLocale: "en",
   },
   images: {
-    domains: ['lh3.googleusercontent.com', 'platform-lookaside.fbsbx.com'],
+    domains: [
+      "lh3.googleusercontent.com",
+      "platform-lookaside.fbsbx.com",
+      "definicion.de",
+    ],
   },
 };
 export default config;
