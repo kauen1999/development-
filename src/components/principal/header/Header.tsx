@@ -217,9 +217,9 @@ const Header = ({ home, buyPage }: Props) => {
                   </Link>
                 </div>
 
-                <Link href="#">
+                {/* <Link href="#">
                   <AiOutlineShoppingCart className={style.icon} />
-                </Link>
+                </Link> */}
 
                 <div className={style.img_container}>
                   <Image
