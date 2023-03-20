@@ -48,17 +48,22 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String         @id @default(cuid())
+  createdAt     DateTime       @default(now())
   name          String?
   DNIName       String?
   DNI           String?
   phone         String?
   birthdate     String?
-  email         String?   @unique
+  email         String?        @unique
   emailVerified DateTime?
-  image         String?
+  image         String?        @default("https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png")
+  role          Role           @default(USER)
+  Events        Event[]        @relation("Event")
+  enrolledIn    Event[]        @relation("EnrolledIn")
   accounts      Account[]
   sessions      Session[]
+  Notification  Notification[] @relation("Notification")
 }
 
 model VerificationToken {
@@ -67,4 +72,40 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model Event {
+  id          String     @id @default(cuid())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  Publish     User       @relation("Event", fields: [userId], references: [id])
+  userId      String
+  name        String
+  description String     @db.Text
+  city        String
+  theater     String
+  price       String
+  date        DateTime
+  Category    Category[]
+  clients     User[]     @relation("EnrolledIn")
+}
+
+model Category {
+  id     String  @id @default(cuid())
+  title  String
+  events Event[]
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  title       String
+  description String
+  user        User     @relation("Notification", fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+}
+
+enum Role {
+  USER
+  ADMIN
 }

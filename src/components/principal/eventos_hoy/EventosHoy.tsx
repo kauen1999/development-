@@ -46,9 +46,9 @@ const EventosHoy = () => {
             titulo="Queen"
             horas="Dentro de 5:21 horas"
             fecha="12 Oct"
-            precio="250.000$"
+            precio="7.000$"
             duracion="19:20 hasta 21:30 "
-            ubicacion="Estadium Luna Park"
+            ubicacion="Auditorio de Belgrano"
             ciudad="Buenos Aires"
           />
         </SwiperSlide>
@@ -59,9 +59,9 @@ const EventosHoy = () => {
             titulo="Dante Gebel"
             horas="Dentro de 5:21 horas"
             fecha="13 Oct"
-            precio="250.000$"
+            precio="7.000$"
             duracion="19:20 hasta 22:00 "
-            ubicacion="Estadium Luna Park"
+            ubicacion="Auditorio de Belgrano"
             ciudad="Buenos Aires"
           />
         </SwiperSlide>
@@ -72,9 +72,9 @@ const EventosHoy = () => {
             titulo="Cuarteto de nos"
             horas="Dentro de 8:05 horas"
             fecha="02 Dic"
-            precio="300.000$"
+            precio="7.000$"
             duracion="15:20 hasta 21:30 "
-            ubicacion="Estadium Luna Park"
+            ubicacion="Auditorio de Belgrano"
             ciudad="Buenos Aires"
           />
         </SwiperSlide>
@@ -85,9 +85,9 @@ const EventosHoy = () => {
             titulo="Dante Gebel"
             horas="Dentro de 5:21 horas"
             fecha="13 Oct"
-            precio="250.000$"
+            precio="7.000$"
             duracion="19:20 hasta 22:00 "
-            ubicacion="Estadium Luna Park"
+            ubicacion="Auditorio de Belgrano"
             ciudad="Buenos Aires"
           />
         </SwiperSlide>

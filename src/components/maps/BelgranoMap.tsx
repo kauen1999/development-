@@ -1,7 +1,29 @@
 import Image from "next/image";
 import React from "react";
 
-const BelgranoMap = () => {
+interface Props {
+  activeA: boolean;
+  setActiveA: React.Dispatch<React.SetStateAction<boolean>>;
+  activeB: boolean;
+  setActiveB: React.Dispatch<React.SetStateAction<boolean>>;
+  activeC: boolean;
+  setActiveC: React.Dispatch<React.SetStateAction<boolean>>;
+  activePullman: boolean;
+  setActivePullman: React.Dispatch<React.SetStateAction<boolean>>;
+  setPrice: React.Dispatch<React.SetStateAction<number>>;
+}
+
+const BelgranoMap = ({
+  activeA,
+  setActiveA,
+  activeB,
+  setActiveB,
+  activeC,
+  setActiveC,
+  activePullman,
+  setActivePullman,
+  setPrice,
+}: Props) => {
   return (
     <>
       <div id="primary" className="col-md-8">
@@ -19,9 +41,9 @@ const BelgranoMap = () => {
               height="405"
               shape-rendering="geometricPrecision"
               text-rendering="geometricPrecision"
-              image-rendering="optimizeQuality"
+              imageRendering="optimizeQuality"
               fill-rule="evenodd"
-              clip-rule="evenodd"
+              clipRule="evenodd"
               viewBox="0 0 2480 3247.62"
             >
               {" "}
@@ -34,14 +56,18 @@ const BelgranoMap = () => {
                 ></path>{" "}
                 <g
                   id="Platea_A"
-                  className="svg__mapa__sectores svg svg-active"
+                  className="svg__mapa__sectores svg svg-active btn"
                   data-id-svg="Platea_A"
                   aria-describedby="tooltip_pt9d1m9n1p"
+                  onClick={() => {
+                    setActiveA(!activeA);
+                    setPrice(15000);
+                  }}
                 >
                   {" "}
                   <path
                     id="_134073208"
-                    fill="#5A2A7B"
+                    fill={`${activeA ? "#22c55e" : "#5A2A7B"}`}
                     d="M317.021 413.497l1845.96 0c24.8555,0 45.1915,20.3372 45.1915,45.1915l0 512.166c0,24.8543 -20.3372,45.1915 -45.1915,45.1915l-1845.96 0c-24.8543,0 -45.1915,-20.336 -45.1915,-45.1915l0 -512.166c0,-24.8555 20.336,-45.1915 45.1915,-45.1915z"
                   ></path>{" "}
                   <path
@@ -53,14 +79,18 @@ const BelgranoMap = () => {
                 </g>{" "}
                 <g
                   id="Platea_B"
-                  className="svg__mapa__sectores svg svg-active"
+                  className="svg__mapa__sectores svg svg-active btn"
                   data-id-svg="Platea_B"
                   aria-describedby="tooltip_2ovt0mfvd8"
+                  onClick={() => {
+                    setActiveB(!activeB);
+                    setPrice(12000);
+                  }}
                 >
                   {" "}
                   <path
                     id="_135226704"
-                    fill="#5A2A7B"
+                    fill={`${activeB ? "#22c55e" : "#5A2A7B"}`}
                     d="M317.021 1072.56l1845.96 0c24.8555,0 45.1915,20.3372 45.1915,45.1915l0 512.166c0,24.8543 -20.3372,45.1915 -45.1915,45.1915l-1845.96 0c-24.8543,0 -45.1915,-20.336 -45.1915,-45.1915l0 -512.166c0,-24.8555 20.336,-45.1915 45.1915,-45.1915z"
                   ></path>{" "}
                   <path
@@ -72,14 +102,18 @@ const BelgranoMap = () => {
                 </g>{" "}
                 <g
                   id="Platea_C"
-                  className="svg__mapa__sectores svg svg-active"
+                  className="svg__mapa__sectores svg svg-active btn"
                   data-id-svg="Platea_C"
                   aria-describedby="tooltip_8jxs623hnd"
+                  onClick={() => {
+                    setActiveC(!activeC);
+                    setPrice(10000);
+                  }}
                 >
                   {" "}
                   <path
                     id="_134070832"
-                    fill="#5A2A7B"
+                    fill={`${activeC ? "#22c55e" : "#5A2A7B"}`}
                     d="M317.021 1731.61l1845.96 0c24.8555,0 45.1915,20.3372 45.1915,45.1915l0 512.166c0,24.8543 -20.3372,45.1915 -45.1915,45.1915l-1845.96 0c-24.8543,0 -45.1915,-20.336 -45.1915,-45.1915l0 -512.166c0,-24.8555 20.336,-45.1915 45.1915,-45.1915z"
                   ></path>{" "}
                   <path
@@ -91,13 +125,17 @@ const BelgranoMap = () => {
                 </g>{" "}
                 <g
                   id="Pullman"
-                  className="svg__mapa__sectores svg svg-active"
+                  className="svg__mapa__sectores svg svg-active btn"
                   data-id-svg="Pullman"
+                  onClick={() => {
+                    setActivePullman(!activePullman);
+                    setPrice(7000);
+                  }}
                 >
                   {" "}
                   <path
                     id="_134071144"
-                    fill="#901E78"
+                    fill={`${activePullman ? "#22c55e" : "#901E78"}`}
                     d="M317.021 2390.67l1845.96 0c24.8555,0 45.1915,20.3372 45.1915,45.1915l0 512.166c0,24.8543 -20.3372,45.1915 -45.1915,45.1915l-1845.96 0c-24.8543,0 -45.1915,-20.336 -45.1915,-45.1915l0 -512.166c0,-24.8555 20.336,-45.1915 45.1915,-45.1915z"
                   ></path>{" "}
                   <path
@@ -123,129 +161,6 @@ const BelgranoMap = () => {
                 </g>{" "}
               </g>{" "}
             </svg>
-            <div
-              className="custom-tooltip tooltip"
-              role="tooltip"
-              id="tooltip_2ovt0mfvd8"
-              aria-hidden="true"
-              x-placement="right"
-              style={{
-                position: "absolute",
-                willChange: "transform",
-                visibility: "hidden",
-                top: "0px",
-                left: "0px",
-                transform: "translate3d(480px, 101px, 0px)",
-              }}
-            >
-              <div className="tooltip-arrow" style={{ top: "55px" }}></div>
-              <div className="tooltip-inner">
-                <div className="select-popup" data-tooltip-id="Platea_B">
-                  <a href="#" className="tooltip-close"></a>
-                  <div>
-                    <p>
-                      <em className="popup-title-span">Sector</em>{" "}
-                      <strong>Platea B</strong>
-                    </p>
-                  </div>
-                  <div className="tooltip-action-list">
-                    <div className="tooltip-call-to-action">
-                      <p>
-                        <em className="popup-title-span">Precio</em>{" "}
-                        <strong>$12000</strong>
-                      </p>
-                      <a href="#" rel="12000" className="tooltip-action">
-                        <span className="tooltip-info-available">
-                          Seleccionar
-                        </span>
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div
-              className="custom-tooltip tooltip"
-              role="tooltip"
-              id="tooltip_8jxs623hnd"
-              aria-hidden="true"
-              x-placement="right"
-              style={{
-                position: "absolute",
-                willChange: "transform",
-                visibility: "hidden",
-                top: "0px",
-                left: "0px",
-                transform: "translate3d(480px, 184px, 0px)",
-              }}
-            >
-              <div className="tooltip-arrow" style={{ top: "55px" }}></div>
-              <div className="tooltip-inner">
-                <div className="select-popup" data-tooltip-id="Platea_C">
-                  <a href="#" className="tooltip-close"></a>
-                  <div>
-                    <p>
-                      <em className="popup-title-span">Sector</em>{" "}
-                      <strong>Platea C</strong>
-                    </p>
-                  </div>
-                  <div className="tooltip-action-list">
-                    <div className="tooltip-call-to-action">
-                      <p>
-                        <em className="popup-title-span">Precio</em>{" "}
-                        <strong>$10000</strong>
-                      </p>
-                      <a href="#" rel="10000" className="tooltip-action">
-                        <span className="tooltip-info-available">
-                          Seleccionar
-                        </span>
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div
-              className="custom-tooltip tooltip"
-              role="tooltip"
-              id="tooltip_pt9d1m9n1p"
-              aria-hidden="true"
-              x-placement="right"
-              style={{
-                position: "absolute",
-                willChange: "transform",
-                visibility: "hidden",
-                top: "0px",
-                left: "0px",
-                transform: "translate3d(480px, 19px, 0px)",
-              }}
-            >
-              <div className="tooltip-arrow" style={{ top: "55px" }}></div>
-              <div className="tooltip-inner">
-                <div className="select-popup" data-tooltip-id="Platea_A">
-                  <a href="#" className="tooltip-close"></a>
-                  <div>
-                    <p>
-                      <em className="popup-title-span">Sector</em>{" "}
-                      <strong>Platea A</strong>
-                    </p>
-                  </div>
-                  <div className="tooltip-action-list">
-                    <div className="tooltip-call-to-action">
-                      <p>
-                        <em className="popup-title-span">Precio</em>{" "}
-                        <strong>$15000</strong>
-                      </p>
-                      <a href="#" rel="15000" className="tooltip-action">
-                        <span className="tooltip-info-available">
-                          Seleccionar
-                        </span>
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

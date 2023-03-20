@@ -2,9 +2,10 @@ import React, { useState } from "react";
 import { type NextPage } from "next";
 import { useRouter } from "next/router";
 import { trpc, type RouterOutputs } from "../utils/trpc";
-import { getSession } from "next-auth/react";
+import { getSession, useSession } from "next-auth/react";
 
 interface CompleteData {
+  name: string;
   DNIName: string;
   DNI: string;
   phone: string;
@@ -13,12 +14,16 @@ interface CompleteData {
 
 const Auth: NextPage = () => {
   const router = useRouter();
+  const { data: session, status } = useSession();
 
   const [finishRegister, setFinishRegister] = useState(false);
+  const [name, setName] = useState<string>("");
   const [DNIName, setDNIName] = useState<string>("");
   const [DNI, setDNI] = useState<string>("");
   const [phone, setPhone] = useState<string>("");
   const [birthdate, setBirthdate] = useState<string>("");
+  const [validationErrorAlert, setValidationErrorAlert] =
+    useState<boolean>(false);
 
   const redirectInitialPath = () => {
     router.push("/");
@@ -30,13 +35,57 @@ const Auth: NextPage = () => {
     },
   });
 
-  const onSave = ({ DNIName, DNI, phone, birthdate }: CompleteData) => {
+  const onSave = ({
+    name,
+    DNIName,
+    DNI,
+    phone,
+    birthdate,
+  }: CompleteData): void => {
     void completeData.mutate({
+      name,
       DNIName,
       DNI,
       phone,
       birthdate,
     });
+  };
+
+  const handleFormValidation = ({
+    name,
+    DNIName,
+    DNI,
+    phone,
+    birthdate,
+  }: CompleteData): void => {
+    if (
+      name !== "" &&
+      DNIName !== "" &&
+      DNI !== "" &&
+      phone !== "" &&
+      birthdate !== ""
+    ) {
+      onSave({
+        name,
+        DNIName,
+        DNI,
+        phone,
+        birthdate,
+      });
+    } else {
+      setValidationErrorAlert(true);
+    }
+  };
+
+  const createNotification = trpc.notification.createNotification.useMutation();
+  const createNotificationHandler = () => {
+    if (session?.user?.id) {
+      void createNotification.mutate({
+        title: "¡Acabas de crear tu cuenta con exito!",
+        description: "Encuentra tus eventos favoritos",
+        userId: session.user.id,
+      });
+    }
   };
 
   return (
@@ -49,13 +98,17 @@ const Auth: NextPage = () => {
       >
         <div className="hero-overlay bg-black bg-opacity-60"></div>
         <div className="hero-content text-center text-neutral-content">
-          <div className="max-w-md">
-            <h1 className="mb-5 text-4xl font-bold">
-              ¡No esperes más, adquiere tus entradas hoy!
-            </h1>
-
+          <div className="max-w-lg">
+            {finishRegister && (
+              <h1 className="mb-5 text-4xl font-bold">
+                Completa tu información
+              </h1>
+            )}
             {!finishRegister && (
               <>
+                <h1 className="mb-5 text-4xl font-bold">
+                  ¡No esperes más, adquiere tus entradas hoy!
+                </h1>
                 <p className="mb-5">
                   Al utilizar nuestros servicios, usted acepta y reconoce haber
                   leído y entendido nuestros términos y condiciones
@@ -73,6 +126,39 @@ const Auth: NextPage = () => {
               <>
                 <div className="card w-full flex-shrink-0 bg-base-100 shadow-2xl">
                   <div className="card-body">
+                    {validationErrorAlert ? (
+                      <div className="alert alert-error shadow-lg">
+                        <div>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-6 w-6 flex-shrink-0 stroke-current"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                          <span>¡Error! Rellena los datos faltantes</span>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="form-control">
+                      <label className="label">
+                        <span className="label-text">Nombre de usuario</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Nombre de documento"
+                        className="input-bordered input text-black"
+                        value={name}
+                        onChange={(e) => setName(e.currentTarget.value)}
+                        required={true}
+                      />
+                    </div>
                     <div className="form-control">
                       <label className="label">
                         <span className="label-text">Nombre de documento</span>
@@ -83,7 +169,7 @@ const Auth: NextPage = () => {
                         className="input-bordered input text-black"
                         value={DNIName}
                         onChange={(e) => setDNIName(e.currentTarget.value)}
-                        required
+                        required={true}
                       />
                     </div>
                     <div className="form-control">
@@ -91,12 +177,14 @@ const Auth: NextPage = () => {
                         <span className="label-text">DNI</span>
                       </label>
                       <input
-                        type="text"
+                        type="number"
+                        id="number"
+                        name="number"
                         placeholder="ID Documento de identidad"
                         className="input-bordered input text-black"
                         value={DNI}
                         onChange={(e) => setDNI(e.currentTarget.value)}
-                        required
+                        required={true}
                       />
                     </div>
                     <div className="form-control">
@@ -104,12 +192,14 @@ const Auth: NextPage = () => {
                         <span className="label-text">Teléfono</span>
                       </label>
                       <input
-                        type="text"
+                        type="number"
+                        id="number"
+                        name="number"
                         placeholder="Numero de teléfono"
-                        className="input-bordered input text-black"
+                        className=" input-bordered input text-black"
                         value={phone}
                         onChange={(e) => setPhone(e.currentTarget.value)}
-                        required
+                        required={true}
                       />
                     </div>
                     <div className="form-control">
@@ -117,24 +207,28 @@ const Auth: NextPage = () => {
                         <span className="label-text">Fecha de nacimiento</span>
                       </label>
                       <input
-                        type="text"
+                        type="date"
+                        name="date"
+                        id="date"
                         placeholder="Fecha de nacimiento"
                         className="input-bordered input text-black"
                         value={birthdate}
                         onChange={(e) => setBirthdate(e.currentTarget.value)}
-                        required
+                        required={true}
                       />
                     </div>
                     <div className="form-control mt-6">
                       <button
                         className="btn-warning btn"
                         onClick={() => {
-                          onSave({
+                          handleFormValidation({
+                            name,
                             DNIName,
                             DNI,
                             phone,
                             birthdate,
                           });
+                          createNotificationHandler();
                         }}
                       >
                         Finalizar registro

@@ -39,7 +39,7 @@ const LoginSection: React.FC = () => {
             Iniciar sesión
           </h2>
 
-          {/* <form className="mt-5 mb-10 flex flex-col gap-10">
+          <form className="mt-10 flex flex-col gap-5">
             <div className="flex flex-col gap-2">
               <label
                 className="text-xl font-bold text-primary-100"
@@ -48,7 +48,7 @@ const LoginSection: React.FC = () => {
                 Correo Electrónico
               </label>
               <input
-                className="border-b"
+                className="border-b rounded-lg"
                 type="email"
                 name="correo"
                 id="correo"
@@ -56,16 +56,16 @@ const LoginSection: React.FC = () => {
               />
             </div>
 
-            <div className=" flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
               <label
-                className="text-xl font-bold text-primary-100"
+                className="text-xl font-bold text-primary-100 "
                 htmlFor="contrasena"
               >
                 Contraseña
               </label>
 
               <input
-                className="border-b"
+                className="border-b rounded-lg"
                 type="password"
                 name="contrasena"
                 id="contrasena"
@@ -79,16 +79,20 @@ const LoginSection: React.FC = () => {
             >
               Ingresar
             </button>
-          </form> */}
-          <div className="flex flex-col p-9">
+          </form>
+          <div className="flex flex-col p-9 ">
             <button
-              className="btn-warning btn my-2 bg-white"
+              className="btn-warning btn my-2 flex bg-white"
               onClick={() => {
                 signIn("google", { callbackUrl: "/" });
               }}
             >
-              <FcGoogle className="text-4xl" />
-              <span className="text-black">Iniciar Sesion con Google</span>
+              <div className="flex items-center justify-center">
+                <FcGoogle className="mr-2 text-4xl" />
+                <span className="text-left text-black">
+                  Iniciar Sesion con Google
+                </span>
+              </div>
             </button>
             <button
               className="btn-warning btn btn my-2 bg-[#3b5998] text-white"
@@ -96,8 +100,10 @@ const LoginSection: React.FC = () => {
                 signIn("facebook", { callbackUrl: "/" });
               }}
             >
-              <AiFillFacebook className="text-4xl" />
-              Iniciar Sesion con Facebook
+              <div className="flex items-center justify-center">
+                <AiFillFacebook className="mr-2 text-4xl" />
+                <span className="text-left">Iniciar Sesion con Facebook</span>
+              </div>
             </button>
             <button
               className="btn-warning btn btn my-2 bg-[#0e76a8] text-white"
@@ -105,15 +111,17 @@ const LoginSection: React.FC = () => {
                 signIn("linkedin", { callbackUrl: "/" });
               }}
             >
-              <AiFillLinkedin className="text-4xl" />
-              Iniciar Sesion con Linkedin
+              <div className="flex items-center justify-center">
+                <AiFillLinkedin className="mr-2 text-4xl" />
+                <span className="text-left">Iniciar Sesion con Linkedin</span>
+              </div>
             </button>
           </div>
-          {/* <Link href="/">
+          <Link href="#">
             <div className="text-center text-primary-100">
               ¿Todavía no tienes una cuenta?
             </div>
-          </Link> */}
+          </Link>
         </div>
       </div>
     </section>

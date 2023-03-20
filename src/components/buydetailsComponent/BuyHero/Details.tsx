@@ -11,8 +11,8 @@ interface Props {
 const Details = ({ img, title, fecha, ubi }: Props) => {
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
-      <div className="mx-auto max-w-xl lg:mx-0 lg:max-w-[12rem]">
-        <Image src={img} alt="img" />
+      <div className="relative mx-auto w-xl lg:mx-0 lg:w-[12rem]">
+        <Image src={img} alt="img" fill={true} className="object-cover" />
       </div>
 
       <div className="flex flex-col gap-1 text-white">
