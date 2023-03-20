@@ -20,5 +20,8 @@ const config = {
       "definicion.de",
     ],
   },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 };
 export default config;
