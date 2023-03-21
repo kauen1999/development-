@@ -50,7 +50,7 @@ const CheckoutContent = ({ title, price, sector, cant, picture }: Props) => {
                       <p className="text-gray-600">
                         Auditorio de Belgrano - Buenos Aires
                       </p>
-                      <p className="text-gray-600"> {sector} </p>
+                      <p className="text-gray-600">{sector} </p>
                       <p className="text-gray-400">x {cant}</p>
                     </div>
                     <div>

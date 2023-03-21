@@ -25,6 +25,7 @@ const BuyBody = ({ foto, titulo }: Props) => {
   const [activePullman, setActivePullman] = useState(false);
   const [cant, setCant] = useState("1");
   const [price, setPrice] = useState<number>(0);
+  const [sector, setSector] = useState<string>("");
   const trigger = () => {
     setOpen(!open);
   };
@@ -46,6 +47,7 @@ const BuyBody = ({ foto, titulo }: Props) => {
             activePullman={activePullman}
             setActivePullman={setActivePullman}
             setPrice={setPrice}
+            setSector={setSector}
           />
         </div>
         <div className="divider lg:divider-horizontal"></div>
@@ -85,6 +87,7 @@ const BuyBody = ({ foto, titulo }: Props) => {
               cant={cant}
               active={activeA}
               setActive={setActiveA}
+              setSector={setSector}
               setPrice={setPrice}
             />
             <SeccionCampo
@@ -94,6 +97,7 @@ const BuyBody = ({ foto, titulo }: Props) => {
               cant={cant}
               active={activeB}
               setActive={setActiveB}
+              setSector={setSector}
               setPrice={setPrice}
             />
             <SeccionCampo
@@ -103,6 +107,7 @@ const BuyBody = ({ foto, titulo }: Props) => {
               cant={cant}
               active={activeC}
               setActive={setActiveC}
+              setSector={setSector}
               setPrice={setPrice}
             />
             <SeccionCampo
@@ -112,6 +117,7 @@ const BuyBody = ({ foto, titulo }: Props) => {
               cant={cant}
               active={activePullman}
               setActive={setActivePullman}
+              setSector={setSector}
               setPrice={setPrice}
             />
           </div>
@@ -153,7 +159,7 @@ const BuyBody = ({ foto, titulo }: Props) => {
                         id: "01",
                         title: titulo,
                         price: price * Number(cant),
-                        sector: "Platea A",
+                        sector: sector,
                         cant: cant,
                         picture: foto,
                       },

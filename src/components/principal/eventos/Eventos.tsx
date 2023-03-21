@@ -17,11 +17,11 @@ import p12 from "../../../../public/images/p12.jpg";
 
 const Eventos = () => {
   return (
-    <section className="w-11/12 mx-auto mt-10 pb-10">
-      <div className="flex gap-4 items-center mb-8">
-        <h3 className="font-bold text-3xl">Eventos</h3>
+    <section className="mx-auto mt-10 w-11/12 pb-10">
+      <div className="mb-8 flex items-center gap-4">
+        <h3 className="text-3xl font-bold">Eventos</h3>
         <Link href="/">
-          <div className="text-primary-100 cursor-pointer text-lg lg:text-base font-bold">
+          <div className="cursor-pointer text-lg font-bold text-primary-100 lg:text-base">
             Ver todos
           </div>
         </Link>
@@ -29,84 +29,96 @@ const Eventos = () => {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card
-          duracion="19:35 hasta las 21:00"
+          artist="Emilia"
+          fecha="1 de Abril"
           ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p1}
         />
 
         <Card
-          duracion="19:35 hasta las 21:00"
+          artist="Fabiana Cantillo"
+          fecha="1 de Abril"
           ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p2}
         />
 
         <Card
-          duracion="19:35 hasta las 21:00"
+          artist="Destino San Javier"
+          fecha="1 de Abril"
           ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p3}
         />
 
         <Card
-          duracion="19:35 hasta las 21:00"
+          artist="Palito Ortega"
+          fecha="1 de Abril"
           ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p4}
         />
 
         <Card
-          duracion="19:35 hasta las 21:00"
+          artist="Ara Malikian"
+          fecha="1 de Abril"
           ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p5}
         />
 
         <Card
-          duracion="19:35 hasta las 21:00"
+          artist="Soy Rada"
+          fecha="1 de Abril"
           ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p6}
         />
 
         <Card
-          duracion="19:35 hasta las 21:00"
+          artist="La konga"
+          fecha="1 de Abril"
           ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p7}
         />
 
         <Card
-          duracion="19:35 hasta las 21:00"
+          artist="The Beats"
+          fecha="1 de Abril"
           ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p8}
         />
 
         <Card
-          duracion="19:35 hasta las 21:00"
+          artist="Marcela Morelo"
+          fecha="1 de Abril"
           ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p9}
         />
 
         <Card
-          duracion="19:35 hasta las 21:00"
+          artist="Dante Gebel"
+          fecha="1 de Abril"
           ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p10}
         />
 
         <Card
-          duracion="19:35 hasta las 21:00"
+          artist="Gustavo Cordera"
+          fecha="1 de Abril"
           ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p11}
         />
 
         <Card
-          duracion="19:35 hasta las 21:00"
+          artist="Lucas Sugo"
+          fecha="1 de Abril"
           ubicacion="Auditorio de Belgrano"
           ciudad="Buenos Aires"
           foto={p12}

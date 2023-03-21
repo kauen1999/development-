@@ -8,6 +8,7 @@ interface Props {
   active: boolean;
   setActive: React.Dispatch<React.SetStateAction<boolean>>;
   setPrice: React.Dispatch<React.SetStateAction<number>>;
+  setSector: React.Dispatch<React.SetStateAction<string>>;
 }
 
 const SeccionCampo = ({
@@ -18,6 +19,7 @@ const SeccionCampo = ({
   active,
   setActive,
   setPrice,
+  setSector,
 }: Props) => {
   return (
     <button
@@ -27,6 +29,7 @@ const SeccionCampo = ({
       onClick={() => {
         setActive(!active);
         setPrice(precio);
+        setSector(seccion);
       }}
     >
       <div>
