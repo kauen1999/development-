@@ -3,9 +3,10 @@ import { IoIosArrowDown } from "react-icons/io";
 
 interface Props {
   fecha: string;
+  artist: string;
 }
 
-const Datos = ({ fecha }: Props) => {
+const Datos = ({ fecha, artist }: Props) => {
   return (
     <>
       <div className="flex justify-between font-medium lg:justify-start lg:gap-8">
@@ -18,8 +19,8 @@ const Datos = ({ fecha }: Props) => {
         </div>
 
         <div>
-          <h4>Estadium Luna Park - Buenos Aires</h4>
-          <h4>Duki: tour</h4>
+          <h4>Auditorio de Belgrano</h4>
+          <h4>{artist}</h4>
         </div>
       </div>
     </>

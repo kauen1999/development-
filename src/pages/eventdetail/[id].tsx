@@ -15,7 +15,7 @@ const EventDetail: NextPage<Props> = ({ picture, artist, date }) => {
   return (
     <>
       <HeroD picture={picture} artist={artist} date={date} />
-      <Details />
+      <Details artist={artist} />
       <Footer />
     </>
   );
