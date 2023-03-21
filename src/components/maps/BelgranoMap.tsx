@@ -11,6 +11,7 @@ interface Props {
   activePullman: boolean;
   setActivePullman: React.Dispatch<React.SetStateAction<boolean>>;
   setPrice: React.Dispatch<React.SetStateAction<number>>;
+  setSector: React.Dispatch<React.SetStateAction<string>>;
 }
 
 const BelgranoMap = ({
@@ -23,6 +24,7 @@ const BelgranoMap = ({
   activePullman,
   setActivePullman,
   setPrice,
+  setSector,
 }: Props) => {
   return (
     <>
@@ -62,6 +64,7 @@ const BelgranoMap = ({
                   onClick={() => {
                     setActiveA(!activeA);
                     setPrice(15000);
+                    setSector("Platea A");
                   }}
                 >
                   {" "}
@@ -85,6 +88,7 @@ const BelgranoMap = ({
                   onClick={() => {
                     setActiveB(!activeB);
                     setPrice(12000);
+                    setSector("Platea B");
                   }}
                 >
                   {" "}
@@ -108,6 +112,7 @@ const BelgranoMap = ({
                   onClick={() => {
                     setActiveC(!activeC);
                     setPrice(10000);
+                    setSector("Platea C");
                   }}
                 >
                   {" "}
@@ -130,6 +135,7 @@ const BelgranoMap = ({
                   onClick={() => {
                     setActivePullman(!activePullman);
                     setPrice(7000);
+                    setSector("Platea Pullman");
                   }}
                 >
                   {" "}
