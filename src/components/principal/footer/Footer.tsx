@@ -45,7 +45,7 @@ const Footer = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <p>&copy;UrbanaTickets 2022</p>
+          <p>&copy;EntradaMaster 2022</p>
           <a href="#">
             <FiFacebook className="text-2xl" />
           </a>
