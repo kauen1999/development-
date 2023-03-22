@@ -32,8 +32,8 @@ const Home: NextPage = () => {
   return (
     <div>
       <Head>
-        <title>UrbanaTickets</title>
-        <meta name="description" content="UrbanaTickets" />
+        <title>EntradaMaster</title>
+        <meta name="description" content="EntradaMaster" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <Header home={true} />

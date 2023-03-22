@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import style from "./Header.module.css";
 
-import logo from "../../../../public/images/logourbanatickets.png";
+import logo from "../../../../public/images/logo_new.png";
 
 import { FiFacebook } from "react-icons/fi";
 import {
@@ -158,7 +158,7 @@ const Header = ({ home, buyPage }: Props) => {
                     </li>
                   </ul>
                   <p className="my-6 text-gray-500">
-                    © 2023 UrbanaTickets. Todos los derechos reservados.
+                    © 2023 EntradaMaster. Todos los derechos reservados.
                   </p>
                 </div>
                 {nav ? (
