@@ -39,7 +39,6 @@ const BelgranoMap = ({
               xmlns="http://www.w3.org/2000/svg"
               xmlnsXlink="http://www.w3.org/1999/xlink"
               xmlSpace="preserve"
-              width="720"
               height="405"
               shape-rendering="geometricPrecision"
               text-rendering="geometricPrecision"
