@@ -23,13 +23,11 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account, profile, email, credentials }) {
       if (user.email) {
         console.log("existing user signed in");
-
         return true;
       } else {
         console.log("brand new user signed in");
         console.log(account);
         console.log(user);
-
         return { redirect: { destination: "newUser" } };
       }
     },

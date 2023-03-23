@@ -13,10 +13,6 @@ import Header from "../components/principal/header/Header";
 import Hero from "../components/principal/hero/Hero";
 
 const Home: NextPage = () => {
-  const hello = trpc.example.hello.useQuery({
-    text: "from tRPC to EntradaMaster",
-  });
-
   const { data: session, status } = useSession();
 
   // const { data: user } = trpc.auth.getUserById.useQuery(sessionData?.user?.id);
@@ -99,23 +95,23 @@ const Home: NextPage = () => {
 
 export default Home;
 
-const AuthShowcase: React.FC = () => {
-  const { data: sessionData } = useSession();
+// const AuthShowcase: React.FC = () => {
+//   const { data: sessionData } = useSession();
 
-  const { data: user } = trpc.auth.getUserById.useQuery(sessionData?.user?.id);
+//   const { data: user } = trpc.auth.getUserById.useQuery(sessionData?.user?.id);
 
-  return (
-    <div className="flex flex-col items-center justify-center gap-4">
-      <p className="text-center text-2xl text-white">
-        {sessionData && <span>Logged in as {sessionData.user?.name}</span>}
-        {user && <span> - {user?.email}</span>}
-      </p>
-      <button
-        className="rounded-full bg-white/10 px-10 py-3 font-semibold text-white no-underline transition hover:bg-white/20"
-        onClick={sessionData ? () => signOut() : () => signIn()}
-      >
-        {sessionData ? "Sign out" : "Sign in"}
-      </button>
-    </div>
-  );
-};
+//   return (
+//     <div className="flex flex-col items-center justify-center gap-4">
+//       <p className="text-center text-2xl text-white">
+//         {sessionData && <span>Logged in as {sessionData.user?.name}</span>}
+//         {user && <span> - {user?.email}</span>}
+//       </p>
+//       <button
+//         className="rounded-full bg-white/10 px-10 py-3 font-semibold text-white no-underline transition hover:bg-white/20"
+//         onClick={sessionData ? () => signOut() : () => signIn()}
+//       >
+//         {sessionData ? "Sign out" : "Sign in"}
+//       </button>
+//     </div>
+//   );
+// };
