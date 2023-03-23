@@ -42,13 +42,20 @@ const Auth: NextPage = () => {
     phone,
     birthdate,
   }: CompleteData): void => {
-    void completeData.mutate({
-      name,
-      DNIName,
-      DNI,
-      phone,
-      birthdate,
-    });
+    try {
+      if (session?.user?.id) {
+        void completeData.mutate({
+          id: session.user.id,
+          name,
+          DNIName,
+          DNI,
+          phone,
+          birthdate,
+        });
+      }
+    } catch (error) {
+      console.log(error);
+    }
   };
 
   const handleFormValidation = ({

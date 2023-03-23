@@ -17,6 +17,7 @@ export const authRouter = router({
   modify: protectedProcedure
     .input(
       z.object({
+        id: z.string().cuid({ message: "Invalid CUID" }),
         name: z.string(),
         DNIName: z.string(),
         DNI: z.string(),
@@ -26,6 +27,7 @@ export const authRouter = router({
     )
     .mutation(({ ctx, input }) => {
       return ctx.prisma.user.updateMany({
+        where: { id: input.id },
         data: {
           name: input.name,
           DNIName: input.DNIName,
