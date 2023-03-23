@@ -37,8 +37,6 @@ const EventosHoy = () => {
             slidesPerView: 3,
           },
         }}
-        onSlideChange={() => console.log("slide change")}
-        onSwiper={(swiper) => console.log(swiper)}
       >
         <SwiperSlide>
           <HoyCard

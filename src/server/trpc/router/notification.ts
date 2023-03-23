@@ -45,7 +45,7 @@ export const notificationRouter = router({
     }),
 
   getAll: protectedProcedure
-    .input(z.object({ userId: z.string() }))
+    .input(z.string().optional())
     .query(({ ctx }) => {
       return ctx.prisma.notification.findMany({
         where: {
