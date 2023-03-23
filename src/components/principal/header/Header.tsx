@@ -49,9 +49,12 @@ const Header = ({ home, buyPage }: Props) => {
     setDropdow(!dropdown);
   };
 
-  const { data: notifications } = trpc.notification.getAll.useQuery({
-    userId: session?.user?.id ?? "",
-  });
+  const { data: notifications } = trpc.notification.getAll.useQuery(
+    session?.user?.id,
+    {
+      enabled: session?.user?.id !== undefined,
+    }
+  );
 
   return (
     <>
@@ -370,7 +373,6 @@ const Header = ({ home, buyPage }: Props) => {
                     className="cursor-pointer rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                     onClick={() => {
                       setOpenNotifications(!openNotifications);
-                      console.log(notifications);
                     }}
                   >
                     <svg

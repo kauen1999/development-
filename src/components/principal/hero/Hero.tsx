@@ -24,8 +24,6 @@ const Hero = () => {
             slidesPerView: 2.2,
           },
         }}
-        onSlideChange={() => console.log("slide change")}
-        onSwiper={(swiper) => console.log(swiper)}
       >
         <SwiperSlide>
           <Link
@@ -57,7 +55,11 @@ const Hero = () => {
               },
             }}
           >
-              <Card foto={chayanne} nombre="Juan Lucas Martin" fecha="01 de Abril" />
+            <Card
+              foto={chayanne}
+              nombre="Juan Lucas Martin"
+              fecha="01 de Abril"
+            />
           </Link>
         </SwiperSlide>
 
@@ -73,7 +75,11 @@ const Hero = () => {
               },
             }}
           >
-            <Card foto={trueno} nombre="Chris Andrade En Vivo" fecha="14 de Abril" />
+            <Card
+              foto={trueno}
+              nombre="Chris Andrade En Vivo"
+              fecha="14 de Abril"
+            />
           </Link>
         </SwiperSlide>
       </Swiper>
