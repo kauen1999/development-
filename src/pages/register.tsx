@@ -1,11 +1,10 @@
 import React from "react";
 import { type NextPage } from "next";
-import LoginSection from "../components/principal/login/LoginSection";
 import { useRouter } from "next/router";
-
 import { getSession, useSession } from "next-auth/react";
+import RegisterSection from "../components/principal/register/RegisterSection";
 
-const Login: NextPage = () => {
+const Register: NextPage = () => {
   const router = useRouter();
 
   const handleRedirect = () => {
@@ -14,16 +13,15 @@ const Login: NextPage = () => {
 
   const { data: sessionData } = useSession();
 
-  return <>{sessionData ? handleRedirect() : <LoginSection />}</>;
+  return <>{sessionData ? handleRedirect() : <RegisterSection />}</>;
 };
 
-export default Login;
+export default Register;
 
 export async function getServerSideProps({ req }: any) {
   const session = await getSession({ req });
-  console.log(req.cookies);
 
-  if (session || req.cookies.userType === "admin") {
+  if (session) {
     return {
       redirect: {
         destination: "/",

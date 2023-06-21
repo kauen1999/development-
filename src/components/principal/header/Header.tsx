@@ -11,6 +11,7 @@ import {
   AiOutlineInstagram,
   AiOutlineUser,
 } from "react-icons/ai";
+import { MdExitToApp, MdOutlineExitToApp } from "react-icons/md";
 import { TfiTwitter } from "react-icons/tfi";
 import { AiOutlineSearch } from "react-icons/ai";
 import { MdNotificationsNone } from "react-icons/md";
@@ -20,6 +21,8 @@ import { IoMdArrowDropdown } from "react-icons/io";
 import { useSession, signOut } from "next-auth/react";
 import { trpc } from "../../../utils/trpc";
 import Notification from "./Notification";
+import { useRouter } from "next/router";
+import { useUserType } from "../login/UserTypeContext";
 
 interface Props {
   home?: boolean | undefined;
@@ -27,6 +30,7 @@ interface Props {
 }
 
 const Header = ({ home, buyPage }: Props) => {
+  const router = useRouter();
   const [nav, setNav] = useState(false);
   const [dropdown, setDropdow] = useState(false);
   const [openNotifications, setOpenNotifications] = useState(false);
@@ -34,6 +38,8 @@ const Header = ({ home, buyPage }: Props) => {
   const [textColor, setTextColor] = useState(home ? "[#252525]" : "white");
 
   const { data: session } = useSession();
+  const { userType } = useUserType();
+  const { setUserType } = useUserType();
 
   // const { data: user } = trpc.auth.getUserById.useQuery(sessionData?.user?.id);
 
@@ -49,6 +55,11 @@ const Header = ({ home, buyPage }: Props) => {
     setDropdow(!dropdown);
   };
 
+  const handleLogout = () => {
+    setUserType("");
+    router.push("/");
+  };
+
   const { data: notifications } = trpc.notification.getAll.useQuery(
     session?.user?.id,
     {
@@ -58,7 +69,7 @@ const Header = ({ home, buyPage }: Props) => {
 
   return (
     <>
-      <header className={style.header}>
+      <header className={`${style.header}`}>
         <div className={style.container_1}>
           <h5>
             {dateState.toLocaleDateString("en-GB", {
@@ -192,7 +203,7 @@ const Header = ({ home, buyPage }: Props) => {
                       name="search"
                       id="search"
                       placeholder="Empezá a buscar tus eventos..."
-                      className="mr-3 w-full appearance-none border-none bg-transparent py-1 px-2 leading-tight text-gray-700 focus:outline-none"
+                      className="mr-3 w-full appearance-none border-none bg-transparent py-1 px-2 leading-tight text-gray-700 outline-0 focus:outline-none"
                     />
                     <AiOutlineSearch className={style.icon} />
                   </div>
@@ -202,7 +213,23 @@ const Header = ({ home, buyPage }: Props) => {
           </div>
 
           <div className={style.right_container}>
-            {!session ? (
+            {userType === "admin" ? (
+              <>
+                <Link href={"/"}>
+                  <div className="cursor-pointer rounded-lg bg-gray-500 py-2 px-2 text-center text-sm font-bold text-white xl:text-base">
+                    Publicar
+                  </div>
+                </Link>
+                <Link href={"/dashboard"}>
+                  <div className="cursor-pointer rounded-lg border border-primary-100 py-2 px-2 text-center text-sm font-bold xl:text-base">
+                    Panel Administrador
+                  </div>
+                </Link>
+                <div className="cursor-pointer" onClick={handleLogout}>
+                  <MdOutlineExitToApp size={33} />
+                </div>
+              </>
+            ) : !session ? (
               <>
                 <Link href={"/login"}>
                   <div className="cursor-pointer font-bold">Iniciar Sesión</div>
@@ -221,8 +248,8 @@ const Header = ({ home, buyPage }: Props) => {
                 </div>
 
                 {/* <Link href="#">
-                  <AiOutlineShoppingCart className={style.icon} />
-                </Link> */}
+                    <AiOutlineShoppingCart className={style.icon} />
+                  </Link> */}
 
                 <div className={style.img_container}>
                   <Image
@@ -270,7 +297,7 @@ const Header = ({ home, buyPage }: Props) => {
               <HiMenuAlt3
                 className={`cursor-pointer ${style.hamburger}`}
                 size={33}
-                style={{ color: `${textColor}` }}
+                style={{ color: textColor }}
               />
             )}
           </div>
@@ -289,11 +316,26 @@ const Header = ({ home, buyPage }: Props) => {
                   name="search"
                   id="search"
                   placeholder="Empezá a buscar tus eventos..."
-                  className="mr-3 w-full appearance-none border-none bg-transparent py-1 px-2 leading-tight text-gray-700 focus:outline-none"
+                  className="mr-3 w-full appearance-none border-none bg-transparent py-1 px-2 leading-tight text-gray-700 outline-0 focus:outline-none"
                 />
                 <AiOutlineSearch className={style.icon} />
               </li>
-              {!session ? (
+              {userType === "admin" ? (
+                <>
+                  <div className="my-3 flex cursor-pointer items-center justify-center rounded-md border-2 border-black bg-gray-500 py-4 px-9 text-xl text-gray-400">
+                    Publicar
+                  </div>
+
+                  <Link href="/dashboard">
+                    <div
+                      onClick={handleNav}
+                      className="my-3 flex cursor-pointer items-center justify-center rounded-md border-2 border-black bg-[#ff6c00] py-4 px-9 text-xl text-[#ffff]"
+                    >
+                      Panel Administrador
+                    </div>
+                  </Link>
+                </>
+              ) : !session ? (
                 <div>
                   <Link href="/login">
                     <div
@@ -340,10 +382,13 @@ const Header = ({ home, buyPage }: Props) => {
               >
                 <Link href="/">Categorías</Link>
               </li>
-              {!session ? null : (
+              {!session && userType !== "admin" ? null : (
                 <li
-                  onClick={() => signOut()}
-                  className="my-3 cursor-pointer rounded-md border-2 border-black bg-[#ffff] py-4 px-9 text-xl text-[#000000]"
+                  onClick={() => {
+                    signOut();
+                    handleLogout();
+                  }}
+                  className="my-3 cursor-pointer rounded-md border-2 border-black bg-red-500 py-4 px-9 text-xl text-white"
                 >
                   Cerrar Sesión
                 </li>
@@ -399,37 +444,6 @@ const Header = ({ home, buyPage }: Props) => {
                     </svg>
                   </button>
                 </div>
-
-                {/* <div className="mt-8 flex w-full rounded bg-white p-3">
-                  <div
-                    aria-label="heart icon"
-                    role="img"
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 focus:outline-none"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M8.00059 3.01934C9.56659 1.61334 11.9866 1.66 13.4953 3.17134C15.0033 4.68334 15.0553 7.09133 13.6526 8.662L7.99926 14.3233L2.34726 8.662C0.944589 7.09133 0.997256 4.67934 2.50459 3.17134C4.01459 1.662 6.42992 1.61134 8.00059 3.01934Z"
-                        fill="#EF4444"
-                      />
-                    </svg>
-                  </div>
-                  <div className="pl-3">
-                    <p className="text-sm leading-none focus:outline-none">
-                      <span className="text-indigo-700">James Doe</span>{" "}
-                      favourited an{" "}
-                      <span className="text-indigo-700">item</span>
-                    </p>
-                    <p className="pt-1 text-xs leading-3 text-gray-500 focus:outline-none">
-                      2 hours ago
-                    </p>
-                  </div>
-                </div> */}
 
                 {notifications?.map((notifitacion) => (
                   <div key={notifitacion.id} className="mt-5">

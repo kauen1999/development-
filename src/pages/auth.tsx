@@ -159,7 +159,7 @@ const Auth: NextPage = () => {
                       </label>
                       <input
                         type="text"
-                        placeholder="Nombre de documento"
+                        placeholder="Nombre de usuario"
                         className="input-bordered input text-black"
                         value={name}
                         onChange={(e) => setName(e.currentTarget.value)}
@@ -168,11 +168,11 @@ const Auth: NextPage = () => {
                     </div>
                     <div className="form-control">
                       <label className="label">
-                        <span className="label-text">Nombre de documento</span>
+                        <span className="label-text">Nombre completo</span>
                       </label>
                       <input
                         type="text"
-                        placeholder="Nombre de documento"
+                        placeholder="Nombre completo"
                         className="input-bordered input text-black"
                         value={DNIName}
                         onChange={(e) => setDNIName(e.currentTarget.value)}

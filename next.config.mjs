@@ -18,6 +18,8 @@ const config = {
       "lh3.googleusercontent.com",
       "platform-lookaside.fbsbx.com",
       "definicion.de",
+      "demo.themesberg.com",
+      "entradamaster.com",
     ],
   },
   typescript: {

@@ -36,6 +36,8 @@ const HoyCard = ({
             width: "100%",
             height: "100%",
           }}
+          width={500}
+          height={500}
           className="rounded-2xl"
         />
         <h3 className="absolute top-5 left-3 text-3xl font-bold text-white lg:text-2xl">
@@ -76,7 +78,7 @@ const HoyCard = ({
               pathname: "buydetails/[id]",
               query: {
                 id: "01",
-                foto: foto.src,
+                foto: foto,
                 titulo: titulo,
                 horas: horas,
                 fecha: fecha,

@@ -9,6 +9,7 @@ interface Props {
   setActive: React.Dispatch<React.SetStateAction<boolean>>;
   setPrice: React.Dispatch<React.SetStateAction<number>>;
   setSector: React.Dispatch<React.SetStateAction<string>>;
+  disable: boolean;
 }
 
 const SeccionCampo = ({
@@ -20,8 +21,9 @@ const SeccionCampo = ({
   setActive,
   setPrice,
   setSector,
+  disable,
 }: Props) => {
-  return (
+  return !disable ? (
     <button
       className={`btn-warning btn-lg btn my-2 flex items-center justify-between rounded-lg bg-gray-200 ${
         active ? `bg-green-500` : null
@@ -37,6 +39,16 @@ const SeccionCampo = ({
         <p className="font-normal text-slate-600">{butacas}</p>
       </div>
       <p className="text-black">{precio * Number(cant)}$ARGS</p>
+    </button>
+  ) : (
+    <button
+      className={`btn-warning-disabled btn-lg btn my-2 flex items-center justify-between rounded-lg bg-gray-200`}
+    >
+      <div>
+        <p className="text-lg font-bold text-gray-500">{seccion}</p>
+        <p className="font-normal text-slate-600">{butacas}</p>
+      </div>
+      <p className="text-gray-500">{precio * Number(cant)}$ARGS</p>
     </button>
   );
 };

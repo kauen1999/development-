@@ -51,6 +51,7 @@ model User {
   id            String         @id @default(cuid())
   createdAt     DateTime       @default(now())
   name          String?
+  password      String?
   DNIName       String?
   DNI           String?
   phone         String?
@@ -64,6 +65,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   Notification  Notification[] @relation("Notification")
+  provider      String?
 }
 
 model VerificationToken {

@@ -8,6 +8,7 @@ import BelgranoMap from "../../maps/BelgranoMap";
 import LunaParkMap from "../../maps/LunaParkMap";
 import Asientos from "./Asientos";
 import SeccionCampo from "./SeccionCampo";
+import { useUserType } from "../../principal/login/UserTypeContext";
 
 interface Props {
   foto: StaticImageData;
@@ -17,6 +18,7 @@ interface Props {
 const BuyBody = ({ foto, titulo }: Props) => {
   const router = useRouter();
   const { data: sessionData } = useSession();
+  const [disable, setDisable] = useState(false);
 
   const [open, setOpen] = useState(false);
   const [activeA, setActiveA] = useState(false);
@@ -30,13 +32,15 @@ const BuyBody = ({ foto, titulo }: Props) => {
     setOpen(!open);
   };
 
+  const { userType } = useUserType();
+
   const disabled =
     activeA || activeB || activeC || activePullman ? false : true;
 
   return (
     <div className="border-b border-gray-200">
       <div className="container mx-auto w-[100%] lg:flex">
-        <div className="flex w-full items-center justify-center mt-10">
+        <div className="mt-10 flex w-full items-center justify-center">
           <BelgranoMap
             activeA={activeA}
             setActiveA={setActiveA}
@@ -69,10 +73,10 @@ const BuyBody = ({ foto, titulo }: Props) => {
               <option value={"5"}>5 Boletos</option>
             </select>
 
-            <button className="flex items-center gap-1 rounded  border-2 border-slate-400 bg-white px-3">
+            {/* <button className="flex items-center gap-1 rounded  border-2 border-slate-400 bg-white px-3">
               <GoSettings />
               Filtros
-            </button>
+            </button> */}
           </div>
 
           <div className="mt-10 flex place-content-between place-items-center">
@@ -89,6 +93,7 @@ const BuyBody = ({ foto, titulo }: Props) => {
               setActive={setActiveA}
               setSector={setSector}
               setPrice={setPrice}
+              disable={disable}
             />
             <SeccionCampo
               seccion={"Platea B"}
@@ -99,6 +104,7 @@ const BuyBody = ({ foto, titulo }: Props) => {
               setActive={setActiveB}
               setSector={setSector}
               setPrice={setPrice}
+              disable={disable}
             />
             <SeccionCampo
               seccion={"Platea C"}
@@ -109,6 +115,7 @@ const BuyBody = ({ foto, titulo }: Props) => {
               setActive={setActiveC}
               setSector={setSector}
               setPrice={setPrice}
+              disable={disable}
             />
             <SeccionCampo
               seccion={"Pullman"}
@@ -119,6 +126,7 @@ const BuyBody = ({ foto, titulo }: Props) => {
               setActive={setActivePullman}
               setSector={setSector}
               setPrice={setPrice}
+              disable={disable}
             />
           </div>
           <div className="mt-9 flex items-center justify-center">
@@ -161,7 +169,7 @@ const BuyBody = ({ foto, titulo }: Props) => {
                         price: price * Number(cant),
                         sector: sector,
                         cant: cant,
-                        picture: foto,
+                        picture: foto as any,
                       },
                     }}
                   >

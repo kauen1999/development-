@@ -11,6 +11,7 @@ import EventosHoy from "../components/principal/eventos_hoy/EventosHoy";
 import Footer from "../components/principal/footer/Footer";
 import Header from "../components/principal/header/Header";
 import Hero from "../components/principal/hero/Hero";
+import Spinner from "../components/principal/loader/Spinner";
 
 const Home: NextPage = () => {
   const { data: session, status } = useSession();
@@ -20,6 +21,7 @@ const Home: NextPage = () => {
   if (status === "loading") {
     return (
       <div className="flex h-[100vh] w-full items-center justify-center">
+        <Spinner />
         <h1 className="text-2xl font-bold">Cargando...</h1>
       </div>
     );
