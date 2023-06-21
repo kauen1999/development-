@@ -21,7 +21,7 @@ const EventoCard = ({ artist, fecha, ubicacion, ciudad, foto }: Props) => {
           pathname: "eventdetail/[id]",
           query: {
             id: "01",
-            picture: foto.src,
+            picture: foto as unknown as string,
             artist: artist,
             horas: null,
             date: fecha,
@@ -32,7 +32,7 @@ const EventoCard = ({ artist, fecha, ubicacion, ciudad, foto }: Props) => {
           },
         }}
       >
-        <Image src={foto} alt="Foto" />
+        <Image src={foto} alt="Foto" width={500} height={500} />
 
         <h3 className="2xl:text:2xl absolute top-5 left-5 text-2xl font-bold text-white lg:left-3 lg:text-xl">
           {artist}

@@ -31,7 +31,7 @@ const BuyDetails: NextPage<Props> = ({
       <Header buyPage={true} home={true} />
       <section>
         <BuyHero foto={foto} titulo={titulo} />
-        <BuyBody foto={foto} titulo={titulo}  />
+        <BuyBody foto={foto} titulo={titulo} />
       </section>
       <Footer />
     </>

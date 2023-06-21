@@ -4,10 +4,50 @@ import Link from "next/link";
 import concierto from "../../../../public/images/concierto.jpg";
 import logo from "../../../../public/images/logo_white.png";
 import { FcGoogle } from "react-icons/fc";
-import { AiFillFacebook, AiFillLinkedin } from "react-icons/ai";
+import { AiFillFacebook } from "react-icons/ai";
 import { signIn } from "next-auth/react";
+import { useFormik } from "formik";
+import loginValidate from "../../../lib/validate";
+import { useRouter } from "next/router";
+import { useUserType } from "./UserTypeContext";
 
 const LoginSection: React.FC = () => {
+  const { setUserType } = useUserType();
+  const router = useRouter();
+
+  const formik = useFormik({
+    initialValues: {
+      email: "",
+      password: "",
+    },
+    validate: loginValidate,
+    onSubmit,
+  });
+
+  console.log(formik.errors);
+
+  async function onSubmit(values: { password: string; email: string }) {
+    if (
+      values.email == "admin@entradamaster.com" &&
+      values.password == "12345678"
+    ) {
+      setUserType("admin");
+      router.push("/dashboard");
+    } else {
+      formik.setErrors({ email: "Correo o contraseña incorrectos" });
+    }
+
+    // const status = await signIn("credentials", {
+    //   redirect: false,
+    //   email: values.email,
+    //   password: values.password,
+    //   callbackUrl: "/",
+    // });
+
+    // if (status!.ok) router.push(status!.url!);
+    return null;
+  }
+
   return (
     <section className="flex flex-col lg:h-screen lg:flex-row">
       <div className="relative z-0 flex h-[25rem] w-full items-center justify-center lg:h-screen lg:w-1/2">
@@ -39,7 +79,10 @@ const LoginSection: React.FC = () => {
             Iniciar sesión
           </h2>
 
-          <form className="mt-10 flex flex-col gap-5">
+          <form
+            className="mt-10 flex flex-col gap-5"
+            onSubmit={formik.handleSubmit}
+          >
             <div className="flex flex-col gap-2">
               <label
                 className="text-xl font-bold text-primary-100"
@@ -48,12 +91,17 @@ const LoginSection: React.FC = () => {
                 Correo Electrónico
               </label>
               <input
-                className="border-b rounded-lg"
+                className="rounded-lg border-b"
                 type="email"
-                name="correo"
-                id="correo"
+                id="email"
                 placeholder="Tu correo aquí"
+                {...formik.getFieldProps("email")}
               />
+              {formik.errors.email && formik.touched.email ? (
+                <span className="-my-2 text-red-500">
+                  {formik.errors.email}
+                </span>
+              ) : null}
             </div>
 
             <div className="flex flex-col gap-2">
@@ -65,12 +113,17 @@ const LoginSection: React.FC = () => {
               </label>
 
               <input
-                className="border-b rounded-lg"
+                className="rounded-lg border-b"
                 type="password"
-                name="contrasena"
-                id="contrasena"
+                id="password"
                 placeholder="Tu contraseña aquí"
+                {...formik.getFieldProps("password")}
               />
+              {formik.errors.password && formik.touched.password ? (
+                <span className="-my-2 text-red-500">
+                  {formik.errors.password}
+                </span>
+              ) : null}
             </div>
 
             <button
@@ -105,19 +158,8 @@ const LoginSection: React.FC = () => {
                 <span className="text-left">Iniciar Sesion con Facebook</span>
               </div>
             </button>
-            <button
-              className="btn-warning btn btn my-2 bg-[#0e76a8] text-white"
-              onClick={() => {
-                signIn("linkedin", { callbackUrl: "/" });
-              }}
-            >
-              <div className="flex items-center justify-center">
-                <AiFillLinkedin className="mr-2 text-4xl" />
-                <span className="text-left">Iniciar Sesion con Linkedin</span>
-              </div>
-            </button>
           </div>
-          <Link href="#">
+          <Link href="/register">
             <div className="text-center text-primary-100">
               ¿Todavía no tienes una cuenta?
             </div>

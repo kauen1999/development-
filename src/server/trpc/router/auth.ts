@@ -1,5 +1,7 @@
 import { router, publicProcedure, protectedProcedure } from "../trpc";
 import { z } from "zod";
+import { registerHandler } from "../../controllers/auth.controller";
+import { createUserSchema } from "../../schema/user.schema";
 
 export const authRouter = router({
   getSession: publicProcedure.query(({ ctx }) => {
@@ -14,6 +16,9 @@ export const authRouter = router({
         },
       });
     }),
+  registerUser: publicProcedure
+    .input(createUserSchema)
+    .mutation(({ input }) => registerHandler({ input })),
   modify: protectedProcedure
     .input(
       z.object({

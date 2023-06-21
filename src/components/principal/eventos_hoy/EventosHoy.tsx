@@ -10,6 +10,7 @@ import "swiper/css/pagination";
 import queen from "../../../../public/images/queen.jpg";
 import dante from "../../../../public/images/dante.jpg";
 import cuarteto from "../../../../public/images/cuarteto.jpg";
+import { hoyCard } from "../../../data";
 
 const EventosHoy = () => {
   return (
@@ -38,57 +39,20 @@ const EventosHoy = () => {
           },
         }}
       >
-        <SwiperSlide>
-          <HoyCard
-            foto={queen}
-            titulo="Queen"
-            horas="Dentro de 5:21 horas"
-            fecha="12 Oct"
-            precio="7.000$"
-            duracion="19:20 hasta 21:30 "
-            ubicacion="Auditorio de Belgrano"
-            ciudad="Buenos Aires"
-          />
-        </SwiperSlide>
-
-        <SwiperSlide>
-          <HoyCard
-            foto={dante}
-            titulo="Dante Gebel"
-            horas="Dentro de 5:21 horas"
-            fecha="13 Oct"
-            precio="7.000$"
-            duracion="19:20 hasta 22:00 "
-            ubicacion="Auditorio de Belgrano"
-            ciudad="Buenos Aires"
-          />
-        </SwiperSlide>
-
-        <SwiperSlide>
-          <HoyCard
-            foto={cuarteto}
-            titulo="Cuarteto de nos"
-            horas="Dentro de 8:05 horas"
-            fecha="02 Dic"
-            precio="7.000$"
-            duracion="15:20 hasta 21:30 "
-            ubicacion="Auditorio de Belgrano"
-            ciudad="Buenos Aires"
-          />
-        </SwiperSlide>
-
-        <SwiperSlide>
-          <HoyCard
-            foto={dante}
-            titulo="Dante Gebel"
-            horas="Dentro de 5:21 horas"
-            fecha="13 Oct"
-            precio="7.000$"
-            duracion="19:20 hasta 22:00 "
-            ubicacion="Auditorio de Belgrano"
-            ciudad="Buenos Aires"
-          />
-        </SwiperSlide>
+        {hoyCard.map((card) => (
+          <SwiperSlide>
+            <HoyCard
+              foto={card.foto}
+              titulo={card.titulo}
+              horas={card.horas}
+              fecha={card.fecha}
+              precio={card.precio}
+              duracion={card.duracion}
+              ubicacion={card.ubicacion}
+              ciudad={card.ciudad}
+            />
+          </SwiperSlide>
+        ))}
       </Swiper>
     </section>
   );
