@@ -31,6 +31,7 @@
     "react-icons": "^4.7.1",
     "superjson": "1.9.1",
     "swiper": "^8.4.5",
+    "trpc-client-devtools-link": "^0.2.1-next",
     "zod": "^3.18.0",
     "zustand": "^4.3.6"
   },

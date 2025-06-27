@@ -18,8 +18,7 @@ export const router = t.router;
 export const publicProcedure = t.procedure;
 
 /**
- * Reusable middleware to ensure
- * users are logged in
+ * Middleware para autenticação de usuários
  */
 const isAuthed = t.middleware(({ ctx, next }) => {
   if (!ctx.session || !ctx.session.user) {
@@ -27,13 +26,27 @@ const isAuthed = t.middleware(({ ctx, next }) => {
   }
   return next({
     ctx: {
-      // infers the `session` as non-nullable
       session: { ...ctx.session, user: ctx.session.user },
     },
   });
 });
 
 /**
+ * Middleware para verificar se o usuário é ADMIN
+ */
+const isAdmin = t.middleware(({ ctx, next }) => {
+  if (ctx.session.user.role !== "ADMIN") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+  }
+  return next();
+});
+
+/**
  * Protected procedure
  **/
 export const protectedProcedure = t.procedure.use(isAuthed);
+
+/**
+ * Admin-only procedure
+ **/
+export const adminProcedure = protectedProcedure.use(isAdmin);

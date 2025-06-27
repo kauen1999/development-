@@ -44,13 +44,14 @@ export const notificationRouter = router({
       });
     }),
 
-  getAll: protectedProcedure
-    .input(z.string().optional())
-    .query(({ ctx }) => {
-      return ctx.prisma.notification.findMany({
-        where: {
-          userId: ctx.session.user?.id,
-        },
-      });
-    }),
+  getAll: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.prisma.notification.findMany({
+      where: {
+        userId: ctx.session.user.id,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+  }),
 });
