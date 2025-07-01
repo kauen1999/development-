@@ -5,16 +5,18 @@ import { getSession } from "next-auth/react";
 import CheckoutContent from "../../components/checkout/CheckoutContent";
 import Footer from "../../components/principal/footer/Footer";
 import Header from "../../components/principal/header/Header";
-import sampleImage from "../../public/sample.jpg"; 
+
 
 import { StaticImageData } from "next/image";
+
+import Image from "next/image";
 
 interface Props {
   title: string;
   price: number;
   sector: string;
   cant: number;
-  picture: StaticImageData;
+  picture: string;
   loggedIn: boolean;
 }
 
@@ -67,7 +69,7 @@ export async function getServerSideProps(context: any) {
   return {
     props: {
       title: context.query.title || "",
-      picture: sampleImage,
+      picture: "/sample.jpg",
       loggedIn: true,
     },
   };
