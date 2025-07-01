@@ -1,35 +1,23 @@
-// @ts-check
+// src/env/client.mjs
 import { clientEnv, clientSchema } from "./schema.mjs";
 
-const _clientEnv = clientSchema.safeParse(clientEnv);
-
-export const formatErrors = (
-  /** @type {import('zod').ZodFormattedError<Map<string,string>,string>} */
-  errors,
-) =>
-  Object.entries(errors)
-    .map(([name, value]) => {
-      if (value && "_errors" in value)
-        return `${name}: ${value._errors.join(", ")}\n`;
-    })
-    .filter(Boolean);
-
-if (!_clientEnv.success) {
-  console.error(
-    "❌ Invalid environment variables:\n",
-    ...formatErrors(_clientEnv.error.format()),
-  );
-  throw new Error("Invalid environment variables");
+const result = clientSchema.safeParse(clientEnv);
+if (!result.success) {
+  console.error("❌ Invalid public env vars:", result.error.format());
+  throw new Error("Invalid public environment variables");
 }
 
-for (let key of Object.keys(_clientEnv.data)) {
+// só chaves começando com NEXT_PUBLIC_ devem estar aqui
+for (let key of Object.keys(result.data)) {
   if (!key.startsWith("NEXT_PUBLIC_")) {
-    console.warn(
-      `❌ Invalid public environment variable name: ${key}. It must begin with 'NEXT_PUBLIC_'`,
-    );
-
+    console.error(`❌ Invalid public env var name: ${key}`);
     throw new Error("Invalid public environment variable name");
   }
 }
 
-export const env = _clientEnv.data;
+export const formatErrors = (errors) =>
+  Object.entries(errors)
+    .map(([k, v]) => (v?._errors ? `${k}: ${v._errors.join(", ")}` : null))
+    .filter(Boolean);
+
+export const env = result.data;

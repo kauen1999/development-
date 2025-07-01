@@ -10,7 +10,7 @@ const t = initTRPC.context<Context>().create({
   },
 });
 
-export const router = t.router;
+export const createTRPCRouter = t.router;
 
 /**
  * Unprotected procedure
@@ -35,9 +35,12 @@ const isAuthed = t.middleware(({ ctx, next }) => {
  * Middleware para verificar se o usuário é ADMIN
  */
 const isAdmin = t.middleware(({ ctx, next }) => {
-  if (ctx.session.user.role !== "ADMIN") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
+  const user = ctx.session?.user;
+
+  if (!user || !('role' in user) || user.role !== 'ADMIN') {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
   }
+
   return next();
 });
 

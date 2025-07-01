@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { router, protectedProcedure, publicProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 
-export const eventRouter = router({
+export const eventRouter = createTRPCRouter({
   // Criação de evento (requer autenticação)
   createEvent: protectedProcedure
     .input(
@@ -11,7 +11,7 @@ export const eventRouter = router({
         description: z.string(),
         city: z.string(),
         theater: z.string(),
-        price: z.string(),
+        price: z.number().positive("Price higher then 0"),
         date: z.string(),
       })
     )

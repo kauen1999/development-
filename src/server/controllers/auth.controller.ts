@@ -1,25 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
-import { CreateUserInput } from "../schema/user.schema";
+import type { CreateUserInput } from "../schema/user.schema";
 import { prisma } from "../db/client";
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 
-/**
- * Controlador responsável por registrar um novo usuário local.
- * - Valida entrada com schema Zod
- * - Criptografa a senha com bcrypt
- * - Salva o usuário no banco via Prisma
- * - Retorna apenas dados públicos
- */
-export const registerHandler = async ({
-  input,
-}: {
-  input: CreateUserInput;
-}) => {
+export const registerHandler = async ({ input }: { input: CreateUserInput }) => {
   try {
-    // Gera hash da senha (custo de 12 rounds)
     const hashedPassword = await bcrypt.hash(input.password, 12);
 
-    // Cria o usuário no banco com dados mínimos e seguros
     const user = await prisma.user.create({
       data: {
         email: input.email,
@@ -37,26 +25,21 @@ export const registerHandler = async ({
     });
 
     return user;
-  } catch (error: any) {
-    // Erro de chave única (email já cadastrado)
-    if (error.code === "P2002") {
+  } catch (error) {
+    if (
+      error instanceof PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
       throw new TRPCError({
         code: "CONFLICT",
         message: "Correo Electrónico Existente",
       });
     }
 
-    // Propaga qualquer outro erro não tratado
     throw error;
   }
 };
 
-/**
- * Controlador de login para autenticação local.
- * - Busca o usuário pelo e-mail
- * - Valida a senha com bcrypt
- * - Retorna os dados públicos do usuário autenticado
- */
 export const loginHandler = async ({
   input,
 }: {
@@ -66,7 +49,6 @@ export const loginHandler = async ({
     where: { email: input.email },
   });
 
-  // Usuário não encontrado ou senha ausente (login social, por exemplo)
   if (!user || !user.password) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
@@ -74,7 +56,6 @@ export const loginHandler = async ({
     });
   }
 
-  // Verifica se a senha fornecida bate com o hash
   const passwordValid = await bcrypt.compare(input.password, user.password);
 
   if (!passwordValid) {

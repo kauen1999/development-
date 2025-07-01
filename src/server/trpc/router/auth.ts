@@ -2,11 +2,11 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import bcrypt from "bcryptjs";
 
-import { router, publicProcedure, protectedProcedure } from "../trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
 import { registerHandler } from "../../controllers/auth.controller";
 import { createUserSchema } from "../../schema/user.schema";
 
-export const authRouter = router({
+export const authRouter = createTRPCRouter({
   // Retorna a sessão atual (usado no front para manter usuário logado)
   getSession: publicProcedure.query(({ ctx }) => {
     return ctx.session;

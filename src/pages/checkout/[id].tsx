@@ -1,9 +1,9 @@
 import React from "react";
-import { type NextPage } from "next";
+import { type NextPage, type GetServerSidePropsContext } from "next";
 import CheckoutContent from "../../components/checkout/CheckoutContent";
 import Footer from "../../components/principal/footer/Footer";
 import Header from "../../components/principal/header/Header";
-import { StaticImageData } from "next/image";
+import type { StaticImageData } from "next/image";
 import { getSession } from "next-auth/react";
 
 interface Props {
@@ -18,7 +18,6 @@ const Checkout: NextPage<Props> = ({ title, price, sector, cant, picture }) => {
   return (
     <div>
       <Header buyPage={true} home={true} />
-
       <section>
         <CheckoutContent
           title={title}
@@ -35,8 +34,8 @@ const Checkout: NextPage<Props> = ({ title, price, sector, cant, picture }) => {
 
 export default Checkout;
 
-export async function getServerSideProps(context: any) {
-  const { req } = context;
+export async function getServerSideProps(context: GetServerSidePropsContext) {
+  const { req, query } = context;
 
   const session = await getSession({ req });
 
@@ -51,11 +50,11 @@ export async function getServerSideProps(context: any) {
 
   return {
     props: {
-      title: context.query.title,
-      price: context.query.price,
-      sector: context.query.sector,
-      cant: context.query.cant,
-      picture: context.query.picture,
+      title: query.title ?? "",
+      price: Number(query.price ?? 0),
+      sector: query.sector ?? "",
+      cant: Number(query.cant ?? 1),
+      picture: query.picture ?? "",
     },
   };
 }

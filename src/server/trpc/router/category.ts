@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { router, protectedProcedure, publicProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 
-export const categoryRouter = router({
+export const categoryRouter = createTRPCRouter({
   // Criação de categoria (autenticado)
   createCategory: protectedProcedure
     .input(z.object({ title: z.string().min(1, "Título é obrigatório") }))

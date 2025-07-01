@@ -1,73 +1,90 @@
-# EntradaMaster
+# 🎟️ EntradaMaster
 
-Sistema de gerenciamento de eventos com autenticação, listagem e inscrição, voltado para venda de ingressos e administração de usuários e categorias.
+## ✅ Checklist de Funcionalidades
 
-## ✅ Checklist de Implementação
-
-### Etapa 1 - Autenticação
-- [x] Registro local de usuário com bcrypt
+### 🔐 Etapa 1 - Autenticação
+- [x] Registro local de usuário com `bcrypt`
 - [x] Login com validação de senha
-- [x] Recuperação de perfil do usuário
-- [x] Atualização de perfil
-- [x] NextAuth integrado
+- [x] Autenticação via OAuth (Google, Facebook, LinkedIn)
+- [x] Sessão persistente com `NextAuth`
+- [x] Middleware `protectedProcedure` e `adminProcedure`
 
-### Etapa 2 - Eventos
+### 🎫 Etapa 2 - Eventos
 - [x] Criação de evento (restrito a usuários logados)
 - [x] Listagem pública de eventos
 - [x] Detalhamento de evento
-- [x] Inscrição em evento
+- [x] Inscrição em eventos
 
-### Etapa 3 - RBAC (Controle de Acesso)
-- [x] Middleware isAdmin
-- [x] Listagem de usuários (admin)
-- [x] Atualização de permissões (admin)
-- [x] Exclusão de usuários (admin)
+### 👤 Etapa 3 - Perfil & Notificações
+- [x] Atualização de dados do perfil
+- [x] Criação de notificações
+- [x] Listagem e exclusão de notificações
 
-### Etapa 4 - Notificações e Perfil
-- [x] Criação de notificações ao registrar usuário
-- [x] Listagem de notificações por usuário
-- [x] Remoção de notificações
-- [x] Atualização de perfil
-- [x] Recuperação de perfil
+### 🔒 Etapa 4 - Controle de Acesso (RBAC)
+- [x] Controle de usuários com roles (`USER` | `ADMIN`)
+- [x] Middleware `isAdmin`
+- [x] Painel administrativo parcial (listagem/alteração de usuários)
 
-### Etapa 5 - Painel Administrativo (parcial)
-- [x] Listagem de usuários
-- [x] Gerenciamento de roles
-- [x] Exclusão de usuários
+### 🛒 Etapa 5 - Pedidos & Ingressos
+- [x] Criação de pedidos com itens relacionados
+- [x] Cálculo automático do total
+- [x] Relacionamento com eventos e categorias
+- [x] Geração de ingressos digitais
+- [x] Criação e listagem de pedidos
 
-## 🚀 Como rodar o projeto localmente
+### 💵 Etapa 6 - Pagamentos
+- [x] Suporte a múltiplos provedores (`STRIPE`, `MERCADOPAGO`, `PAGOFACIL`, `RAPIPAGO`)
+- [x] Registro de resposta bruta (webhook-safe)
 
-### Pré-requisitos
-- Node.js 18+
-- PostgreSQL (local ou Supabase)
+### 📄 Etapa 7 - Faturas
+- [x] Geração de faturas em PDF com `PDFKit`
+- [x] Armazenamento em disco local
+- [x] Consulta por `orderId`
+
+---
+
+## ⚙️ Tecnologias Principais
+
+- **Next.js (App Router + API routes)**
+- **TypeScript + Zod (validação)**
+- **tRPC (backend tipado)**
+- **Prisma + PostgreSQL** (via Supabase)
+- **NextAuth.js** (com suporte a OAuth + credenciais)
+- **Stripe / MercadoPago SDK**
+- **PDFKit** para faturas
+- **QR Code, Wallet Pass (em breve)**
+
+---
+
+## 🚀 Como rodar localmente
+
+### 📦 Pré-requisitos
+
+- Node.js `v18+`
+- PostgreSQL (pode ser local ou Supabase)
 - Yarn ou npm
+- Conta no Stripe / MercadoPago (para testes)
+- `OpenSSL` (para gerar JWT secrets, se necessário)
 
-### Instalação
+---
+
+### 🔧 Passo a passo de instalação
 
 ```bash
 # Clone o repositório
-https://github.com/Jarlez/entradamaster.git
-
-# Acesse a pasta do projeto
+git clone https://github.com/Jarlez/entradamaster.git
 cd entradamaster
 
 # Instale as dependências
 npm install
 
-# Configure o arquivo .env
-cp .env.example .env
-# Edite o .env com sua URL de banco de dados PostgreSQL (Ex: fornecida pelo Supabase)
-```
-
-### Banco de dados
-```bash
-# Crie o banco com Prisma
+# Execute a primeira migração
 npx prisma migrate dev --name init
-```
 
-### Rodar o servidor
-```bash
+# Gere os arquivos do cliente Prisma
+npx prisma generate
+
+# Rodar o servidor local
 npm run dev
-```
 
-Acesse: [http://localhost:3000](http://localhost:3000)
+Acesse: http://localhost:3000
