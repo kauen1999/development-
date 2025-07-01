@@ -1,7 +1,7 @@
 import Header from "../../components/principal/header/Header";
 import Footer from "../../components/principal/footer/Footer";
 import BuyHero from "../../components/buydetailsComponent/BuyHero/BuyHero";
-import BuyBody from "../../components/buydetailsComponent/BuyBody/BuyBody";
+import BuyBody from "../../components/BuyBody/BuyBody";
 import { type NextPage } from "next";
 import { StaticImageData } from "next/image";
 

@@ -57,7 +57,7 @@ const HeroD = ({ picture, artist, date }: Props) => {
             <div className="mx-auto w-fit rounded-lg bg-primary-100 px-5 py-3 text-xl font-bold text-white lg:mx-0">
               <Link
                 href={{
-                  pathname: "../buydetails/[id]",
+                  pathname: "../buydetails/[id].tsx",
                   query: {
                     id: "01",
                     foto: picture,

@@ -3,6 +3,45 @@ import Image, { StaticImageData } from "next/image";
 import Link from "next/link";
 import { BiTimeFive } from "react-icons/bi";
 import { CiLocationOn } from "react-icons/ci";
+import queen from "../../../../public/images/queen.jpg";
+import dante from "../../../../public/images/dante.jpg";
+import cuarteto from "../../../../public/images/cuarteto.jpg";
+
+export const hoyCard = [
+  {
+    foto: queen,
+    titulo: "Queen Tribute",
+    horas: "20:00",
+    fecha: "2023-10-15",
+    precio: "$50",
+    duracion: "2 horas",
+    ubicacion: "Teatro Principal",
+    ciudad: "Madrid",
+    categoria: "Música",
+  },
+  {
+    foto: dante,
+    titulo: "Dante Alighieri",
+    horas: "18:00",
+    fecha: "2023-10-16",
+    precio: "$30",
+    duracion: "1.5 horas",
+    ubicacion: "Sala Dante",
+    ciudad: "Barcelona",
+    categoria: "Teatro",
+  },
+  {
+    foto: cuarteto,
+    titulo: "Cuarteto de Cuerdas",
+    horas: "19:00",
+    fecha: "2023-10-17",
+    precio: "$40",
+    duracion: "2 horas",
+    ubicacion: "Auditorio Nacional",
+    ciudad: "Valencia",
+    categoria: "Música",
+  },
+];
 
 interface Props {
   foto: StaticImageData;
@@ -13,6 +52,7 @@ interface Props {
   duracion: string;
   ubicacion: string;
   ciudad: string;
+  categoria: string;
 }
 
 const HoyCard = ({

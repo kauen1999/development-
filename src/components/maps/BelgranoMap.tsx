@@ -1,4 +1,3 @@
-import Image from "next/image";
 import React from "react";
 
 interface Props {
@@ -28,6 +27,10 @@ const BelgranoMap = ({
 }: Props) => {
   return (
     <>
+      <div>
+        {/* Conteúdo do mapa */}
+        <p>Mapa de Belgrano</p>
+      </div>
       <div id="primary" className="col-md-8">
         <div className="stadium-name text-center">
           <h3 className="text-2xl font-bold">Auditorio de Belgrano</h3>
@@ -40,8 +43,8 @@ const BelgranoMap = ({
               xmlnsXlink="http://www.w3.org/1999/xlink"
               xmlSpace="preserve"
               height="405"
-              shape-rendering="geometricPrecision"
-              text-rendering="geometricPrecision"
+              shapeRendering="geometricPrecision"
+              textRendering="geometricPrecision"
               imageRendering="optimizeQuality"
               fillRule="evenodd"
               clipRule="evenodd"

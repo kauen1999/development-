@@ -1,16 +1,19 @@
-import React from "react";
+import React, { useState } from "react";
 import { Pagination } from "swiper";
 import { Swiper, SwiperSlide } from "swiper/react";
 import Link from "next/link";
 import HoyCard from "./HoyCard";
-import { useScrollToHash } from "../../../hooks/useScrollToHash";
+import { useScrollToHash } from "../hooks/useScrollToHash";
 
 import "swiper/css";
 import "swiper/css/pagination";
 
+import queen from "../../../../public/images/queen.jpg";
+import dante from "../../../../public/images/dante.jpg";
+import cuarteto from "../../../../public/images/cuarteto.jpg";
 import { hoyCard } from "../../../data";
 
-const EventosHoy = () => {
+export default function EventosHoy() {
   useScrollToHash();
 
   return (
@@ -40,8 +43,8 @@ const EventosHoy = () => {
         }}
       >
       
-          {hoyCard.map((card) => (
-              <SwiperSlide key={card.titulo}>
+          {hoyCard.map((card, index) => (
+              <SwiperSlide key={index}>
                 <HoyCard
                 foto={card.foto}
                 titulo={card.titulo}
@@ -58,4 +61,3 @@ const EventosHoy = () => {
     </section>
   );
 }
-export default EventosHoy;
