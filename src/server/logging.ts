@@ -1,11 +1,15 @@
-import pino from 'pino';
+import pino from "pino";
 
-export const logger = pino({
-  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-  transport:
-    process.env.NODE_ENV !== 'production'
-      ? {
-          target: 'pino-pretty',
-        }
-      : undefined,
-});
+const isDev = process.env.NODE_ENV === "development";
+const isLocal = typeof window === "undefined" && isDev;
+
+export const logger = isLocal
+  ? pino({
+      transport: {
+        target: "pino-pretty",
+        options: {
+          colorize: true,
+        },
+      },
+    })
+  : pino(); // Produção: sem transport para evitar erro

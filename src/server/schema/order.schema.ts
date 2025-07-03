@@ -7,9 +7,9 @@ export const createOrderSchema = z.object({
     z.object({
       categoryId: z.string().cuid(),
       ticketCategoryId: z.string().cuid(),
-      quantity: z.number().min(1),
+      quantity: z.number().min(1).max(10),
     })
-  ),
+  ).min(1, "Deve haver pelo menos um item no pedido."),
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;

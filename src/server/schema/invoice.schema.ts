@@ -2,7 +2,9 @@ import { z } from "zod";
 
 export const createInvoiceSchema = z.object({
   orderId: z.string().cuid(),
-  cuitOrDni: z.string().min(7).max(20).optional(),
+  cuitOrDni: z.string()
+  .regex(/^\d{7,11}$/, "CUIT/DNI inválido")
+  .optional(),
   pdfUrl: z.string().url().optional(),
 });
 

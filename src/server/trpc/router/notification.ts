@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { findNewAccountNotification } from "../../utils/findNewAccountNotification";
-
+import { findNewAccountNotification } from "@/server/utils/findNewAccountNotification";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 
 export const notificationRouter = createTRPCRouter({
@@ -9,33 +8,29 @@ export const notificationRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.prisma.notification.delete({
-        where: {
-          id: input.id,
-        },
+        where: { id: input.id },
       });
     }),
 
   createNotification: protectedProcedure
-    .input(
-      z.object({
-        userId: z.string().cuid(),
-        title: z.string(),
-        description: z.string(),
-      })
-    )
+    .input(z.object({
+      userId: z.string().cuid(),
+      title: z.string(),
+      description: z.string(),
+    }))
     .mutation(async ({ input, ctx }) => {
-      if (input.title == "¡Acabas de crear tu cuenta con exito!") {
-        console.log("Entro al if de findnewaccount");
-        const validation = findNewAccountNotification(
+      if (input.title === "¡Acabas de crear tu cuenta con exito!") {
+        const isBlocked = await findNewAccountNotification(
           ctx,
           input.title,
           input.userId
         );
-        if (await validation) {
+        if (isBlocked) {
           throw new TRPCError({ code: "UNAUTHORIZED" });
         }
       }
-      return await ctx.prisma.notification.create({
+
+      return ctx.prisma.notification.create({
         data: {
           title: input.title,
           description: input.description,
@@ -46,12 +41,8 @@ export const notificationRouter = createTRPCRouter({
 
   getAll: protectedProcedure.query(async ({ ctx }) => {
     return ctx.prisma.notification.findMany({
-      where: {
-        userId: ctx.session.user.id,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+      where: { userId: ctx.session.user.id },
+      orderBy: { createdAt: "desc" },
     });
   }),
 });

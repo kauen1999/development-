@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import bcrypt from "bcryptjs";
 
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
 import { registerHandler } from "../../controllers/auth.controller";
@@ -16,34 +15,6 @@ export const authRouter = createTRPCRouter({
   registerUser: publicProcedure
     .input(createUserSchema)
     .mutation(({ input }) => registerHandler({ input })),
-
-  // Faz login com e-mail e senha usando bcrypt para verificar a senha
-  loginUser: publicProcedure
-    .input(z.object({
-      email: z.string().email(),
-      password: z.string().min(8),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const user = await ctx.prisma.user.findUnique({
-        where: { email: input.email },
-      });
-
-      if (!user || !user.password) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
-      }
-
-      const passwordMatch = await bcrypt.compare(input.password, user.password);
-      if (!passwordMatch) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Credenciais inválidas" });
-      }
-
-      return {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      };
-    }),
 
   // Retorna os dados do usuário logado usando a sessão
   getProfile: protectedProcedure

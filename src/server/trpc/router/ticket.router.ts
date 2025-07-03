@@ -1,37 +1,51 @@
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { z } from "zod";
 import {
-  createTicketSchema,
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "@/server/trpc/trpc";
+
+import {
   getTicketsByOrderItemSchema,
   markTicketAsUsedSchema,
-} from "../../schema/ticket.schema";
+} from "@/server/schema/ticket.schema";
+
 import {
-  createTicketService,
+  generateAndSaveTicket,
   getTicketsByOrderItemService,
   markTicketAsUsedService,
-} from "../../services/ticket.service";
+  validateTicketByQrService,
+} from "@/server/services/ticket.service";
 
-/**
- * Router para gerenciamento de ingressos
- */
 export const ticketRouter = createTRPCRouter({
-  // Criação de ingresso
   create: protectedProcedure
-    .input(createTicketSchema)
+    .input(
+      z.object({
+        orderItemId: z.string().cuid(),
+        orderId: z.string().cuid(),
+        userName: z.string().optional(),
+      })
+    )
     .mutation(async ({ input }) => {
-      return createTicketService(input);
+      const { orderItemId, orderId, userName } = input;
+      return generateAndSaveTicket(orderItemId, orderId, userName);
     }),
 
-  // Buscar ingressos por item de pedido
   getByOrderItem: protectedProcedure
     .input(getTicketsByOrderItemSchema)
     .query(async ({ input }) => {
-      return getTicketsByOrderItemService(input);
+      return getTicketsByOrderItemService(input.orderItemId);
     }),
 
-  // Marcar ingresso como utilizado
   markAsUsed: protectedProcedure
     .input(markTicketAsUsedSchema)
     .mutation(async ({ input }) => {
-      return markTicketAsUsedService(input);
+      return markTicketAsUsedService(input.ticketId);
+    }),
+
+  validateByQrId: publicProcedure
+    .input(z.object({ qrId: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      return validateTicketByQrService(input.qrId);
     }),
 });

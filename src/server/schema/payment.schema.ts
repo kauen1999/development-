@@ -2,9 +2,9 @@ import { z } from "zod";
 
 export const createPaymentSchema = z.object({
   orderId: z.string().cuid(),
-  provider: z.enum(["STRIPE", "MERCADOPAGO", "PAGOFACIL", "RAPIPAGO"]),
+  provider: z.enum(["STRIPE"]),
   amount: z.number().positive(),
-  rawResponse: z.any(), // pode ser objeto do SDK (não tipado)
+  rawResponse: z.record(z.any()),
 });
 
 export const getPaymentByOrderIdSchema = z.object({
@@ -12,6 +12,6 @@ export const getPaymentByOrderIdSchema = z.object({
 });
 
 export const paymentWebhookSchema = z.object({
-  provider: z.enum(["STRIPE", "MERCADOPAGO", "PAGOFACIL", "RAPIPAGO"]),
-  payload: z.any(), // corpo do webhook, dependerá do provedor
+  provider: z.enum(["STRIPE"]),
+  payload: z.record(z.any()),
 });

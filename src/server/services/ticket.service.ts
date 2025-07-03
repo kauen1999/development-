@@ -1,43 +1,72 @@
 import { prisma } from "../db/client";
-import {
-  type CreateTicketInput,
-  type GetTicketsByOrderItemInput,
-  type MarkTicketAsUsedInput,
-} from "../schema/ticket.schema";
+import { TRPCError } from "@trpc/server";
+import { generateTicketAssets } from "./ticket/ticketGeneration.service";
 
-/**
- * Cria um novo ingresso associado a um item de pedido
- */
-export const createTicketService = async (input: CreateTicketInput) => {
+export async function generateAndSaveTicket(orderItemId: string, orderId: string, userName?: string) {
+  const assets = await generateTicketAssets({ orderId, userName });
+
   return prisma.ticket.create({
     data: {
-      orderItemId: input.orderItemId,
-      qrCodeUrl: input.qrCodeUrl,
-      pdfUrl: input.pdfUrl,
-      walletPassUrl: input.walletPassUrl,
+      orderItemId,
+      qrCodeUrl: assets.qrCodeUrl,
+      pdfUrl: assets.pdfUrl,
+      walletPassUrl: assets.walletPassUrl,
     },
   });
-};
+}
 
-/**
- * Retorna todos os ingressos vinculados a um item de pedido
- */
-export const getTicketsByOrderItemService = async (
-  input: GetTicketsByOrderItemInput
-) => {
+export async function getTicketsByOrderItemService(orderItemId: string) {
   return prisma.ticket.findMany({
-    where: { orderItemId: input.orderItemId },
+    where: { orderItemId },
   });
-};
+}
 
-/**
- * Marca um ingresso como utilizado (opcional: para validação via QR)
- */
-export const markTicketAsUsedService = async (
-  input: MarkTicketAsUsedInput
-) => {
+export async function markTicketAsUsedService(ticketId: string) {
   return prisma.ticket.update({
-    where: { id: input.ticketId },
+    where: { id: ticketId },
     data: { usedAt: new Date() },
   });
-};
+}
+
+export async function validateTicketByQrService(qrCodeId: string) {
+  const ticket = await prisma.ticket.findFirst({
+    where: {
+      qrCodeUrl: {
+        contains: qrCodeId,
+      },
+    },
+    include: {
+      orderItem: {
+        include: {
+          order: {
+            include: {
+              event: true,
+              user: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!ticket) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Ticket não encontrado." });
+  }
+
+  if (ticket.usedAt) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Ticket já utilizado." });
+  }
+
+  await prisma.ticket.update({
+    where: { id: ticket.id },
+    data: { usedAt: new Date() },
+  });
+
+  return {
+    status: "valid",
+    usedAt: new Date(),
+    ticketId: ticket.id,
+    eventName: ticket.orderItem.order.event.name,
+    userEmail: ticket.orderItem.order.user.email,
+  };
+}

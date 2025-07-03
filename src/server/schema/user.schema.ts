@@ -9,7 +9,7 @@ export const createUserSchema = object({
     .max(32, "Password must be less than 32 characters"),
   cpassword: string({ required_error: "Please confirm your password" }),
 }).refine((data) => data.password === data.cpassword, {
-  path: ["passwordConfirm"],
+  path: ["cpassword"],
   message: "Las contraseñas no coinciden",
 });
 
