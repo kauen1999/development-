@@ -1,39 +1,20 @@
-import React, { useEffect } from "react";
-import { type NextPage } from "next";
-import { useRouter } from "next/router";
-import { getSession } from "next-auth/react";
+import React from "react";
+import { type NextPage, type GetServerSidePropsContext } from "next";
 import CheckoutContent from "../../components/checkout/CheckoutContent";
 import Footer from "../../components/principal/footer/Footer";
 import Header from "../../components/principal/header/Header";
-
-
-import { StaticImageData } from "next/image";
-
-import Image from "next/image";
+import type { StaticImageData } from "next/image";
+import { getSession } from "next-auth/react";
 
 interface Props {
   title: string;
   price: number;
   sector: string;
   cant: number;
-  picture: string;
-  loggedIn: boolean;
+  picture: StaticImageData;
 }
 
-const Checkout: NextPage<Props> = ({ title, price, sector, cant, picture, loggedIn }) => {
-  const router = useRouter();
-
-  useEffect(() => {
-    if (loggedIn) {
-    
-      const timer = setTimeout(() => {
-        router.push("/confirmation");
-      }, 3000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [loggedIn, router]);
-
+const Checkout: NextPage<Props> = ({ title, price, sector, cant, picture }) => {
   return (
     <div>
       <Header buyPage={true} home={true} />
@@ -53,10 +34,11 @@ const Checkout: NextPage<Props> = ({ title, price, sector, cant, picture, logged
 
 export default Checkout;
 
-export async function getServerSideProps(context: any) {
-  const { req } = context;
+export async function getServerSideProps(context: GetServerSidePropsContext) {
+  const { req, query } = context;
+
   const session = await getSession({ req });
-  
+
   if (!session) {
     return {
       redirect: {
@@ -68,9 +50,11 @@ export async function getServerSideProps(context: any) {
 
   return {
     props: {
-      title: context.query.title || "",
-      picture: "/sample.jpg",
-      loggedIn: true,
+      title: query.title ?? "",
+      price: Number(query.price ?? 0),
+      sector: query.sector ?? "",
+      cant: Number(query.cant ?? 1),
+      picture: query.picture ?? "",
     },
   };
 }

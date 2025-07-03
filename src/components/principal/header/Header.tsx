@@ -551,3 +551,4 @@ const HeaderComponent = ({ home, buyPage }: Props) => {
 };
 
 export default HeaderComponent;
+export default Header;

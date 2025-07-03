@@ -1,43 +1,48 @@
-// @ts-check
+// src/env/schema.mjs
 import { z } from "zod";
 
 /**
- * Specify your server-side environment variables schema here.
- * This way you can ensure the app isn't built with invalid env vars.
+ * Variáveis acessíveis apenas no servidor
  */
 export const serverSchema = z.object({
-  DATABASE_URL: z.string().url(),
-  NODE_ENV: z.enum(["development", "test", "production"]),
+  DATABASE_URL:            z.string().url(),
+  NODE_ENV:                z.enum(["development", "test", "production"]),
   NEXTAUTH_SECRET:
     process.env.NODE_ENV === "production"
       ? z.string().min(1)
       : z.string().min(1).optional(),
   NEXTAUTH_URL: z.preprocess(
-    // This makes Vercel deployments not fail if you don't set NEXTAUTH_URL
-    // Since NextAuth.js automatically uses the VERCEL_URL if present.
-    (str) => process.env.VERCEL_URL ?? str,
-    // VERCEL_URL doesn't include `https` so it cant be validated as a URL
+    (val) => process.env.VERCEL_URL ?? val,
     process.env.VERCEL ? z.string() : z.string().url(),
   ),
-  GOOGLE_CLIENT_ID: z.string(),
-  GOOGLE_CLIENT_SECRET: z.string(),
+
+  // OAuth
+  GOOGLE_CLIENT_ID:         z.string(),
+  GOOGLE_CLIENT_SECRET:     z.string(),
+  FACEBOOK_CLIENT_ID:       z.string(),
+  FACEBOOK_CLIENT_SECRET:   z.string(),
+  LINKEDIN_CLIENT_ID:       z.string(),
+  LINKEDIN_CLIENT_SECRET:   z.string(),
+
+  // Pagamentos
+  STRIPE_SECRET_KEY:        z.string().min(1),
+  MERCADOPAGO_ACCESS_TOKEN: z.string().min(1),
+  PAGOFACIL_API_KEY:        z.string().min(1),
+  RAPIPAGO_API_KEY:         z.string().min(1),
 });
 
 /**
- * Specify your client-side environment variables schema here.
- * This way you can ensure the app isn't built with invalid env vars.
- * To expose them to the client, prefix them with `NEXT_PUBLIC_`.
+ * Variáveis que você quer expor ao cliente
+ * (Devem sempre começar com NEXT_PUBLIC_)
  */
 export const clientSchema = z.object({
-  // NEXT_PUBLIC_CLIENTVAR: z.string(),
+  // Exemplo:
+  // NEXT_PUBLIC_API_BASE: z.string().url(),
 });
 
 /**
- * You can't destruct `process.env` as a regular object, so you have to do
- * it manually here. This is because Next.js evaluates this at build time,
- * and only used environment variables are included in the build.
- * @type {{ [k in keyof z.infer<typeof clientSchema>]: z.infer<typeof clientSchema>[k] | undefined }}
+ * Pega do process.env apenas as chaves públicas
  */
 export const clientEnv = {
-  // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
+  // NEXT_PUBLIC_API_BASE: process.env.NEXT_PUBLIC_API_BASE,
 };

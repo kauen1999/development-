@@ -2,9 +2,9 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { findNewAccountNotification } from "../../utils/findNewAccountNotification";
 
-import { router, protectedProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 
-export const notificationRouter = router({
+export const notificationRouter = createTRPCRouter({
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -44,13 +44,14 @@ export const notificationRouter = router({
       });
     }),
 
-  getAll: protectedProcedure
-    .input(z.string().optional())
-    .query(({ ctx }) => {
-      return ctx.prisma.notification.findMany({
-        where: {
-          userId: ctx.session.user?.id,
-        },
-      });
-    }),
+  getAll: protectedProcedure.query(async ({ ctx }) => {
+    return ctx.prisma.notification.findMany({
+      where: {
+        userId: ctx.session.user.id,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+  }),
 });

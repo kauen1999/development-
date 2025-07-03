@@ -1,4 +1,4 @@
-import { Context } from "../trpc/context";
+import type { Context } from "../trpc/context";
 
 export const findNewAccountNotification = async (
   ctx: Context,

@@ -24,7 +24,6 @@ const EventosHoy = () => {
         </Link>
       </div>
 
-
       <Swiper
         modules={[Pagination]}
         pagination={{ clickable: true }}

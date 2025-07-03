@@ -1,28 +1,90 @@
-# Create T3 App
+# 🎟️ EntradaMaster
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+## ✅ Checklist de Funcionalidades
 
-## What's next? How do I make an app with this?
+### 🔐 Etapa 1 - Autenticação
+- [x] Registro local de usuário com `bcrypt`
+- [x] Login com validação de senha
+- [x] Autenticação via OAuth (Google, Facebook, LinkedIn)
+- [x] Sessão persistente com `NextAuth`
+- [x] Middleware `protectedProcedure` e `adminProcedure`
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+### 🎫 Etapa 2 - Eventos
+- [x] Criação de evento (restrito a usuários logados)
+- [x] Listagem pública de eventos
+- [x] Detalhamento de evento
+- [x] Inscrição em eventos
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+### 👤 Etapa 3 - Perfil & Notificações
+- [x] Atualização de dados do perfil
+- [x] Criação de notificações
+- [x] Listagem e exclusão de notificações
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+### 🔒 Etapa 4 - Controle de Acesso (RBAC)
+- [x] Controle de usuários com roles (`USER` | `ADMIN`)
+- [x] Middleware `isAdmin`
+- [x] Painel administrativo parcial (listagem/alteração de usuários)
 
-## Learn More
+### 🛒 Etapa 5 - Pedidos & Ingressos
+- [x] Criação de pedidos com itens relacionados
+- [x] Cálculo automático do total
+- [x] Relacionamento com eventos e categorias
+- [x] Geração de ingressos digitais
+- [x] Criação e listagem de pedidos
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+### 💵 Etapa 6 - Pagamentos
+- [x] Suporte a múltiplos provedores (`STRIPE`, `MERCADOPAGO`, `PAGOFACIL`, `RAPIPAGO`)
+- [x] Registro de resposta bruta (webhook-safe)
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+### 📄 Etapa 7 - Faturas
+- [x] Geração de faturas em PDF com `PDFKit`
+- [x] Armazenamento em disco local
+- [x] Consulta por `orderId`
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+---
 
-## How do I deploy this?
+## ⚙️ Tecnologias Principais
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+- **Next.js (App Router + API routes)**
+- **TypeScript + Zod (validação)**
+- **tRPC (backend tipado)**
+- **Prisma + PostgreSQL** (via Supabase)
+- **NextAuth.js** (com suporte a OAuth + credenciais)
+- **Stripe / MercadoPago SDK**
+- **PDFKit** para faturas
+- **QR Code, Wallet Pass (em breve)**
+
+---
+
+## 🚀 Como rodar localmente
+
+### 📦 Pré-requisitos
+
+- Node.js `v18+`
+- PostgreSQL (pode ser local ou Supabase)
+- Yarn ou npm
+- Conta no Stripe / MercadoPago (para testes)
+- `OpenSSL` (para gerar JWT secrets, se necessário)
+
+---
+
+### 🔧 Passo a passo de instalação
+
+```bash
+# Clone o repositório
+git clone https://github.com/Jarlez/entradamaster.git
+cd entradamaster
+
+# Instale as dependências
+npm install
+
+# Execute a primeira migração
+npx prisma migrate dev --name init
+
+# Gere os arquivos do cliente Prisma
+npx prisma generate
+
+# Rodar o servidor local
+npm run dev
+
+Acesse: http://localhost:3000
