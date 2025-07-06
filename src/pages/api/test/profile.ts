@@ -1,38 +1,36 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { prisma } from "../../../server/db/client";
+import { prisma } from "@/server/db/client";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function profileHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
-    return res.status(405).json({ error: "Method not allowed" });
+    res.setHeader("Allow", "GET");
+    return res.status(405).json({ message: "Method Not Allowed" });
+  }
+
+  const userId = req.query.id;
+
+  if (!userId || typeof userId !== "string") {
+    return res.status(400).json({ message: "Missing or invalid user ID" });
   }
 
   try {
-    const { email } = req.query;
-
-    if (typeof email !== "string") {
-      return res.status(400).json({ error: "E-mail inválido" });
-    }
-
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { id: userId },
       select: {
         id: true,
         name: true,
         email: true,
-        phone: true,
-        birthdate: true,
-        DNI: true,
-        DNIName: true,
         role: true,
       },
     });
 
     if (!user) {
-      return res.status(404).json({ error: "Usuário não encontrado" });
+      return res.status(404).json({ message: "User not found" });
     }
 
-    res.status(200).json(user);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    return res.status(200).json({ user });
+  } catch (err) {
+    console.error("Profile error:", err);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 }

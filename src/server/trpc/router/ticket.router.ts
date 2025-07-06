@@ -1,37 +1,68 @@
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+// src/server/trpc/router/ticketRouter.ts
+
+import { z } from "zod";
 import {
-  createTicketSchema,
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "@/server/trpc/trpc";
+
+import {
   getTicketsByOrderItemSchema,
   markTicketAsUsedSchema,
-} from "../../schema/ticket.schema";
+} from "@/server/schema/ticket.schema";
+
 import {
-  createTicketService,
+  generateAndSaveTicket,
   getTicketsByOrderItemService,
   markTicketAsUsedService,
-} from "../../services/ticket.service";
+  validateTicketByQrService,
+} from "@/server/services/ticket.service";
 
-/**
- * Router para gerenciamento de ingressos
- */
 export const ticketRouter = createTRPCRouter({
-  // Criação de ingresso
+  /**
+   * 🔐 Generate a new ticket and save assets (QR, PDF, Wallet)
+   */
   create: protectedProcedure
-    .input(createTicketSchema)
-    .mutation(async ({ input }) => {
-      return createTicketService(input);
-    }),
+    .input(
+      z.object({
+        orderItemId: z.string().cuid("Invalid orderItemId"),
+        orderId: z.string().cuid("Invalid orderId"),
+        userName: z.string().optional(),
+      })
+    )
+    .mutation(({ input }) =>
+      generateAndSaveTicket(input.orderItemId, input.orderId, input.userName)
+    ),
 
-  // Buscar ingressos por item de pedido
+  /**
+   * 🔐 Get all tickets by order item ID
+   */
   getByOrderItem: protectedProcedure
     .input(getTicketsByOrderItemSchema)
-    .query(async ({ input }) => {
-      return getTicketsByOrderItemService(input);
-    }),
+    .query(({ input }) =>
+      getTicketsByOrderItemService(input.orderItemId)
+    ),
 
-  // Marcar ingresso como utilizado
+  /**
+   * 🔐 Mark a ticket as used
+   */
   markAsUsed: protectedProcedure
     .input(markTicketAsUsedSchema)
-    .mutation(async ({ input }) => {
-      return markTicketAsUsedService(input);
-    }),
+    .mutation(({ input }) =>
+      markTicketAsUsedService(input.ticketId)
+    ),
+
+  /**
+   * 🌐 Validate ticket by QR ID (public for entrance scanning)
+   */
+  validateByQrId: publicProcedure
+    .input(
+      z.object({
+        qrId: z.string().min(1, "QR ID is required"),
+      })
+    )
+    .mutation(({ input }) =>
+      validateTicketByQrService(input.qrId)
+    ),
 });

@@ -1,17 +1,26 @@
-  import { Session, User } from 'next-auth';
-  
-  declare module 'next-auth' {
-    interface Session {
-      user: {
-        id: string;
-        name?: string | null;
-        email?: string | null;
-        image?: string | null;
-        role: 'USER' | 'ADMIN';
-      };
-    }
+// src/types/next-auth.d.ts
 
-    interface User {
-      role: 'USER' | 'ADMIN';
-    }
+import type { DefaultSession, DefaultUser } from "next-auth";
+
+/**
+ * Extend the built-in `Session` and `User` types.
+ * Ensures that `ctx.session.user` is always fully typed.
+ */
+declare module "next-auth" {
+  interface Session extends DefaultSession {
+    user: {
+      id: string;
+      role: UserRole;
+    } & DefaultSession["user"];
   }
+
+  interface User extends DefaultUser {
+    id: string;
+    role: UserRole;
+  }
+}
+
+/**
+ * Reusable role type
+ */
+type UserRole = "USER" | "ADMIN" | "ORGANIZER";

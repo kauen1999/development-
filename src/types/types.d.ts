@@ -1,10 +1,9 @@
-export type IUser = {
-  _id: string;
+export interface IUser {
   id: string;
   email: string;
   name: string;
-  role: string;
-  photo: string;
-  updatedAt: string;
+  role: "USER" | "ADMIN" | "ORGANIZER";
+  photo?: string | null;
   createdAt: string;
-};
+  updatedAt: string;
+}
