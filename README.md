@@ -114,23 +114,6 @@
 ## ⚙️ Tecnologias Utilizadas
 
 - **Next.js** (App Router + API Routes)
-- **TypeScript**
-- **Zod** (validação de env e inputs)
-- **tRPC** (rotas tipadas e seguras)
-- **Prisma** + **PostgreSQL** (via Supabase)
-- **NextAuth.js** (OAuth + credenciais)
-- **Stripe SDK** (pagamentos e webhooks)
-- **PDFKit** (geração de PDF de ingressos e faturas)
-- **QRCode** (para ingressos digitais)
-- **Cuid2** (para geração de IDs únicos)
-- **Pino** (logging estruturado)
-- **Jest/Vitest** (planejado para testes)
-
----
-
-## ⚙️ Tecnologias Utilizadas
-
-- **Next.js** (App Router + API Routes)
 - **TypeScript** (100% tipado)
 - **Zod** – Validação de inputs e variáveis de ambiente
 - **tRPC** – API tipada, segura e sem boilerplate
