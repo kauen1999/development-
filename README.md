@@ -128,15 +128,34 @@
 
 ---
 
-## 🚀 Como rodar localmente
+## ⚙️ Tecnologias Utilizadas
+
+- **Next.js** (App Router + API Routes)
+- **TypeScript** (100% tipado)
+- **Zod** – Validação de inputs e variáveis de ambiente
+- **tRPC** – API tipada, segura e sem boilerplate
+- **Prisma ORM** – Modelagem e acesso ao PostgreSQL (via Supabase)
+- **NextAuth.js** – Autenticação via OAuth e credenciais (`bcrypt`)
+- **Stripe SDK** – Integração completa com PaymentIntent + Webhooks
+- **PDFKit** – Geração de ingressos e faturas em PDF
+- **QRCode** – Criação de QR Codes para tickets digitais
+- **.pkpass** – Suporte a Wallet Pass (em progresso)
+- **Cuid2** – Geração de IDs únicos seguros
+- **Pino** – Logging estruturado (em configuração)
+- **dotenv** – Gerenciamento de variáveis sensíveis
+
+---
+
+## 🚀 Como rodar o projeto localmente
 
 ### 📦 Requisitos
 
-- Node.js `v18+`
-- PostgreSQL (ou Supabase)
-- Conta no Stripe (para testes de pagamento)
-- Ngrok (para testes de webhook)
-- `OpenSSL` (para gerar segredos)
+- [Node.js](https://nodejs.org/) `v18+`
+- [PostgreSQL](https://www.postgresql.org/) local ou conta no [Supabase](https://supabase.com/)
+- Conta no [Stripe](https://stripe.com/) (modo teste)
+- [Ngrok](https://ngrok.com/) (para testes de webhooks)
+- (Opcional) `OpenSSL` para gerar segredos
+- Editor recomendado: [VSCode](https://code.visualstudio.com/)
 
 ---
 
@@ -145,17 +164,21 @@
 ```bash
 # Clone o repositório
 git clone https://github.com/Jarlez/entradamaster.git
-cd entradamaster
+cd entramaster
 
-# Checkout para sua branch de trabalho
+# Checkout na sua branch de trabalho
 git checkout Jocean
 
 # Instalar dependências
 npm install
 
-# Criar e rodar as migrações
+# Copiar variáveis de ambiente
+cp .env.example .env
+# edite o .env com suas credenciais do banco, Stripe, etc.
+
+# Rodar migrações do Prisma
 npx prisma migrate dev --name init
 npx prisma generate
 
-# Rodar local
+# Rodar servidor de desenvolvimento
 npm run dev
