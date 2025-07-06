@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  protectedProcedure,
+  publicProcedure,
+} from "../trpc";
 import {
   createCategoryService,
   deleteCategoryService,
@@ -7,18 +11,46 @@ import {
   getCategoryByIdService,
 } from "@/server/services/category.service";
 
+// Schemas de entrada
+const categoryIdSchema = z.string().cuid("Invalid category ID");
+const categoryCreateSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+});
+
 export const categoryRouter = createTRPCRouter({
+  /**
+   * Create a new category (admin only)
+   */
   createCategory: protectedProcedure
-    .input(z.object({ title: z.string().min(1, "Título é obrigatório") }))
-    .mutation(({ input }) => createCategoryService(input.title)),
+    .input(categoryCreateSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      return createCategoryService(input.title, userId);
+    }),
 
-  getAllCategories: publicProcedure.query(() => getAllCategoriesService()),
+  /**
+   * List all categories (public)
+   */
+  getAllCategories: publicProcedure.query(async () => {
+    return getAllCategoriesService();
+  }),
 
+  /**
+   * Get a category by ID (public)
+   */
   getCategoryById: publicProcedure
-    .input(z.string().cuid("ID inválido"))
-    .query(({ input }) => getCategoryByIdService(input)),
+    .input(categoryIdSchema)
+    .query(async ({ input }) => {
+      return getCategoryByIdService(input);
+    }),
 
+  /**
+   * Delete a category by ID (admin only)
+   */
   deleteCategory: protectedProcedure
-    .input(z.string().cuid("ID inválido"))
-    .mutation(({ input }) => deleteCategoryService(input)),
+    .input(categoryIdSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      return deleteCategoryService(input, userId);
+    }),
 });

@@ -1,14 +1,17 @@
-// src/pages/api/webhooks/stripe.ts
-import { buffer } from "micro";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { stripe } from "@/server/lib/stripe";
+import { buffer } from "micro";
+import Stripe from "stripe";
 import { handleStripeWebhook } from "@/server/services/payments/stripe.service";
-import { env } from "@/env";
-import type Stripe from "stripe";
+import { env } from "@/env/server.mjs";
+
+const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
+  apiVersion: "2025-06-30.basil",
+  typescript: true,
+});
 
 export const config = {
   api: {
-    bodyParser: false, // necessário para leitura do rawBody
+    bodyParser: false, // necessário para verificação de assinatura da Stripe
   },
 };
 
@@ -18,31 +21,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).end("Method Not Allowed");
   }
 
+  const buf = await buffer(req);
   const sig = req.headers["stripe-signature"];
-  if (!sig || typeof sig !== "string") {
-    return res.status(400).send("Missing or invalid Stripe signature header");
-  }
-
   let event: Stripe.Event;
-  const rawBody = await buffer(req);
 
   try {
-    event = stripe.webhooks.constructEvent(
-      rawBody, // 🔒 mantém como Buffer
-      sig,
-      env.server.STRIPE_WEBHOOK_SECRET
-    );
+    if (!sig || typeof sig !== "string") {
+      throw new Error("Missing Stripe signature header.");
+    }
+
+    event = stripe.webhooks.constructEvent(buf, sig, env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "unknown";
-    console.error("❌ Erro ao verificar assinatura Stripe:", msg);
-    return res.status(400).send(`Webhook signature verification failed: ${msg}`);
+    console.error("❌ Stripe signature verification failed:", err);
+    return res.status(400).send(`Webhook Error: ${(err as Error).message}`);
   }
 
   try {
     await handleStripeWebhook(event);
     return res.status(200).json({ received: true });
   } catch (err) {
-    console.error("❌ Erro interno ao processar webhook:", err);
-    return res.status(500).send("Erro interno ao processar webhook");
+    console.error("❌ Stripe webhook handler failed:", err);
+    return res.status(500).send("Webhook handler failed.");
   }
 }

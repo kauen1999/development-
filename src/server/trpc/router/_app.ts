@@ -1,16 +1,14 @@
 import { createTRPCRouter } from "../trpc";
-import { authRouter } from "./auth";
-import { exampleRouter } from "./example";
-import { notificationRouter } from "./notification";
+import { authRouter } from "./authRouter";
+import { notificationRouter } from "./notificationRouter";
 import { eventRouter } from "./eventRouter";
 import { categoryRouter } from "./categoryRouter";
-import { orderRouter } from "./order";
+import { orderRouter } from "./orderRouter";
 import { ticketRouter } from "./ticket.router";
 import { paymentRouter } from "./paymentRouter";
-import { invoiceRouter } from "./invoice";
+import { invoiceRouter } from "./invoiceRouter";
 
 export const appRouter = createTRPCRouter({
-  example: exampleRouter,
   auth: authRouter,
   notification: notificationRouter,
   event: eventRouter, 

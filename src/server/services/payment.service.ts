@@ -1,14 +1,20 @@
-import createStripePayment from "./payments/stripe.service";
+import { PaymentProvider } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
+import { createStripePayment } from "./payments/stripe.service";
 
 export async function createPayment(
-  provider: "STRIPE",
+  provider: PaymentProvider,
   orderId: string,
   amount: number
 ) {
   switch (provider) {
-    case "STRIPE":
+    case PaymentProvider.STRIPE:
       return createStripePayment(orderId, amount);
+
     default:
-      throw new Error("Provedor de pagamento não suportado.");
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Unsupported payment provider: ${provider}`,
+      });
   }
 }

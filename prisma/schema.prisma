@@ -1,5 +1,3 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,14 +7,38 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Example {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// Enums
+enum Role {
+  USER
+  ADMIN
+  ORGANIZER
 }
 
-// NextAuth models
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+}
 
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentProvider {
+  STRIPE
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  FAILED
+  CANCELLED
+}
+
+// Auth (NextAuth)
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -51,22 +73,16 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-enum Role {
-  USER
-  ADMIN
-}
-
-// Core application models
-
+// Domain Models
 model User {
   id            String    @id @default(cuid())
   createdAt     DateTime  @default(now())
   name          String?
   password      String?
-  DNIName       String?
-  DNI           String?
+  dniName       String?
+  dni           String?
   phone         String?
-  birthdate     String?
+  birthdate     DateTime?
   email         String?   @unique
   emailVerified DateTime?
   image         String?   @default("https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png")
@@ -74,43 +90,42 @@ model User {
   provider      String?
 
   // Relations
-  accounts     Account[]
-  sessions     Session[]
-  Events       Event[]        @relation("Event") // eventos publicados
-  enrolledIn   Event[]        @relation("EnrolledIn") // eventos inscritos
-  Notification Notification[] @relation("Notification")
-  orders       Order[] // pedidos do usuário
+  accounts         Account[]
+  sessions         Session[]
+  organizedEvents  Event[]        @relation("OrganizerEvents")
+  enrolledEvents   Event[]        @relation("EnrolledUsers")
+  notifications    Notification[] @relation("UserNotifications")
+  orders           Order[]
+  validatedTickets Ticket[]       @relation("UserValidatedTickets")
 }
 
 model Event {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  name        String   @unique
-  description String   @db.Text
+  id          String      @id @default(cuid())
+  name        String
+  description String
   city        String
   theater     String
   price       Float
   date        DateTime
+  saleStart   DateTime    @default(now())
+  saleEnd     DateTime    @default(now())
+  capacity    Int         @default(0)
+  slug        String      @unique @default("")
+  status      EventStatus @default(DRAFT)
+  userId      String
+  user        User        @relation("OrganizerEvents", fields: [userId], references: [id])
 
-  // FK to publisher
-  Publish User   @relation("Event", fields: [userId], references: [id])
-  userId  String
-
-  // Relations
-  Category       Category[]
-  clients        User[]           @relation("EnrolledIn")
-  orders         Order[] // pedidos vinculados ao evento
-  TicketCategory TicketCategory[]
+  categories       Category[]       @relation("EventCategories")
+  enrolledUsers    User[]           @relation("EnrolledUsers")
+  orders           Order[]
+  ticketCategories TicketCategory[]
 }
 
 model Category {
-  id    String @id @default(cuid())
-  title String @unique
-
-  // Relations
-  events     Event[]
-  orderItems OrderItem[] // itens de pedido nesta categoria
+  id         String      @id @default(cuid())
+  title      String      @unique
+  events     Event[]     @relation("EventCategories")
+  orderItems OrderItem[]
 }
 
 model Notification {
@@ -118,8 +133,8 @@ model Notification {
   createdAt   DateTime @default(now())
   title       String
   description String
-  user        User     @relation("Notification", fields: [userId], references: [id], onDelete: Cascade)
   userId      String
+  user        User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Order {
@@ -129,10 +144,11 @@ model Order {
   total     Float
   userId    String
   eventId   String
+  expiresAt DateTime?   @default(dbgenerated())
 
-  user   User   @relation(fields: [userId], references: [id])
-  event  Event  @relation(fields: [eventId], references: [id])
-  items  OrderItem[]
+  user    User        @relation(fields: [userId], references: [id])
+  event   Event       @relation(fields: [eventId], references: [id])
+  items   OrderItem[]
   Payment Payment[]
   Invoice Invoice[]
 
@@ -141,30 +157,17 @@ model Order {
 }
 
 model OrderItem {
-  id       String @id @default(cuid())
-  price    Float
-  quantity Int
-
-  // FK to category (tipo de ingresso)
-  category   Category @relation(fields: [categoryId], references: [id])
-  categoryId String
-
-  // FK to order
-  order            Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id               String @id @default(cuid())
+  price            Float
+  quantity         Int
+  categoryId       String
   orderId          String
-  TicketCategory   TicketCategory @relation(fields: [ticketCategoryId], references: [id])
   ticketCategoryId String
-  Ticket           Ticket[]
-}
 
-enum OrderStatus {
-  PENDING
-  PAID
-  CANCELLED
-}
-
-enum PaymentProvider {
-  STRIPE
+  category       Category       @relation(fields: [categoryId], references: [id])
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  TicketCategory TicketCategory @relation(fields: [ticketCategoryId], references: [id])
+  Ticket         Ticket[]
 }
 
 model TicketCategory {
@@ -175,6 +178,21 @@ model TicketCategory {
   eventId    String
   event      Event       @relation(fields: [eventId], references: [id])
   orderItems OrderItem[]
+}
+
+model Ticket {
+  id            String    @id @default(cuid())
+  orderItemId   String
+  qrCodeUrl     String
+  pdfUrl        String?
+  walletPassUrl String?
+  usedAt        DateTime?
+  validatedById String?
+  device        String?
+  orderItem     OrderItem @relation(fields: [orderItemId], references: [id])
+  validatedBy   User?     @relation("UserValidatedTickets", fields: [validatedById], references: [id])
+
+  @@index([orderItemId])
 }
 
 model Payment {
@@ -189,13 +207,6 @@ model Payment {
   order Order @relation(fields: [orderId], references: [id])
 }
 
-enum PaymentStatus {
-  PENDING
-  APPROVED
-  FAILED
-  CANCELLED
-}
-
 model Invoice {
   id        String   @id @default(cuid())
   orderId   String
@@ -206,15 +217,13 @@ model Invoice {
   order Order @relation(fields: [orderId], references: [id])
 }
 
-model Ticket {
-  id            String    @id @default(cuid())
-  orderItemId   String
-  qrCodeUrl     String
-  pdfUrl        String?
-  walletPassUrl String?
-  usedAt        DateTime?
+/// Stores raw webhook events for debugging, audits or recovery purposes
+model WebhookLog {
+  id        String   @id @default(cuid())
+  provider  String // ex: "stripe", "mercadopago"
+  eventType String // ex: "payment_intent.succeeded"
+  payload   Json // full payload from webhook event
+  createdAt DateTime @default(now())
 
-  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
-
-  @@index([orderItemId])
+  @@index([provider, eventType])
 }

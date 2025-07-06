@@ -1,79 +1,50 @@
+// src/controllers/auth.controller.ts
+
+import { hash } from "bcryptjs";
+import { prisma } from "@/server/db/client";
 import { TRPCError } from "@trpc/server";
-import bcrypt from "bcryptjs";
-import type { CreateUserInput } from "../schema/user.schema";
-import { prisma } from "../db/client";
-import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
+import { type CreateUserInput } from "@/server/schema/user.schema";
 
-export const registerHandler = async ({ input }: { input: CreateUserInput }) => {
-  try {
-    const hashedPassword = await bcrypt.hash(input.password, 12);
-
-    const user = await prisma.user.create({
-      data: {
-        email: input.email,
-        name: input.name,
-        password: hashedPassword,
-        provider: "local",
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true,
-      },
-    });
-
-    return user;
-  } catch (error) {
-    if (
-      error instanceof PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      throw new TRPCError({
-        code: "CONFLICT",
-        message: "Correo Electrónico Existente",
-      });
-    }
-
-    throw error;
-  }
-};
-
-export const loginHandler = async ({
+export const registerHandler = async ({
   input,
 }: {
-  input: { email: string; password: string };
+  input: CreateUserInput;
 }) => {
-  const user = await prisma.user.findUnique({
-    where: { email: input.email },
+  const { name, email, password } = input;
+
+  // Normalize email
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Check if user already exists
+  const existingUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
   });
 
-  if (!user || !user.password) {
+  if (existingUser) {
     throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "Credenciais inválidas",
+      code: "CONFLICT",
+      message: "User with this email already exists.",
     });
   }
 
-  const passwordValid = await bcrypt.compare(input.password, user.password);
+  // Hash password
+  const hashedPassword = await hash(password, 12);
 
-  if (!passwordValid) {
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message: "Credenciais inválidas",
-    });
-  }
-
-  return {
-    status: "success",
+  // Create user
+  const user = await prisma.user.create({
     data: {
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      name,
+      email: normalizedEmail,
+      password: hashedPassword,
+      role: "USER", // optional if default is set in Prisma
     },
-  };
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+    },
+  });
+
+  return user;
 };

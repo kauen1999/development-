@@ -11,8 +11,8 @@ export const serverSchema = z.object({
       ? z.string().min(1)
       : z.string().min(1).optional(),
   NEXTAUTH_URL: z.preprocess(
-    (val) => process.env.VERCEL_URL ?? val,
-    process.env.VERCEL ? z.string() : z.string().url(),
+  (val) => process.env.VERCEL_URL ?? val,
+  z.string().url()
   ),
 
   // OAuth
@@ -31,17 +31,13 @@ export const serverSchema = z.object({
   RAPIPAGO_API_KEY: z.string().min(1),
 });
 
-/**
- * Variáveis que você quer expor ao cliente
- * (Devem sempre começar com NEXT_PUBLIC_)
- */
 export const clientSchema = z.object({
-  // NEXT_PUBLIC_API_BASE: z.string().url(),
+  NEXT_PUBLIC_API_BASE: z.string().url(),
 });
 
-/**
- * Exporte os valores validados como objetos JS normais
- */
-export const clientEnv = clientSchema.parse({
-  // NEXT_PUBLIC_API_BASE: process.env.NEXT_PUBLIC_API_BASE,
-});
+export const clientEnv = clientSchema.parse(
+  Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => key.startsWith("NEXT_PUBLIC_"))
+  )
+);
+

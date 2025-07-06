@@ -1,22 +1,49 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { loginHandler } from "../../../server/controllers/auth.controller";
+import { prisma } from "@/server/db/client";
+import { compare } from "bcryptjs";
+import { z } from "zod";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+const loginSchema = z.object({
+  email: z.string().email("Invalid email"),
+  password: z.string().min(6, "Password is required"),
+});
+
+export default async function loginHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ message: "Method Not Allowed" });
   }
 
   try {
-    const { email, password } = req.body;
+    const { email, password } = loginSchema.parse(req.body);
 
-    if (!email || !password) {
-      return res.status(400).json({ error: "E-mail e senha são obrigatórios" });
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user || !user.password) {
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const result = await loginHandler({ input: { email, password } });
+    const isValid = await compare(password, user.password);
+    if (!isValid) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
 
-    res.status(200).json(result);
-  } catch (error: any) {
-    res.status(401).json({ error: error.message });
+    return res.status(200).json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ message: "Validation error", errors: err.errors });
+    }
+
+    console.error("Login error:", err);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 }

@@ -1,3 +1,5 @@
+// src/server/trpc/router/ticketRouter.ts
+
 import { z } from "zod";
 import {
   createTRPCRouter,
@@ -18,34 +20,49 @@ import {
 } from "@/server/services/ticket.service";
 
 export const ticketRouter = createTRPCRouter({
+  /**
+   * 🔐 Generate a new ticket and save assets (QR, PDF, Wallet)
+   */
   create: protectedProcedure
     .input(
       z.object({
-        orderItemId: z.string().cuid(),
-        orderId: z.string().cuid(),
+        orderItemId: z.string().cuid("Invalid orderItemId"),
+        orderId: z.string().cuid("Invalid orderId"),
         userName: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
-      const { orderItemId, orderId, userName } = input;
-      return generateAndSaveTicket(orderItemId, orderId, userName);
-    }),
+    .mutation(({ input }) =>
+      generateAndSaveTicket(input.orderItemId, input.orderId, input.userName)
+    ),
 
+  /**
+   * 🔐 Get all tickets by order item ID
+   */
   getByOrderItem: protectedProcedure
     .input(getTicketsByOrderItemSchema)
-    .query(async ({ input }) => {
-      return getTicketsByOrderItemService(input.orderItemId);
-    }),
+    .query(({ input }) =>
+      getTicketsByOrderItemService(input.orderItemId)
+    ),
 
+  /**
+   * 🔐 Mark a ticket as used
+   */
   markAsUsed: protectedProcedure
     .input(markTicketAsUsedSchema)
-    .mutation(async ({ input }) => {
-      return markTicketAsUsedService(input.ticketId);
-    }),
+    .mutation(({ input }) =>
+      markTicketAsUsedService(input.ticketId)
+    ),
 
+  /**
+   * 🌐 Validate ticket by QR ID (public for entrance scanning)
+   */
   validateByQrId: publicProcedure
-    .input(z.object({ qrId: z.string().min(1) }))
-    .mutation(async ({ input }) => {
-      return validateTicketByQrService(input.qrId);
-    }),
+    .input(
+      z.object({
+        qrId: z.string().min(1, "QR ID is required"),
+      })
+    )
+    .mutation(({ input }) =>
+      validateTicketByQrService(input.qrId)
+    ),
 });

@@ -1,16 +1,31 @@
-import type { TypeOf } from "zod";
-import { object, string } from "zod";
+import { z, type TypeOf } from "zod";
 
-export const createUserSchema = object({
-  name: string({ required_error: "Name is required" }),
-  email: string({ required_error: "Email is required" }).email("Invalid email"),
-  password: string({ required_error: "Password is required" })
-    .min(8, "Password must be more than 8 characters")
-    .max(32, "Password must be less than 32 characters"),
-  cpassword: string({ required_error: "Please confirm your password" }),
-}).refine((data) => data.password === data.cpassword, {
-  path: ["cpassword"],
-  message: "Las contraseñas no coinciden",
-});
+export const createUserSchema = z
+  .object({
+    name: z
+      .string({ required_error: "Name is required" })
+      .min(2, "Name must be at least 2 characters")
+      .max(100, "Name must be at most 100 characters"),
+
+    email: z
+      .string({ required_error: "Email is required" })
+      .email("Invalid email format"),
+
+    password: z
+      .string({ required_error: "Password is required" })
+      .min(8, "Password must be at least 8 characters")
+      .max(32, "Password must be at most 32 characters")
+      .regex(
+        /^(?=.*[a-zA-Z])(?=.*\d).+$/,
+        "Password must contain both letters and numbers"
+      ),
+
+    confirmPassword: z
+      .string({ required_error: "Please confirm your password" }),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords do not match",
+  });
 
 export type CreateUserInput = TypeOf<typeof createUserSchema>;

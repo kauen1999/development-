@@ -2,27 +2,31 @@ import Stripe from "stripe";
 import { prisma } from "@/server/db/client";
 import { toJsonValue } from "@/utils/toJsonValue";
 import { TRPCError } from "@trpc/server";
-import { PaymentProvider, PaymentStatus } from "@prisma/client";
+import { PaymentProvider, PaymentStatus, OrderStatus } from "@prisma/client";
 import { generateTicketAssets } from "@/server/services/ticket/ticketGeneration.service";
+import { env } from "@/env/server.mjs";
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error("Missing STRIPE_SECRET_KEY in environment");
+if (!env.STRIPE_SECRET_KEY) {
+  throw new Error("❌ STRIPE_SECRET_KEY is not defined in environment variables.");
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
   apiVersion: "2025-06-30.basil",
+  typescript: true,
 });
 
-/**
- * Cria um pagamento com Stripe e registra no banco
- */
+// Create PaymentIntent with metadata
 export async function createStripePayment(orderId: string, amount: number) {
   try {
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Stripe usa centavos
-      currency: "ars", // altere se necessário
+      amount: Math.round(amount * 100), // convert to cents
+      currency: "ars",
       metadata: { orderId },
     });
+
+    if (!paymentIntent.client_secret) {
+      throw new Error("Stripe did not return a client_secret.");
+    }
 
     const payment = await prisma.payment.create({
       data: {
@@ -30,7 +34,7 @@ export async function createStripePayment(orderId: string, amount: number) {
         provider: PaymentProvider.STRIPE,
         status: PaymentStatus.PENDING,
         amount,
-        rawResponse: toJsonValue(paymentIntent),
+        rawResponse: toJsonValue(paymentIntent), // safe JSON
       },
     });
 
@@ -39,52 +43,57 @@ export async function createStripePayment(orderId: string, amount: number) {
       paymentId: payment.id,
     };
   } catch (error) {
-    console.error("Erro ao criar pagamento com Stripe", error);
+    console.error("❌ Failed to create Stripe payment:", error);
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
-      message: "Erro ao criar pagamento com Stripe",
+      message: "Failed to create payment session.",
       cause: error,
     });
   }
 }
 
-/**
- * Lida com eventos do webhook do Stripe
- */
+// Stripe Webhook Handler
 export async function handleStripeWebhook(event: Stripe.Event) {
-  switch (event.type) {
-    case "payment_intent.succeeded": {
-      const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      const orderId = paymentIntent.metadata?.orderId;
+  if (event.type !== "payment_intent.succeeded") {
+    console.log(`ℹ️ Unhandled Stripe event: ${event.type}`);
+    return;
+  }
 
-      if (!orderId) {
-        console.error("❌ Webhook recebido sem metadata.orderId");
-        return;
-      }
+  const intent = event.data.object as Stripe.PaymentIntent;
+  const orderId = intent?.metadata?.orderId;
 
-      await prisma.$transaction(async (tx) => {
-        await tx.payment.updateMany({
-          where: { orderId, provider: PaymentProvider.STRIPE },
-          data: { status: PaymentStatus.APPROVED },
-        });
+  if (!orderId || typeof orderId !== "string") {
+    console.warn("⚠️ Webhook missing metadata.orderId.");
+    throw new Error("Invalid Stripe webhook: no orderId metadata.");
+  }
 
-        const order = await tx.order.update({
-          where: { id: orderId },
-          data: { status: "PAID" },
-          include: { user: true },
-        });
-
-        await generateTicketAssets(orderId, tx, {
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.payment.updateMany({
+        where: {
           orderId,
-          userName: order.user?.name ?? undefined,
-        });
+          provider: PaymentProvider.STRIPE,
+        },
+        data: {
+          status: PaymentStatus.APPROVED,
+        },
       });
 
-      console.log(`✅ Pagamento aprovado e tickets gerados para o pedido ${orderId}`);
-      break;
-    }
+      const order = await tx.order.update({
+        where: { id: orderId },
+        data: { status: OrderStatus.PAID },
+        include: { user: true },
+      });
 
-    default:
-      console.log(`ℹ️ Webhook recebido de tipo não tratado: ${event.type}`);
+      await generateTicketAssets(orderId, tx, {
+        orderId,
+        userName: order.user?.name ?? undefined,
+      });
+
+      console.log(`✅ Payment processed and tickets generated for order ${orderId}`);
+    });
+  } catch (err) {
+    console.error("❌ Error processing Stripe webhook:", err);
+    throw new Error("Stripe webhook processing failed.");
   }
 }

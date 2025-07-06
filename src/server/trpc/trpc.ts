@@ -1,6 +1,7 @@
+// src/server/trpc/trpc.ts
+
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
-
 import { type Context } from "./context";
 
 const t = initTRPC.context<Context>().create({
@@ -12,18 +13,15 @@ const t = initTRPC.context<Context>().create({
 
 export const createTRPCRouter = t.router;
 
-/**
- * Unprotected procedure
- **/
+// Public procedure — no auth required
 export const publicProcedure = t.procedure;
 
-/**
- * Middleware para autenticação de usuários
- */
+// Middleware — requires authenticated session
 const isAuthed = t.middleware(({ ctx, next }) => {
   if (!ctx.session || !ctx.session.user) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
+
   return next({
     ctx: {
       session: { ...ctx.session, user: ctx.session.user },
@@ -31,25 +29,22 @@ const isAuthed = t.middleware(({ ctx, next }) => {
   });
 });
 
-/**
- * Middleware para verificar se o usuário é ADMIN
- */
+// Middleware — requires ADMIN role
 const isAdmin = t.middleware(({ ctx, next }) => {
   const user = ctx.session?.user;
 
-  if (!user || !('role' in user) || user.role !== 'ADMIN') {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
+  if (!user || user.role !== "ADMIN") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Access denied",
+    });
   }
 
   return next();
 });
 
-/**
- * Protected procedure
- **/
+// Protected procedure — requires login
 export const protectedProcedure = t.procedure.use(isAuthed);
 
-/**
- * Admin-only procedure
- **/
+// Admin-only procedure — requires role = ADMIN
 export const adminProcedure = protectedProcedure.use(isAdmin);

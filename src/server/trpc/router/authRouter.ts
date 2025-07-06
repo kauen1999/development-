@@ -1,55 +1,55 @@
+// src/server/trpc/router/authRouter.ts
+
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-
 import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
 import { registerHandler } from "../../controllers/auth.controller";
 import { createUserSchema } from "../../schema/user.schema";
 
 export const authRouter = createTRPCRouter({
-  // Retorna a sessão atual (usado no front para manter usuário logado)
+  // Get current session (used on frontend to keep user logged in)
   getSession: publicProcedure.query(({ ctx }) => {
     return ctx.session;
   }),
 
-  // Registra novo usuário com validação de entrada
+  // Register new user with input validation
   registerUser: publicProcedure
     .input(createUserSchema)
     .mutation(({ input }) => registerHandler({ input })),
 
-  // Retorna os dados do usuário logado usando a sessão
-  getProfile: protectedProcedure
-    .query(async ({ ctx }) => {
-      const userId = ctx.session.user.id;
+  // Get profile of the logged-in user using session
+  getProfile: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
 
-      const user = await ctx.prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          phone: true,
-          birthdate: true,
-          DNI: true,
-          DNIName: true,
-          image: true,
-        },
-      });
+    const user = await ctx.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        phone: true,
+        birthdate: true,
+        dni: true,
+        dniName: true,
+        image: true,
+      },
+    });
 
-      if (!user) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado" });
-      }
+    if (!user) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+    }
 
-      return user;
-    }),
+    return user;
+  }),
 
-  // Atualiza qualquer campo do perfil do usuário (nome, telefone, etc.)
+  // Update any editable user profile field
   updateProfile: protectedProcedure
     .input(
       z.object({
         name: z.string().optional(),
-        DNI: z.string().optional(),
-        DNIName: z.string().optional(),
+        dni: z.string().optional(),
+        dniName: z.string().optional(),
         phone: z.string().optional(),
         birthdate: z.string().optional(),
       })
@@ -68,8 +68,8 @@ export const authRouter = createTRPCRouter({
           email: true,
           phone: true,
           birthdate: true,
-          DNI: true,
-          DNIName: true,
+          dni: true,
+          dniName: true,
           role: true,
         },
       });
@@ -77,7 +77,7 @@ export const authRouter = createTRPCRouter({
       return updatedUser;
     }),
 
-  // Consulta de um usuário por ID (usada em alguns pontos do front)
+  // Fetch a user by ID (used in some frontend flows)
   getUserById: protectedProcedure
     .input(z.string().optional())
     .query(({ ctx, input }) => {
