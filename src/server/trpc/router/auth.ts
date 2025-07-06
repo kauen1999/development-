@@ -43,6 +43,7 @@ export const authRouter = createTRPCRouter({
         email: user.email,
         role: user.role,
       };
+
     }),
 
   // Retorna os dados do usuário logado usando a sessão
@@ -71,6 +72,7 @@ export const authRouter = createTRPCRouter({
 
       return user;
     }),
+
 
   // Atualiza qualquer campo do perfil do usuário (nome, telefone, etc.)
   updateProfile: protectedProcedure

@@ -40,8 +40,10 @@ export function registerValidate(values: {
   // Validación de nombre de usuario
   if (!values.name) {
     errors.name = "Requerido";
-  } else if (values.name.includes(" ")) {
-    errors.name = "Nombre de usuario inválido";
+  } else if (values.name.length < 5) {
+    errors.name = "Debe tener mínimo 5 caracteres";
+  } else if (!/^[a-zA-Z0-9]+$/.test(values.name)) {
+    errors.name = "Solo letras y números, sin espacios ni símbolos";
   }
 
   // Validación de correo electrónico

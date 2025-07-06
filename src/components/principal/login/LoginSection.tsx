@@ -28,24 +28,26 @@ const LoginSection: React.FC = () => {
 
   async function onSubmit(values: { password: string; email: string }) {
     if (
-      values.email == "admin@entradamaster.com" &&
-      values.password == "12345678"
+      values.email === "admin@entradamaster.com" &&
+      values.password === "12345678"
     ) {
       setUserType("admin");
       router.push("/dashboard");
+      return;
+    }
+
+    const result = await signIn("credentials", {
+      redirect: false,
+      email: values.email,
+      password: values.password,
+      callbackUrl: "/",
+    });
+
+    if (result?.ok) {
+      router.push(result.url ?? "/");
     } else {
       formik.setErrors({ email: "Correo o contraseña incorrectos" });
     }
-
-    // const status = await signIn("credentials", {
-    //   redirect: false,
-    //   email: values.email,
-    //   password: values.password,
-    //   callbackUrl: "/",
-    // });
-
-    // if (status!.ok) router.push(status!.url!);
-    return null;
   }
 
   return (
