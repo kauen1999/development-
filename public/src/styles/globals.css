@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://cdnjs.cloudflare.com/ajax/libs/MaterialDesign-Webfont/5.3.45/css/materialdesignicons.min.css');
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+select:focus {
+  border-color: #FF5F00 !important; /* Borda laranja */
+  background-color: #ffffff !important; /* Fundo branco */
+  color: #333333 !important; /* Texto preto */
+  outline: none !important; /* Remove o contorno azul padrão */
+  box-shadow: 0 0 5px #FF5F00 !important; /* Adiciona sombra laranja */
+}
+
+/* Estilo para o botão de data */
+input[type="date"] {
+  background-color: #ffffff !important; /* Fundo branco */
+  color: #333333 !important; /* Texto preto */
+  border: 1px solid rgb(188, 188, 188); /* Borda inicial cinza */
+  border-radius: 8px;
+  padding: 0.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+input[type="date"]:hover {
+  border-color: #FF5F00 !important; /* Borda laranja ao passar o mouse */
+}
+
+input[type="date"]:focus {
+  border-color: #FF5F00 !important; /* Borda laranja ao focar */
+  box-shadow: 0 0 5px #FF5F00 !important; /* Adiciona sombra laranja */
+  outline: none !important; /* Remove o contorno azul padrão */
+}
+
+/* Estilo para o quadrado de seleção no menu do calendário */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  background-color: #FF5F00 !important; /* Fundo laranja para o quadrado de seleção */
+  border-radius: 50%; /* Torna o indicador circular */
+  padding: 0.2rem;
+}
+.flatpickr-day.selected {
+  background: #FF5F00 !important; /* Cor de fundo laranja */
+  border-color: #FF5F00 !important; /* Cor da borda laranja */
+  color: #ffffff !important; /* Texto branco */
+} 
+
+.swiper-pagination {
+  position: static !important;
+  margin-top: 1rem;
+}
+
+.swiper-pagination-bullet {
+  background: #FF5F00 !important;
+  scale: 1.3 !important;
+}
+
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}

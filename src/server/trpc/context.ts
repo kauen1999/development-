@@ -1,33 +1,16 @@
 // src/server/trpc/context.ts
-import { type inferAsyncReturnType } from "@trpc/server";
-import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
-import { type Session } from "next-auth";
-
-import { getServerAuthSession } from "../common/get-server-auth-session";
+import type * as trpcNext from '@trpc/server/adapters/next';
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../modules/auth/auth-options";
 import { prisma } from "../db/client";
 
-type CreateContextOptions = {
-  session: Session | null;
-};
-
-//Build context used internally and in tests
-export const createContextInner = async (opts: CreateContextOptions) => {
+export async function createContext(opts: trpcNext.CreateNextContextOptions) {
+  const session = await getServerSession(opts.req, opts.res, authOptions);
   return {
-    session: opts.session,
+    req: opts.req,
+    res: opts.res,
     prisma,
+    session,
   };
-};
-
-//Build context used by tRPC (per request)
-export const createContext = async ({ req, res }: CreateNextContextOptions) => {
-  const session = await getServerAuthSession({ req, res });
-
-  // Optional logging
-  if (!session) {
-    console.warn("🔒 Anonymous session detected");
-  }
-
-  return createContextInner({ session });
-};
-
-export type Context = inferAsyncReturnType<typeof createContext>;
+}
+export type Context = Awaited<ReturnType<typeof createContext>>;

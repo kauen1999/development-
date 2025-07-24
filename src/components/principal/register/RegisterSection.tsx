@@ -1,60 +1,45 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import concierto from "../../../../public/images/concierto.jpg";
 import logo from "../../../../public/images/logo_white.png";
-import { useFormik } from "formik";
-import { registerValidate } from "../../../lib/validate";
-import { trpc } from "../../../utils/trpc";
-import { useRouter } from "next/router";
 import { LoadingButton } from "../loader/LoadingButton";
-import { CreateUserInput } from "../../../server/schema/user.schema";
 import { FaInfoCircle } from "react-icons/fa";
+import { trpc } from "@/utils/trpc"; // ajuste o path conforme seu projeto
 
 const RegisterSection: React.FC = () => {
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [validationErrorAlert, setValidationErrorAlert] = useState(false);
-  const [error, setError] = useState<string>("");
-
+  const register = trpc.auth.register.useMutation();
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [error, setError] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // ✅ Hook de mutation deve vir ANTES do "if (!mounted)"
-  const { mutate: SignUpUser, isLoading } = trpc.auth.registerUser.useMutation({
-    onSuccess(data) {
-      setShowSuccessModal(true);
-      setTimeout(() => {
-        router.push("/login");
-      }, 5000);
-    },
-    onError(error) {
-      setError(error.message);
-      setValidationErrorAlert(true);
-    },
-  });
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm((prev) => ({
+      ...prev,
+      [e.target.id]: e.target.value,
+    }));
+  };
 
-  const formik = useFormik({
-    initialValues: {
-      name: "",
-      email: "",
-      password: "",
-      cpassword: "",
-    },
-    validate: registerValidate,
-    onSubmit: async (values: CreateUserInput) => {
-      SignUpUser(values);
-    },
-  });
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
-
-  async function onSubmit(values: CreateUserInput) {
-    SignUpUser(values);
-  }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    register.mutate(form, {
+      onSuccess: () => {
+        setShowSuccessModal(true);
+        setTimeout(() => {
+          router.push("/login");
+        }, 2000);
+      },
+      onError: (err) => setError(err.message || "Erro ao registrar"),
+    });
+  };
 
   return (
     <section className="flex flex-col lg:h-screen lg:flex-row">
@@ -77,13 +62,11 @@ const RegisterSection: React.FC = () => {
           quality={100}
           className="-z-10 brightness-50 "
         />
-
         <Link href={"/"}>
           <div className="absolute top-6 left-6 w-[5rem]">
             <Image src={logo} alt="logo" />
           </div>
         </Link>
-
         <div className="z-10 mx-auto w-[90%]">
           <h2 className="text-5xl font-bold text-white lg:text-7xl">
             Vive los conciertos.
@@ -96,31 +79,14 @@ const RegisterSection: React.FC = () => {
           <h2 className="text-center text-3xl font-bold lg:text-4xl">
             Registro
           </h2>
-
-          {validationErrorAlert ? (
+          {error && (
             <div className="alert alert-error -mb-5 mt-3 shadow-lg">
-              <div>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-6 w-6 flex-shrink-0 stroke-current"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <span>¡Error! {error}</span>
-              </div>
+              <span>¡Error! {error}</span>
             </div>
-          ) : null}
-
+          )}
           <form
             className="mt-10 flex flex-col gap-5"
-            onSubmit={formik.handleSubmit}
+            onSubmit={handleSubmit}
           >
             <div className="flex flex-col gap-2">
               <label
@@ -146,15 +112,10 @@ const RegisterSection: React.FC = () => {
                 type="text"
                 id="name"
                 placeholder="Tu nombre de usuario aquí"
-                {...formik.getFieldProps("name")}
+                value={form.name}
+                onChange={handleChange}
               />
-              <span className="h-1 self-end text-right  text-sm text-red-500">
-                {formik.touched.name && formik.errors.name
-                  ? formik.errors.name
-                  : "\u00A0"}
-              </span>
             </div>
-
             <div className="flex flex-col gap-2">
               <label className="font-bold text-primary-100" htmlFor="email">
                 Correo Electrónico
@@ -164,15 +125,10 @@ const RegisterSection: React.FC = () => {
                 type="email"
                 id="email"
                 placeholder="Tu correo aquí"
-                {...formik.getFieldProps("email")}
+                value={form.email}
+                onChange={handleChange}
               />
-              <span className="h-1 self-end text-right  text-sm text-red-500">
-                {formik.touched.email && formik.errors.email
-                  ? formik.errors.email
-                  : "\u00A0"}
-              </span>
             </div>
-
             <div className="flex flex-col gap-2">
               <label
                 className="flex items-center gap-1 font-bold text-primary-100"
@@ -186,7 +142,7 @@ const RegisterSection: React.FC = () => {
                   />
                   <div className="absolute bottom-full left-1/2 z-10 mb-1 hidden w-56 -translate-x-1/2 rounded bg-black px-3 py-2 text-sm text-white shadow-lg group-hover:block">
                     • Debe tener entre 8 y 20 caracteres
-                    <br />• No puede contener espacios
+                    <br />• No puede contener espaços
                   </div>
                 </div>
               </label>
@@ -195,35 +151,25 @@ const RegisterSection: React.FC = () => {
                 type="password"
                 id="password"
                 placeholder="Tu contraseña aquí"
-                {...formik.getFieldProps("password")}
+                value={form.password}
+                onChange={handleChange}
               />
-              <span className="h-1 self-end text-right  text-sm text-red-500">
-                {formik.touched.password && formik.errors.password
-                  ? formik.errors.password
-                  : "\u00A0"}
-              </span>
             </div>
-
             <div className="flex flex-col gap-2 pb-2">
-              <label className="font-bold text-primary-100" htmlFor="cpassword">
+              <label className="font-bold text-primary-100" htmlFor="confirmPassword">
                 Confirmar Contraseña
               </label>
               <input
                 className="rounded-lg border-b"
                 type="password"
-                id="cpassword"
+                id="confirmPassword"
                 placeholder="Tu contraseña aquí"
-                {...formik.getFieldProps("cpassword")}
+                value={form.confirmPassword}
+                onChange={handleChange}
               />
-              <span className="h-1 self-end text-right  text-sm text-red-500">
-                {formik.touched.cpassword && formik.errors.cpassword
-                  ? formik.errors.cpassword
-                  : "\u00A0"}
-              </span>
             </div>
-
             <LoadingButton
-              loading={isLoading}
+              loading={register.isLoading}
               textColor="text-ct-blue-600"
               type="submit"
             >

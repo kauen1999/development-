@@ -1,98 +1,55 @@
+// src/pages/auth.tsx
 import React, { useState } from "react";
 import { type NextPage } from "next";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import { trpc, type RouterOutputs } from "../utils/trpc";
-import { getSession, useSession } from "next-auth/react";
-
-interface CompleteData {
-  name: string;
-  DNIName: string;
-  DNI: string;
-  phone: string;
-  birthdate: string;
-}
+import { trpc } from "@/utils/trpc"; // ajuste o path conforme seu projeto
 
 const Auth: NextPage = () => {
+  const { data: session } = useSession();
+  const completeProfile = trpc.auth.completeProfile.useMutation();
   const router = useRouter();
-  const { data: session, status } = useSession();
 
-  const [finishRegister, setFinishRegister] = useState(false);
-  const [name, setName] = useState<string>("");
-  const [DNIName, setDNIName] = useState<string>("");
-  const [DNI, setDNI] = useState<string>("");
-  const [phone, setPhone] = useState<string>("");
-  const [birthdate, setBirthdate] = useState<string>("");
-  const [validationErrorAlert, setValidationErrorAlert] =
-    useState<boolean>(false);
-
-  const redirectInitialPath = () => {
-    router.push("/");
-  };
-
-  const completeData = trpc.auth.modify.useMutation({
-    onSuccess: () => {
-      void redirectInitialPath();
-    },
+  // Estados do formulário
+  const [form, setForm] = useState({
+    dniName: "",
+    dni: "",
+    phone: "",
+    birthdate: "",
   });
+  const [finishRegister, setFinishRegister] = useState(false);
+  const [validationErrorAlert, setValidationErrorAlert] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const onSave = ({
-    name,
-    DNIName,
-    DNI,
-    phone,
-    birthdate,
-  }: CompleteData): void => {
-    try {
-      if (session?.user?.id) {
-        void completeData.mutate({
-          id: session.user.id,
-          name,
-          DNIName,
-          DNI,
-          phone,
-          birthdate,
-        });
-      }
-    } catch (error) {
-      console.log(error);
-    }
+  // Se não autenticado, mostre aviso
+  if (!session) return <p>Você precisa estar logado.</p>;
+
+  // Atualiza estado do form
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
   };
 
-  const handleFormValidation = ({
-    name,
-    DNIName,
-    DNI,
-    phone,
-    birthdate,
-  }: CompleteData): void => {
-    if (
-      name !== "" &&
-      DNIName !== "" &&
-      DNI !== "" &&
-      phone !== "" &&
-      birthdate !== ""
-    ) {
-      onSave({
-        name,
-        DNIName,
-        DNI,
-        phone,
-        birthdate,
-      });
-    } else {
+  // Validação simples dos campos
+  const validateForm = () => {
+    return form.dniName && form.dni && form.phone && form.birthdate;
+  };
+
+  // Handler do submit
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setValidationErrorAlert(false);
+    setError(null);
+    if (!validateForm()) {
       setValidationErrorAlert(true);
+      return;
     }
-  };
-
-  const createNotification = trpc.notification.createNotification.useMutation();
-  const createNotificationHandler = () => {
-    if (session?.user?.id) {
-      void createNotification.mutate({
-        title: "¡Acabas de crear tu cuenta con exito!",
-        description: "Encuentra tus eventos favoritos",
-        userId: session.user.id,
-      });
-    }
+    completeProfile.mutate(form, {
+      onSuccess: () => router.push("/"),
+      onError: (err) => setError(err.message || "Erro ao completar perfil"),
+    });
   };
 
   return (
@@ -106,19 +63,93 @@ const Auth: NextPage = () => {
         <div className="hero-overlay bg-black bg-opacity-60"></div>
         <div className="hero-content text-center text-neutral-content">
           <div className="max-w-lg">
-            {finishRegister && (
-              <h1 className="mb-5 text-4xl font-bold">
-                Completa tu información
-              </h1>
-            )}
-            {!finishRegister && (
+            {finishRegister ? (
+              <>
+                <h1 className="mb-5 text-4xl font-bold">Completa tu información</h1>
+                <form onSubmit={handleSubmit}>
+                  {validationErrorAlert && (
+                    <div className="alert alert-error shadow-lg mb-2">
+                      <span>¡Error! Rellena los datos faltantes</span>
+                    </div>
+                  )}
+                  {error && (
+                    <div className="alert alert-error shadow-lg mb-2">
+                      <span>{error}</span>
+                    </div>
+                  )}
+                  <div className="form-control">
+                    <label className="label">
+                      <span className="label-text">Nombre completo</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="dniName"
+                      placeholder="Nombre completo"
+                      className="input-bordered input text-black"
+                      value={form.dniName}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div className="form-control">
+                    <label className="label">
+                      <span className="label-text">DNI</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="dni"
+                      placeholder="ID Documento de identidad"
+                      className="input-bordered input text-black"
+                      value={form.dni}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div className="form-control">
+                    <label className="label">
+                      <span className="label-text">Teléfono</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="phone"
+                      placeholder="Numero de teléfono"
+                      className="input-bordered input text-black"
+                      value={form.phone}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div className="form-control">
+                    <label className="label">
+                      <span className="label-text">Fecha de nacimiento</span>
+                    </label>
+                    <input
+                      type="date"
+                      name="birthdate"
+                      className="input-bordered input text-black"
+                      value={form.birthdate}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div className="form-control mt-6">
+                    <button
+                      className="btn-warning btn"
+                      type="submit"
+                      disabled={completeProfile.isLoading}
+                    >
+                      {completeProfile.isLoading ? "Salvando..." : "Finalizar registro"}
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
               <>
                 <h1 className="mb-5 text-4xl font-bold">
                   ¡No esperes más, adquiere tus entradas hoy!
                 </h1>
                 <p className="mb-5">
-                  Al utilizar nuestros servicios, usted acepta y reconoce haber
-                  leído y entendido nuestros términos y condiciones
+                  Al utilizar nuestros servicios, usted acepta y reconoce haber leído y entendido nuestros términos y condiciones
                 </p>
                 <button
                   className="btn-warning btn"
@@ -126,123 +157,6 @@ const Auth: NextPage = () => {
                 >
                   Empieza Ahora
                 </button>
-              </>
-            )}
-
-            {finishRegister && (
-              <>
-                <div className="card w-full flex-shrink-0 bg-base-100 shadow-2xl">
-                  <div className="card-body">
-                    {validationErrorAlert ? (
-                      <div className="alert alert-error shadow-lg">
-                        <div>
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-6 w-6 flex-shrink-0 stroke-current"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                          </svg>
-                          <span>¡Error! Rellena los datos faltantes</span>
-                        </div>
-                      </div>
-                    ) : null}
-                    <div className="form-control">
-                      <label className="label">
-                        <span className="label-text">Nombre de usuario</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Nombre de usuario"
-                        className="input-bordered input text-black"
-                        value={name}
-                        onChange={(e) => setName(e.currentTarget.value)}
-                        required={true}
-                      />
-                    </div>
-                    <div className="form-control">
-                      <label className="label">
-                        <span className="label-text">Nombre completo</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Nombre completo"
-                        className="input-bordered input text-black"
-                        value={DNIName}
-                        onChange={(e) => setDNIName(e.currentTarget.value)}
-                        required={true}
-                      />
-                    </div>
-                    <div className="form-control">
-                      <label className="label">
-                        <span className="label-text">DNI</span>
-                      </label>
-                      <input
-                        type="number"
-                        id="number"
-                        name="number"
-                        placeholder="ID Documento de identidad"
-                        className="input-bordered input text-black"
-                        value={DNI}
-                        onChange={(e) => setDNI(e.currentTarget.value)}
-                        required={true}
-                      />
-                    </div>
-                    <div className="form-control">
-                      <label className="label">
-                        <span className="label-text">Teléfono</span>
-                      </label>
-                      <input
-                        type="number"
-                        id="number"
-                        name="number"
-                        placeholder="Numero de teléfono"
-                        className=" input-bordered input text-black"
-                        value={phone}
-                        onChange={(e) => setPhone(e.currentTarget.value)}
-                        required={true}
-                      />
-                    </div>
-                    <div className="form-control">
-                      <label className="label">
-                        <span className="label-text">Fecha de nacimiento</span>
-                      </label>
-                      <input
-                        type="date"
-                        name="date"
-                        id="date"
-                        placeholder="Fecha de nacimiento"
-                        className="input-bordered input text-black"
-                        value={birthdate}
-                        onChange={(e) => setBirthdate(e.currentTarget.value)}
-                        required={true}
-                      />
-                    </div>
-                    <div className="form-control mt-6">
-                      <button
-                        className="btn-warning btn"
-                        onClick={() => {
-                          handleFormValidation({
-                            name,
-                            DNIName,
-                            DNI,
-                            phone,
-                            birthdate,
-                          });
-                          createNotificationHandler();
-                        }}
-                      >
-                        Finalizar registro
-                      </button>
-                    </div>
-                  </div>
-                </div>
               </>
             )}
           </div>
@@ -253,20 +167,3 @@ const Auth: NextPage = () => {
 };
 
 export default Auth;
-
-export async function getServerSideProps({ req }: any) {
-  const session = await getSession({ req });
-
-  if (!session) {
-    return {
-      redirect: {
-        destination: "/",
-        permanent: false,
-      },
-    };
-  }
-
-  return {
-    props: { session },
-  };
-}

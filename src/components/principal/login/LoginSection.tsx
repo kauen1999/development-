@@ -1,54 +1,42 @@
-import React from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import concierto from "../../../../public/images/concierto.jpg";
 import logo from "../../../../public/images/logo_white.png";
 import { FcGoogle } from "react-icons/fc";
 import { AiFillFacebook } from "react-icons/ai";
 import { signIn } from "next-auth/react";
-import { useFormik } from "formik";
-import loginValidate from "../../../lib/validate";
-import { useRouter } from "next/router";
-import { useUserType } from "./UserTypeContext";
 
 const LoginSection: React.FC = () => {
-  const { setUserType } = useUserType();
   const router = useRouter();
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const formik = useFormik({
-    initialValues: {
-      email: "",
-      password: "",
-    },
-    validate: loginValidate,
-    onSubmit,
-  });
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm((prev) => ({
+      ...prev,
+      [e.target.id]: e.target.value,
+    }));
+  };
 
-  console.log(formik.errors);
-
-  async function onSubmit(values: { password: string; email: string }) {
-    if (
-      values.email === "admin@entradamaster.com" &&
-      values.password === "12345678"
-    ) {
-      setUserType("admin");
-      router.push("/dashboard");
-      return;
-    }
-
-    const result = await signIn("credentials", {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+    const res = await signIn("credentials", {
+      email: form.email,
+      password: form.password,
       redirect: false,
-      email: values.email,
-      password: values.password,
-      callbackUrl: "/",
     });
-
-    if (result?.ok) {
-      router.push(result.url ?? "/");
+    setIsSubmitting(false);
+    if (res?.ok) {
+      router.push((router.query.redirect as string) || "/auth");
     } else {
-      formik.setErrors({ email: "Correo o contraseña incorrectos" });
+      setError("Login inválido.");
     }
-  }
+  };
 
   return (
     <section className="flex flex-col lg:h-screen lg:flex-row">
@@ -61,13 +49,11 @@ const LoginSection: React.FC = () => {
           quality={100}
           className="-z-10 brightness-50 "
         />
-
         <Link href={"/"}>
           <div className="absolute top-6 left-6 w-[5rem]">
             <Image src={logo} alt="logo" />
           </div>
         </Link>
-
         <div className="z-10 mx-auto w-[90%]">
           <h2 className="text-5xl font-bold text-white lg:text-7xl">
             Vive los conciertos.
@@ -80,15 +66,14 @@ const LoginSection: React.FC = () => {
           <h2 className="text-center text-3xl font-bold lg:text-4xl">
             Iniciar sesión
           </h2>
-
           <form
             className="mt-10 flex flex-col gap-5"
-            onSubmit={formik.handleSubmit}
+            onSubmit={handleSubmit}
           >
             <div className="flex flex-col gap-2">
               <label
                 className="text-xl font-bold text-primary-100"
-                htmlFor="correo"
+                htmlFor="email"
               >
                 Correo Electrónico
               </label>
@@ -97,42 +82,40 @@ const LoginSection: React.FC = () => {
                 type="email"
                 id="email"
                 placeholder="Tu correo aquí"
-                {...formik.getFieldProps("email")}
+                value={form.email}
+                onChange={handleChange}
+                disabled={isSubmitting}
               />
-              {formik.errors.email && formik.touched.email ? (
-                <span className="-my-2 text-red-500">
-                  {formik.errors.email}
-                </span>
-              ) : null}
             </div>
 
             <div className="flex flex-col gap-2">
               <label
-                className="text-xl font-bold text-primary-100 "
-                htmlFor="contrasena"
+                className="text-xl font-bold text-primary-100"
+                htmlFor="password"
               >
                 Contraseña
               </label>
-
               <input
                 className="rounded-lg border-b"
                 type="password"
                 id="password"
                 placeholder="Tu contraseña aquí"
-                {...formik.getFieldProps("password")}
+                value={form.password}
+                onChange={handleChange}
+                disabled={isSubmitting}
               />
-              {formik.errors.password && formik.touched.password ? (
-                <span className="-my-2 text-red-500">
-                  {formik.errors.password}
-                </span>
-              ) : null}
             </div>
+
+            {error && (
+              <span className="-my-2 text-red-500 text-center">{error}</span>
+            )}
 
             <button
               type="submit"
               className="rounded-lg bg-primary-100 py-3 text-xl font-bold text-white"
+              disabled={isSubmitting}
             >
-              Ingresar
+              {isSubmitting ? "Ingresando..." : "Ingresar"}
             </button>
           </form>
           <div className="flex flex-col p-9 ">
@@ -141,6 +124,7 @@ const LoginSection: React.FC = () => {
               onClick={() => {
                 signIn("google", { callbackUrl: "/" });
               }}
+              disabled={isSubmitting}
             >
               <div className="flex items-center justify-center">
                 <FcGoogle className="mr-2 text-4xl" />
@@ -154,6 +138,7 @@ const LoginSection: React.FC = () => {
               onClick={() => {
                 signIn("facebook", { callbackUrl: "/" });
               }}
+              disabled={isSubmitting}
             >
               <div className="flex items-center justify-center">
                 <AiFillFacebook className="mr-2 text-4xl" />

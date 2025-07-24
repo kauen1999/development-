@@ -1,0 +1,236 @@
+.header {
+  width: 90%;
+  margin: auto;
+  padding-top: 1rem;
+}
+
+.container_1 {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid rgb(188, 188, 188);
+  padding-bottom: 0.5rem;
+}
+
+.container_2 {
+  margin-top: 0.8rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.search_bar input:focus {
+  outline: none;
+  box-shadow: none;
+  border: none;
+}
+
+.form_element {
+  height: 50px; /* ou qualquer valor desejado */
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 0 12px;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.search_bar {
+  display: flex;
+  align-items: center;
+
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 4px 8px;
+  transition: all 0.2s ease-in-out;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.search_bar:hover {
+  border-color: #ff5f00;
+}
+.search_bar:focus {
+  border-color: #ff5f00;
+  background-color: #ff5f00;
+  color: #ffffff;
+  outline: none;
+  box-shadow: 0 0 5px #ff5f00;
+}
+.search_bar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #f5f5f5;
+}
+
+.container_2 button {
+  width: max-content;
+  height: max-content;
+}
+
+.logo_container {
+  width: 5rem;
+}
+
+/* Estilo para o botão de seleção de cidade */
+.cidade_select {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease,
+    background-color 0.3s ease;
+  background-color: #fcfcfc; /* Fundo escuro */
+  color: #060000; /* Texto branco */
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid rgb(188, 188, 188);
+  font-size: 1rem;
+  cursor: pointer;
+  font-weight: 500;
+  appearance: none;
+  max-width: 250px;
+  width: 100%;
+}
+.cidade_select:hover {
+  border-color: #ff5f00;
+}
+.cidade_select:focus {
+  border-color: #ff5f00;
+  background-color: #ff5f00;
+  color: #ffffff;
+  outline: none;
+  box-shadow: 0 0 5px #ff5f00;
+}
+.cidade_select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #f5f5f5;
+}
+
+/* Estilo para o campo de data */
+.data_input {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  background-color: #ffffff;
+  color: #333333;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgb(188, 188, 188);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.data_input:focus {
+  border-color: #ff5f00;
+  box-shadow: 0 0 5px #ff5f00;
+  outline: none;
+}
+
+.flatpickr-day.selected {
+  background: #ff5f00 !important; /* Cor de fundo laranja */
+  border-color: #ff5f00 !important; /* Cor da borda laranja */
+  color: #ffffff !important; /* Texto branco */
+}
+
+.hamburger {
+  font-size: 2rem;
+}
+
+.left_container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2.5em;
+}
+
+.right_container {
+  display: none;
+}
+
+.left_container h1 {
+  font-size: 2em;
+  font-weight: 700;
+  line-height: 2rem;
+}
+
+.left_container nav {
+  display: none;
+}
+
+.search_bar {
+  display: flex;
+  border: 1px solid rgb(188, 188, 188);
+  border-radius: 8px;
+  padding: 0 0.5em;
+
+  justify-content: space-between;
+  align-items: center;
+
+  word-wrap: normal;
+}
+
+.search_bar input {
+  height: 3em;
+  background: transparent;
+  outline: none;
+}
+
+.container_1 h5 {
+  color: rgb(188, 188, 188);
+}
+
+.socials {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.icon {
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+@media screen and (min-width: 1024px) {
+  .header {
+    width: 95%;
+    font-size: 13px;
+  }
+
+  .container_2 button {
+    display: none;
+  }
+
+  .left_container nav {
+    font-size: 1.2em;
+    font-weight: 700;
+    display: flex;
+    gap: 1.8em;
+  }
+
+  .left_container nav a {
+    transition: all 400ms ease;
+  }
+
+  .left_container nav a:hover {
+    color: #ff5f00;
+  }
+
+  .right_container {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .img_container {
+    width: 3em;
+    border: 2px solid #ff5f00;
+    padding: 3px;
+    border-radius: 100%;
+  }
+
+  .img_container img {
+    border-radius: 100%;
+  }
+}
+
+@media screen and (min-width: 1600px) {
+  .header {
+    font-size: 16px;
+  }
+
+  .search_bar input {
+    width: 20rem;
+  }
+}

@@ -1,30 +1,18 @@
-import { type AppType } from "next/app";
-import { type Session } from "next-auth";
-import { SessionProvider } from "next-auth/react";
-import NextNProgress from "nextjs-progressbar";
-import { UserTypeProvider } from "../components/principal/login/UserTypeContext";
-
 import { trpc } from "../utils/trpc";
+import { SessionProvider } from "next-auth/react";
+import type { AppProps } from "next/app";
+import { UserTypeProvider } from "@/components/principal/login/UserTypeContext"; // AJUSTE O PATH se necessário
 
 import "../styles/globals.css";
 
-const MyApp: AppType<{ session: Session | null }> = ({
-  Component,
-  pageProps: { session, ...pageProps },
-}) => {
+function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   return (
-    <UserTypeProvider>
-      <SessionProvider session={session}>
-        <NextNProgress
-          color="orange"
-          options={{
-            showSpinner: false,
-          }}
-        />
+    <SessionProvider session={session}>
+      <UserTypeProvider>
         <Component {...pageProps} />
-      </SessionProvider>
-    </UserTypeProvider>
+      </UserTypeProvider>
+    </SessionProvider>
   );
-};
+}
 
 export default trpc.withTRPC(MyApp);

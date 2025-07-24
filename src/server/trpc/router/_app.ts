@@ -1,23 +1,10 @@
-import { createTRPCRouter } from "../trpc";
-import { authRouter } from "./authRouter";
-import { notificationRouter } from "./notificationRouter";
-import { eventRouter } from "./eventRouter";
-import { categoryRouter } from "./categoryRouter";
-import { orderRouter } from "./orderRouter";
-import { ticketRouter } from "./ticket.router";
-import { paymentRouter } from "./paymentRouter";
-import { invoiceRouter } from "./invoiceRouter";
+// src/server/trpc/router/_app.ts
 
-export const appRouter = createTRPCRouter({
+import { router } from "../trpc";
+import { authRouter } from "@/modules/auth/trpcRouter";
+
+export const appRouter = router({
   auth: authRouter,
-  notification: notificationRouter,
-  event: eventRouter, 
-  category: categoryRouter,
-  order: orderRouter, 
-  ticket: ticketRouter,
-  payment: paymentRouter,
-  invoice: invoiceRouter,
+  // ... outros routers no futuro
 });
-
-// export type definition of API
 export type AppRouter = typeof appRouter;
