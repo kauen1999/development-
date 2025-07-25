@@ -51,7 +51,7 @@ const Profile: NextPage = () => {
   const [valueBirthdate, setValueBirthdate] = useState("");
 
   // URL da imagem de perfil
-  const [URL, setURL] = useState<string>("/imagens/perfil-de-usuario.webp");
+  const [URL, setURL] = useState<string>("https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png");
 
   // Obter userId do session (string vazia se não logado)
   const userId: string | undefined = session?.user?.id;
@@ -65,7 +65,7 @@ const Profile: NextPage = () => {
       setValueDni(safeStr(data.dni));
       setValuePhone(safeStr(data.phone));
       setValueBirthdate(formatDate(data.birthdate));
-      setURL(data.image ?? "/imagens/perfil-de-usuario.webp");
+      setURL(data.image ?? "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png");
     },
   });
 
@@ -140,7 +140,7 @@ const Profile: NextPage = () => {
   // Atualiza URL da imagem quando sessão muda
   useEffect(() => {
     const image = session?.user?.image;
-    setURL(typeof image === "string" ? image : "/imagens/perfil-de-usuario.webp");
+    setURL(typeof image === "string" ? image : "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png");
   }, [session?.user?.image]);
 
   if (status === "loading" || isLoading) {
@@ -160,7 +160,7 @@ const Profile: NextPage = () => {
           {URL && (
             <div className="m-6">
               <Image
-                src={URL ?? "/imagens/perfil-de-usuario.webp"}
+                src={URL ?? "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png"}
                 alt="imagen de perfil"
                 width={300}
                 height={300}

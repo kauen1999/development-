@@ -26,7 +26,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: user.role,
           profileCompleted,
-          image: user.image ?? "/imagens/perfil-de-usuario.webp"
+          image: user.image ?? "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png"
         };  
       },
     }),
@@ -38,7 +38,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = user.role;
         token.profileCompleted = user.profileCompleted;
-        token.image = user.image ?? "/imagens/perfil-de-usuario.webp";
+        token.image = user.image ?? "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png";
       }
       return token;
     },
@@ -47,7 +47,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = token.role as UserRole;
         session.user.profileCompleted = token.profileCompleted as boolean;
-        session.user.image = (token.image as string) ?? "/imagens/perfil-de-usuario.webp";
+        session.user.image = (token.image as string) ?? "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png";
       }
       return session;
     },

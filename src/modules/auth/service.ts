@@ -11,7 +11,7 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
-      data: { name, email, password: hashedPassword, image: "/imagens/perfil-de-usuario.webp", },
+      data: { name, email, password: hashedPassword, image: "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png" },
     });
     return user;
   }
