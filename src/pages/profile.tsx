@@ -1,237 +1,147 @@
-import React, { useState, useEffect, useRef, ReactNode } from "react";
-import { type NextPage } from "next";
+import React, { useState, useEffect } from "react";
+import type { NextPage, GetServerSideProps } from "next";
 import Header from "../components/principal/header/Header";
 import Footer from "../components/principal/footer/Footer";
 import { BiEdit } from "react-icons/bi";
 import { MdDone, MdClose } from "react-icons/md";
 import { getSession, useSession } from "next-auth/react";
 import Image from "next/image";
-import { trpc, type RouterOutputs } from "../utils/trpc";
+import { trpc } from "../utils/trpc";
 
-type User = RouterOutputs["auth"]["getUserById"];
+// Utilitário para garantir string nunca undefined/null
+const safeStr = (v: string | null | undefined) => v ?? "";
+
+// Utilitário para formatar data yyyy-MM-dd para input type date
+function formatDate(input: Date | string | null | undefined): string {
+  if (!input) return "";
+  try {
+    const date = typeof input === "string" ? new Date(input) : input;
+    if (isNaN(date.getTime())) return ""; // Data inválida tratada aqui
+    return date.toISOString().split("T")[0];
+  } catch {
+    return "";
+  }
+}
 
 interface EditInputs {
   username: boolean;
-  DNIName: boolean;
-  DNI: boolean;
+  dniName: boolean;
+  dni: boolean;
   phone: boolean;
   birthdate: boolean;
-}
-
-interface CompleteData {
-  name: string | null;
-  DNIName: string;
-  DNI: string;
-  phone: string;
-  birthdate: string;
 }
 
 const Profile: NextPage = () => {
   const { data: session, status } = useSession();
 
-  const [URL, setURL] = useState<string | null>(null);
+  // Estados para controlar edição
   const [edit, setEdit] = useState<EditInputs>({
     username: false,
-    DNIName: false,
-    DNI: false,
+    dniName: false,
+    dni: false,
     phone: false,
     birthdate: false,
   });
-  const [userData, setUserData] = useState<User | null>(null);
-  const [username, setUsername] = useState<User | null | undefined | string>(
-    null
-  );
-  const [valueUsername, setValueUsername] = useState<
-    User | string | null | undefined
-  >(null);
-  const [valueName, setValueName] = useState<User | string | null | undefined>(
-    null
-  );
-  const [valueDNI, setValueDNI] = useState<User | string | null | undefined>(
-    null
-  );
-  const [valuePhone, setValuePhone] = useState<
-    User | string | null | undefined
-  >(null);
-  const [valueBirthdate, setValueBirthdate] = useState<
-    User | string | null | undefined
-  >(null);
 
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  // Estados dos inputs controlados
+  const [valueUsername, setValueUsername] = useState("");
+  const [valueDniName, setValueDniName] = useState("");
+  const [valueDni, setValueDni] = useState("");
+  const [valuePhone, setValuePhone] = useState("");
+  const [valueBirthdate, setValueBirthdate] = useState("");
 
-  const {
-    data: user,
-    refetch: refetch,
-    isLoading,
-  } = trpc.auth.getUserById.useQuery(session?.user?.id, {
-    enabled: session?.user?.id !== undefined,
-    onSuccess: (data: User) => {
-      if (!userData) setUserData(userData ?? data ?? null);
+  // URL da imagem de perfil
+  const [URL, setURL] = useState<string>("/imagens/perfil-de-usuario.webp");
+
+  // Obter userId do session (string vazia se não logado)
+  const userId: string | undefined = session?.user?.id;
+
+  // Query TRPC para buscar dados do usuário
+  const { data: user, isLoading, refetch } = trpc.auth.getUserById.useQuery(userId ?? "", {
+  enabled: !!userId, // só executa a query se userId existir
+  onSuccess: (data) => {
+      setValueUsername(safeStr(data.name));
+      setValueDniName(safeStr(data.dniName));
+      setValueDni(safeStr(data.dni));
+      setValuePhone(safeStr(data.phone));
+      setValueBirthdate(formatDate(data.birthdate));
+      setURL(data.image ?? "/imagens/perfil-de-usuario.webp");
     },
   });
 
+  // Mutações TRPC para atualizar campos (ajuste nomes conforme backend)
   const completeDataName = trpc.auth.modifyName.useMutation({
-    onSuccess: () => {
-      void refetch();
-    },
+    onSuccess: () => { void refetch(); },
   });
-
-  const completeDataDNIName = trpc.auth.modifyDNIName.useMutation({
-    onSuccess: () => {
-      void refetch();
-    },
+  const completeDataDniName = trpc.auth.modifydniName.useMutation({
+    onSuccess: () => { void refetch(); },
   });
-
-  const completeDataDNI = trpc.auth.modifyDNI.useMutation({
-    onSuccess: () => {
-      void refetch();
-    },
+  const completeDataDni = trpc.auth.modifydni.useMutation({
+    onSuccess: () => { void refetch(); },
   });
-
   const completeDataPhone = trpc.auth.modifyPhone.useMutation({
-    onSuccess: () => {
-      void refetch();
-    },
+    onSuccess: () => { void refetch(); },
   });
-
   const completeDataBirthdate = trpc.auth.modifyBirthdate.useMutation({
-    onSuccess: () => {
-      void refetch();
-    },
+    onSuccess: () => { void refetch(); },
   });
 
-  const onSave = (typeValidation: string) => {
-    console.log("ID:", session?.user?.id);
-    console.log("valueUsername:", valueUsername);
-    console.log("user?.name:", user?.name);
-    if (typeValidation === "nameValidation") {
-      try {
-        if (session?.user?.id && valueUsername) {
-          void completeDataName.mutate({
-            id: session.user.id,
-            name: valueUsername as string,
-          });
-        }
-      } catch (error) {
-        console.log(error);
-      }
+  // Função salvar edição
+  function onSave(field: keyof EditInputs) {
+    if (!session?.user?.id) return;
+    switch (field) {
+      case "username":
+        if (valueUsername.trim()) completeDataName.mutate({ id: session.user.id, name: valueUsername.trim() });
+        break;
+      case "dniName":
+        if (valueDniName.trim()) completeDataDniName.mutate({ id: session.user.id, dniName: valueDniName.trim() });
+        break;
+      case "dni":
+        if (valueDni.trim()) completeDataDni.mutate({ id: session.user.id, dni: valueDni.trim() });
+        break;
+      case "phone":
+        if (valuePhone.trim()) completeDataPhone.mutate({ id: session.user.id, phone: valuePhone.trim() });
+        break;
+      case "birthdate":
+        if (valueBirthdate) completeDataBirthdate.mutate({ id: session.user.id, birthdate: valueBirthdate });
+        break;
     }
-    if (typeValidation === "DNINameValidation") {
-      try {
-        if (session?.user?.id && valueName) {
-          void completeDataDNIName.mutate({
-            id: session.user.id,
-            DNIName: valueName as string,
-          });
-        }
-      } catch (error) {
-        console.log(error);
-      }
-    }
-    if (typeValidation === "DNIValidation") {
-      try {
-        if (session?.user?.id && valueDNI) {
-          void completeDataDNI.mutate({
-            id: session.user.id,
-            DNI: valueDNI as string,
-          });
-        }
-      } catch (error) {
-        console.log(error);
-      }
-    }
-    if (typeValidation === "PhoneValidation") {
-      try {
-        if (session?.user?.id && valuePhone) {
-          void completeDataPhone.mutate({
-            id: session.user.id,
-            phone: valuePhone as string,
-          });
-        }
-      } catch (error) {
-        console.log(error);
-      }
-    }
-    if (typeValidation === "BirthdateValidation") {
-      try {
-        if (session?.user?.id && valueBirthdate) {
-          void completeDataBirthdate.mutate({
-            id: session.user.id,
-            birthdate: valueBirthdate as string,
-          });
-        }
-      } catch (error) {
-        console.log(error);
-      }
-    }
-  };
+    setEdit((prev) => ({ ...prev, [field]: false }));
+  }
 
-  const facebookURLProfileHandler = (url: string | null | undefined) => {
-    const newHeight = "height=1000";
-    // const updatedUrl = url?.replace(/height=\d+/, newHeight);
-    console.log(url);
-    if (url) {
-      setURL(url);
-    }
-  };
-  const googleURLProfileHandler = (url: string | null | undefined) => {
-    const lastEqual = url?.lastIndexOf("=");
-    const cleanUrl = url?.substring(0, lastEqual);
-    if (cleanUrl) {
-      setURL(cleanUrl);
-    }
-  };
+  // Função para alternar modo de edição e resetar valores
+  function handleEditButton(field: keyof EditInputs) {
+    setEdit((prev) => {
+      const newState = { ...prev, [field]: !prev[field] };
+      // Se abrindo edição, resetar o valor do campo para valor atual do usuário
+      if (!prev[field] && user) {
+        switch (field) {
+          case "username":
+            setValueUsername(safeStr(user.name));
+            break;
+          case "dniName":
+            setValueDniName(safeStr(user.dniName));
+            break;
+          case "dni":
+            setValueDni(safeStr(user.dni));
+            break;
+          case "phone":
+            setValuePhone(safeStr(user.phone));
+            break;
+          case "birthdate":
+            setValueBirthdate(formatDate(user.birthdate));
+            break;
+        }
+      }
+      return newState;
+    });
+  }
 
-  const cutURLProfileImage = () => {
-    const url: string | null | undefined = session?.user?.image;
-    if (url) {
-      if (
-        url ===
-        "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png"
-      ) {
-        setURL(url);
-      }
-
-      if (url.lastIndexOf("fbsbx") !== -1) {
-        facebookURLProfileHandler(url);
-      } else {
-        googleURLProfileHandler(url);
-      }
-    }
-  };
-
-  const handleEditButton = (input: string) => {
-    switch (input) {
-      case "username": {
-        setEdit({ ...edit, username: !edit.username });
-        break;
-      }
-      case "DNI": {
-        setEdit({ ...edit, DNI: !edit.DNI });
-        break;
-      }
-      case "DNIName": {
-        setEdit({ ...edit, DNIName: !edit.DNIName });
-        break;
-      }
-      case "phone": {
-        setEdit({ ...edit, phone: !edit.phone });
-        break;
-      }
-      case "birthdate": {
-        setEdit({ ...edit, birthdate: !edit.birthdate });
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  };
-
+  // Atualiza URL da imagem quando sessão muda
   useEffect(() => {
-    cutURLProfileImage();
-    setUsername(userData?.name);
-  }, [cutURLProfileImage]);
+    const image = session?.user?.image;
+    setURL(typeof image === "string" ? image : "/imagens/perfil-de-usuario.webp");
+  }, [session?.user?.image]);
 
   if (status === "loading" || isLoading) {
     return (
@@ -241,15 +151,16 @@ const Profile: NextPage = () => {
     );
   }
 
+  // HTML e CSS idênticos, apenas tipagem e lógica ajustadas
   return (
     <>
-      <Header home={true} />
+      <Header home buyPage={false} />
       <div className="mt-6 flex w-full flex-col bg-gray-200 lg:flex-row">
         <div className="card rounded-box m-6 grid flex-grow place-items-center bg-white shadow-md">
           {URL && (
             <div className="m-6">
               <Image
-                src={`${URL}`}
+                src={URL ?? "/imagens/perfil-de-usuario.webp"}
                 alt="imagen de perfil"
                 width={300}
                 height={300}
@@ -268,7 +179,6 @@ const Profile: NextPage = () => {
             <h4 className="text-2xl font-bold">Mi cuenta</h4>
             <p>Modifica tus datos personales y de contacto.</p>
           </div>
-
           <div className="mt-10 sm:mt-0">
             <div className="md:grid md:grid-cols-1 md:gap-6">
               <div className="mt-5 md:col-span-2 md:mt-0">
@@ -276,368 +186,263 @@ const Profile: NextPage = () => {
                   <div className="overflow-hidden shadow sm:rounded-md">
                     <div className="bg-white px-4 py-5 sm:p-6">
                       <div className="grid grid-cols-6 gap-6">
+                        {/* Nome de usuário */}
                         <div className="col-span-6 sm:col-span-3">
-                          <label
-                            htmlFor="first-name"
-                            className="block text-sm font-medium leading-6 text-gray-900"
-                          >
+                          <label className="block text-sm font-medium leading-6 text-gray-900">
                             Nombre de usuario
                           </label>
                           <div className="flex items-center justify-between">
                             {!edit.username ? (
-                              <>
-                                <span className="whitespace-nowrap">
-                                  {isLoading ? (
-                                    <>Cargando...</>
-                                  ) : (
-                                    <>{user?.name}</>
-                                  )}
-                                </span>
-                              </>
+                              <span className="whitespace-nowrap">
+                                {isLoading ? <>Cargando...</> : <>{user?.name}</>}
+                              </span>
                             ) : (
-                              <>
-                                <input
-                                  type="text"
-                                  placeholder="Nombre de usuario"
-                                  className="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
-                                  value={valueUsername as string}
-                                  onChange={(e) => {
-                                    setValueUsername(e.currentTarget.value);
-                                  }}
-                                  required
-                                  ref={inputRef}
-                                />
-                              </>
+                              <input
+                                type="text"
+                                className="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                value={valueUsername}
+                                onChange={(e) => setValueUsername(e.target.value ?? "")}
+                                required
+                              />
                             )}
                             {edit.username ? (
                               <>
                                 <button
                                   className="btn-success btn m-2 cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
+                                  type="button"
+                                  onClick={() => {
                                     handleEditButton("username");
-                                    onSave("nameValidation");
+                                    onSave("username");
                                   }}
                                 >
                                   <MdDone />
                                 </button>
                                 <button
                                   className="btn-error btn cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleEditButton("username");
-                                  }}
+                                  type="button"
+                                  onClick={() => handleEditButton("username")}
                                 >
                                   <MdClose />
                                 </button>
                               </>
                             ) : (
-                              <>
-                                <button
-                                  className="btn-warning btn m-2 cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleEditButton("username");
-                                    setValueUsername(user?.name);
-                                  }}
-                                >
-                                  <BiEdit />
-                                </button>
-                              </>
+                              <button
+                                className="btn-warning btn m-2 cursor-pointer"
+                                type="button"
+                                onClick={() => handleEditButton("username")}
+                              >
+                                <BiEdit />
+                              </button>
                             )}
                           </div>
                         </div>
 
+                        {/* Nome documento */}
                         <div className="col-span-6 sm:col-span-3">
-                          <label
-                            htmlFor="last-name"
-                            className="block text-sm font-medium leading-6 text-gray-900"
-                          >
+                          <label className="block text-sm font-medium leading-6 text-gray-900">
                             Nombre que figura en tu documento
                           </label>
                           <div className="flex items-center justify-between">
-                            {!edit.DNIName ? (
-                              <>
-                                <span className="whitespace-nowrap">
-                                  {isLoading ? (
-                                    <>Cargando...</>
-                                  ) : (
-                                    <>{user?.DNIName}</>
-                                  )}
-                                </span>
-                              </>
+                            {!edit.dniName ? (
+                              <span className="whitespace-nowrap">
+                                {isLoading ? <>Cargando...</> : <>{user?.dniName}</>}
+                              </span>
                             ) : (
-                              <>
-                                <input
-                                  type="text"
-                                  placeholder="Nombre de usuario"
-                                  className="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
-                                  value={valueName as string}
-                                  onChange={(e) => {
-                                    setValueName(e.currentTarget.value);
-                                  }}
-                                  required
-                                  ref={inputRef}
-                                />
-                              </>
+                              <input
+                                type="text"
+                                className="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                value={valueDniName}
+                                onChange={(e) => setValueDniName(e.target.value ?? "")}
+                                required
+                              />
                             )}
-                            {edit.DNIName ? (
+                            {edit.dniName ? (
                               <>
                                 <button
                                   className="btn-success btn m-2 cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleEditButton("DNIName");
-                                    onSave("DNINameValidation");
+                                  type="button"
+                                  onClick={() => {
+                                    handleEditButton("dniName");
+                                    onSave("dniName");
                                   }}
                                 >
                                   <MdDone />
                                 </button>
                                 <button
                                   className="btn-error btn cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleEditButton("DNIName");
-                                  }}
+                                  type="button"
+                                  onClick={() => handleEditButton("dniName")}
                                 >
                                   <MdClose />
                                 </button>
                               </>
                             ) : (
-                              <>
-                                <button
-                                  className="btn-warning btn m-2 cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleEditButton("DNIName");
-                                    setValueName(user?.DNIName);
-                                  }}
-                                >
-                                  <BiEdit />
-                                </button>
-                              </>
+                              <button
+                                className="btn-warning btn m-2 cursor-pointer"
+                                type="button"
+                                onClick={() => handleEditButton("dniName")}
+                              >
+                                <BiEdit />
+                              </button>
                             )}
                           </div>
                         </div>
 
+                        {/* Documento */}
                         <div className="col-span-6 sm:col-span-3">
-                          <label
-                            htmlFor="email-address"
-                            className="block text-sm font-medium leading-6 text-gray-900"
-                          >
+                          <label className="block text-sm font-medium leading-6 text-gray-900">
                             Documento de identidad
                           </label>
                           <div className="flex items-center justify-between">
-                            {!edit.DNI ? (
-                              <>
-                                <span className="whitespace-nowrap">
-                                  {isLoading ? (
-                                    <>Cargando...</>
-                                  ) : (
-                                    <>{user?.DNI}</>
-                                  )}
-                                </span>
-                              </>
+                            {!edit.dni ? (
+                              <span className="whitespace-nowrap">
+                                {isLoading ? <>Cargando...</> : <>{user?.dni}</>}
+                              </span>
                             ) : (
-                              <>
-                                <input
-                                  type="number"
-                                  id="number"
-                                  name="number"
-                                  placeholder="Nombre de usuario"
-                                  className="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
-                                  value={valueDNI as string}
-                                  onChange={(e) => {
-                                    setValueDNI(e.currentTarget.value);
-                                  }}
-                                  required
-                                  ref={inputRef}
-                                />
-                              </>
+                              <input
+                                type="text"
+                                className="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                value={valueDni}
+                                onChange={(e) => setValueDni(e.target.value ?? "")}
+                                required
+                              />
                             )}
-                            {edit.DNI ? (
+                            {edit.dni ? (
                               <>
                                 <button
                                   className="btn-success btn m-2 cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleEditButton("DNI");
-                                    onSave("DNIValidation");
+                                  type="button"
+                                  onClick={() => {
+                                    handleEditButton("dni");
+                                    onSave("dni");
                                   }}
                                 >
                                   <MdDone />
                                 </button>
                                 <button
                                   className="btn-error btn cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleEditButton("DNI");
-                                  }}
+                                  type="button"
+                                  onClick={() => handleEditButton("dni")}
                                 >
                                   <MdClose />
                                 </button>
                               </>
                             ) : (
-                              <>
-                                <button
-                                  className="btn-warning btn m-2 cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleEditButton("DNI");
-                                    setValueDNI(user?.DNI);
-                                  }}
-                                >
-                                  <BiEdit />
-                                </button>
-                              </>
+                              <button
+                                className="btn-warning btn m-2 cursor-pointer"
+                                type="button"
+                                onClick={() => handleEditButton("dni")}
+                              >
+                                <BiEdit />
+                              </button>
                             )}
                           </div>
                         </div>
 
+                        {/* Telefone */}
                         <div className="col-span-6 sm:col-span-3">
-                          <label
-                            htmlFor="email-address"
-                            className="block text-sm font-medium leading-6 text-gray-900"
-                          >
+                          <label className="block text-sm font-medium leading-6 text-gray-900">
                             Teléfono
                           </label>
                           <div className="flex items-center justify-between">
                             {!edit.phone ? (
-                              <>
-                                <span className="whitespace-nowrap">
-                                  {isLoading ? (
-                                    <>Cargando...</>
-                                  ) : (
-                                    <>{user?.phone}</>
-                                  )}
-                                </span>
-                              </>
+                              <span className="whitespace-nowrap">
+                                {isLoading ? <>Cargando...</> : <>{user?.phone}</>}
+                              </span>
                             ) : (
-                              <>
-                                <input
-                                  type="number"
-                                  id="number"
-                                  name="number"
-                                  placeholder="Nombre de usuario"
-                                  className="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
-                                  value={valuePhone as string}
-                                  onChange={(e) => {
-                                    setValuePhone(e.currentTarget.value);
-                                  }}
-                                  required
-                                  ref={inputRef}
-                                />
-                              </>
+                              <input
+                                type="text"
+                                className="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                value={valuePhone}
+                                onChange={(e) => setValuePhone(e.target.value ?? "")}
+                                required
+                              />
                             )}
                             {edit.phone ? (
                               <>
                                 <button
                                   className="btn-success btn m-2 cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
+                                  type="button"
+                                  onClick={() => {
                                     handleEditButton("phone");
-                                    onSave("PhoneValidation");
+                                    onSave("phone");
                                   }}
                                 >
                                   <MdDone />
                                 </button>
                                 <button
                                   className="btn-error btn cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleEditButton("phone");
-                                  }}
+                                  type="button"
+                                  onClick={() => handleEditButton("phone")}
                                 >
                                   <MdClose />
                                 </button>
                               </>
                             ) : (
-                              <>
-                                <button
-                                  className="btn-warning btn m-2 cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleEditButton("phone");
-                                    setValuePhone(user?.phone);
-                                  }}
-                                >
-                                  <BiEdit />
-                                </button>
-                              </>
+                              <button
+                                className="btn-warning btn m-2 cursor-pointer"
+                                type="button"
+                                onClick={() => handleEditButton("phone")}
+                              >
+                                <BiEdit />
+                              </button>
                             )}
                           </div>
                         </div>
 
+                        {/* Data nascimento */}
                         <div className="col-span-6">
-                          <label
-                            htmlFor="street-address"
-                            className="block text-sm font-medium leading-6 text-gray-900"
-                          >
+                          <label className="block text-sm font-medium leading-6 text-gray-900">
                             Fecha de nacimiento
                           </label>
                           <div className="flex items-center justify-between">
                             {!edit.birthdate ? (
-                              <>
-                                <span className="whitespace-nowrap">
-                                  {isLoading ? (
-                                    <>Cargando...</>
-                                  ) : (
-                                    <>{user?.birthdate}</>
-                                  )}
-                                </span>
-                              </>
+                              <span className="whitespace-nowrap">
+                                {isLoading ? (
+                                  <>Cargando...</>
+                                ) : user?.birthdate ? (
+                                  new Date(user.birthdate).toLocaleDateString()
+                                ) : (
+                                  ""
+                                )}
+                              </span>
                             ) : (
-                              <>
-                                <input
-                                  type="date"
-                                  name="date"
-                                  id="date"
-                                  placeholder="Nombre de usuario"
-                                  className="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
-                                  value={valueBirthdate as string}
-                                  onChange={(e) => {
-                                    setValueBirthdate(e.currentTarget.value);
-                                  }}
-                                  required
-                                  ref={inputRef}
-                                />
-                              </>
+                              <input
+                                type="date"
+                                className="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                value={valueBirthdate}
+                                onChange={(e) => setValueBirthdate(e.target.value ?? "")}
+                                required
+                              />
                             )}
                             {edit.birthdate ? (
                               <>
                                 <button
                                   className="btn-success btn m-2 cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
+                                  type="button"
+                                  onClick={() => {
                                     handleEditButton("birthdate");
-                                    onSave("BirthdateValidation");
+                                    onSave("birthdate");
                                   }}
                                 >
                                   <MdDone />
                                 </button>
                                 <button
                                   className="btn-error btn cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleEditButton("birthdate");
-                                  }}
+                                  type="button"
+                                  onClick={() => handleEditButton("birthdate")}
                                 >
                                   <MdClose />
                                 </button>
                               </>
                             ) : (
-                              <>
-                                <button
-                                  className="btn-warning btn m-2 cursor-pointer"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    handleEditButton("birthdate");
-                                    setValueBirthdate(user?.birthdate);
-                                  }}
-                                >
-                                  <BiEdit />
-                                </button>
-                              </>
+                              <button
+                                className="btn-warning btn m-2 cursor-pointer"
+                                type="button"
+                                onClick={() => handleEditButton("birthdate")}
+                              >
+                                <BiEdit />
+                              </button>
                             )}
                           </div>
                         </div>
@@ -650,11 +455,9 @@ const Profile: NextPage = () => {
           </div>
         </div>
       </div>
-
       <div className="card rounded-box grid h-[30vh] place-items-center bg-white">
         No hay eventos recientes
       </div>
-
       <Footer />
     </>
   );
@@ -662,9 +465,9 @@ const Profile: NextPage = () => {
 
 export default Profile;
 
-export async function getServerSideProps({ req }: any) {
-  const session = await getSession({ req });
-
+// SSR Auth
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const session = await getSession({ req: context.req });
   if (!session) {
     return {
       redirect: {
@@ -673,8 +476,5 @@ export async function getServerSideProps({ req }: any) {
       },
     };
   }
-
-  return {
-    props: {},
-  };
-}
+  return { props: {} };
+};

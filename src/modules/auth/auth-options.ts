@@ -1,3 +1,4 @@
+// src/modules/auth/auth-options.ts
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
@@ -25,8 +26,8 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: user.role,
           profileCompleted,
-          image: user.image ?? null,
-        };
+          image: user.image ?? "/imagens/perfil-de-usuario.webp"
+        };  
       },
     }),
   ],
@@ -37,7 +38,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = user.role;
         token.profileCompleted = user.profileCompleted;
-        token.image = user.image;
+        token.image = user.image ?? "/imagens/perfil-de-usuario.webp";
       }
       return token;
     },
@@ -46,7 +47,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = token.role as UserRole;
         session.user.profileCompleted = token.profileCompleted as boolean;
-        session.user.image = token.image as string;
+        session.user.image = (token.image as string) ?? "/imagens/perfil-de-usuario.webp";
       }
       return session;
     },

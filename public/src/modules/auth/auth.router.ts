@@ -33,7 +33,7 @@ export const authRouter = createTRPCRouter({
       dniName: z.string().optional(),
       phone: z.string().optional(),
       birthdate: z.string().optional(),
-      image: z.string().optional(),
+      image: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
       return authService.updateProfile(ctx.session.user.id, input);

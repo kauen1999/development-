@@ -13,13 +13,12 @@ import {
   AiOutlineInstagram,
   AiOutlineUser,
 } from "react-icons/ai";
-import { MdOutlineExitToApp, MdNotificationsNone } from "react-icons/md";
+import { MdNotificationsNone } from "react-icons/md";
 import { AiOutlineSearch } from "react-icons/ai";
 import { HiMenuAlt3 } from "react-icons/hi";
 import { IoMdArrowDropdown } from "react-icons/io";
 import { useSession, signOut } from "next-auth/react";
 import Notification from "./Notification";
-import { useUserType } from "../login/UserTypeContext";
 import { useRouter } from "next/router";
 
 interface Props {
@@ -36,7 +35,6 @@ const HeaderComponent = ({ home, buyPage }: Props) => {
 
   const [cidade, setCidade] = useState("");
   const [dataSelecionada, setDataSelecionada] = useState("");
-  // Removed unused state variable 'data'
   const datePickerRef = useRef<HTMLInputElement>(null);
 
   const cidades = [
@@ -71,17 +69,16 @@ const HeaderComponent = ({ home, buyPage }: Props) => {
     "Concordia",
     "Rafaela",
     "Pergamino",
-  ]; // Lista de cidades
+  ];
 
   const handleNav = () => {
     setNav(!nav);
   };
 
   const [nav, setNav] = useState(false);
-  // Removed unused state variable 'dropdown'
   const [openNotifications, setOpenNotifications] = useState(false);
-  // Removed unused state variable 'dateState'
   const textColor = home ? "[#252525]" : "white";
+
   interface Notification {
     id: string;
     createdAt: Date;
@@ -90,11 +87,8 @@ const HeaderComponent = ({ home, buyPage }: Props) => {
     userId: string;
   }
 
-  const [notifications] = useState<Notification[]>([]); // Estado para notificações
-
+  const [notifications] = useState<Notification[]>([]);
   const { data: session } = useSession();
-  const { userType } = useUserType();
-  // Removed unused 'setUserType' assignment
 
   useEffect(() => {
     const cidadeSalva = localStorage.getItem("cidade");
@@ -104,13 +98,11 @@ const HeaderComponent = ({ home, buyPage }: Props) => {
     if (dataSalva) setDataSelecionada(dataSalva);
   }, []);
 
-  // Salvar cidade no localStorage ao mudar
   const handleCidadeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setCidade(e.target.value);
     localStorage.setItem("cidade", e.target.value);
   };
 
-  // Salvar data no localStorage ao mudar
   useEffect(() => {
     if (datePickerRef.current) {
       flatpickr(datePickerRef.current, {
@@ -132,7 +124,6 @@ const HeaderComponent = ({ home, buyPage }: Props) => {
   return (
     <>
       <header id="inicio" className={`${style.header}`}>
-
         <div className={style.container_1}>
           <h5>
             {new Date().toLocaleDateString("es-AR", {
@@ -283,8 +274,9 @@ const HeaderComponent = ({ home, buyPage }: Props) => {
             </select>
           </div>
 
-          {/* Botão de filtro por data */}
-          {/* <input
+          {/* Botão de filtro por data - (mantido comentado conforme original) */}
+          {/* 
+          <input
             ref={datePickerRef}
             type="text"
             className={`${style.data_input}`}
@@ -292,26 +284,11 @@ const HeaderComponent = ({ home, buyPage }: Props) => {
             disabled={!cidade}
             value={dataSelecionada ? new Date(dataSelecionada).toLocaleDateString() : ""} // Mostra a data formatada
             readOnly // flatpickr controla o valor
-          /> */}
+          />
+          */}
 
           <div className={style.right_container}>
-            {userType === "admin" ? (
-              <>
-                <Link href={"/"}>
-                  <div className="cursor-pointer rounded-lg bg-gray-500 py-2 px-2 text-center text-sm font-bold text-white xl:text-base">
-                    Publicar
-                  </div>
-                </Link>
-                <Link href={"/dashboard"}>
-                  <div className="cursor-pointer rounded-lg border border-primary-100 py-2 px-2 text-center text-sm font-bold xl:text-base">
-                    Panel Administrador
-                  </div>
-                </Link>
-                <div className="cursor-pointer" onClick={handleLogout}>
-                  <MdOutlineExitToApp size={33} />
-                </div>
-              </>
-            ) : !session ? (
+            {!session ? (
               <>
                 <Link href={"/login"}>
                   <div className="cursor-pointer font-bold">Iniciar Sesión</div>
@@ -328,11 +305,6 @@ const HeaderComponent = ({ home, buyPage }: Props) => {
                     <MdNotificationsNone className={style.icon} />
                   </Link>
                 </div>
-
-                {/* <Link href="#">
-                    <AiOutlineShoppingCart className={style.icon} />
-                  </Link> */}
-
                 <div className={style.img_container}>
                   <Image
                     src={`${session?.user?.image}`}
@@ -402,22 +374,7 @@ const HeaderComponent = ({ home, buyPage }: Props) => {
                 />
                 <AiOutlineSearch className={style.icon} />
               </li>
-              {userType === "admin" ? (
-                <>
-                  <div className="my-3 flex cursor-pointer items-center justify-center rounded-md border-2 border-black bg-gray-500 py-4 px-9 text-xl text-gray-400">
-                    Publicar
-                  </div>
-
-                  <Link href="/dashboard">
-                    <div
-                      onClick={handleNav}
-                      className="my-3 flex cursor-pointer items-center justify-center rounded-md border-2 border-black bg-[#ff6c00] py-4 px-9 text-xl text-[#ffff]"
-                    >
-                      Panel Administrador
-                    </div>
-                  </Link>
-                </>
-              ) : !session ? (
+              {!session ? (
                 <div>
                   <Link href="/login">
                     <div
@@ -462,7 +419,7 @@ const HeaderComponent = ({ home, buyPage }: Props) => {
               >
                 <Link href="/">Categorías</Link>
               </li>
-              {!session && userType !== "admin" ? null : (
+              {session && (
                 <li
                   onClick={() => {
                     signOut();
@@ -524,13 +481,9 @@ const HeaderComponent = ({ home, buyPage }: Props) => {
                     </svg>
                   </button>
                 </div>
-
                 {notifications?.map((notifitacion) => (
                   <div key={notifitacion.id} className="mt-5">
-                    <Notification
-                      notification={notifitacion}
-                      // onDelete={() => void deleteNote.mutate({ id: note.id })}
-                    />
+                    <Notification notification={notifitacion} />
                   </div>
                 ))}
 
@@ -551,4 +504,3 @@ const HeaderComponent = ({ home, buyPage }: Props) => {
 };
 
 export default HeaderComponent;
-

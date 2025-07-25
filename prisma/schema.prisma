@@ -74,20 +74,20 @@ model VerificationToken {
 }
 
 // Domain Models
-model User {
-  id            String    @id @default(cuid())
-  createdAt     DateTime  @default(now())
-  name          String?
-  password      String?
-  dniName       String?
-  dni           String?
-  phone         String?
-  birthdate     DateTime?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?   @default("https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png")
-  role          Role      @default(USER)
-  provider      String?
+  model User {
+    id            String    @id @default(cuid())
+    createdAt     DateTime  @default(now())
+    name          String?
+    password      String?
+    dniName       String?
+    dni           String?
+    phone         String?
+    birthdate     DateTime?
+    email         String?   @unique
+    emailVerified DateTime?
+    image         String?   @default("https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png")
+    role          Role      @default(USER)
+    provider      String?
 
   // Relations
   accounts         Account[]

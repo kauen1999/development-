@@ -7,7 +7,7 @@ import type { Context } from "./context";
 // const t = initTRPC.context<Context>().create();
 
 const t = initTRPC.context<Context>().create({
-  transformer: superjson, // <--- ADICIONE ESTA LINHA!
+  transformer: superjson, 
 });
 
 export const router = t.router;

@@ -6,7 +6,7 @@ import concierto from "../../../../public/images/concierto.jpg";
 import logo from "../../../../public/images/logo_white.png";
 import { LoadingButton } from "../loader/LoadingButton";
 import { FaInfoCircle } from "react-icons/fa";
-import { trpc } from "@/utils/trpc"; // ajuste o path conforme seu projeto
+import { trpc } from "@/utils/trpc";
 
 const RegisterSection: React.FC = () => {
   const router = useRouter();
@@ -34,7 +34,7 @@ const RegisterSection: React.FC = () => {
       onSuccess: () => {
         setShowSuccessModal(true);
         setTimeout(() => {
-          router.push("/login");
+          router.push("/auth");
         }, 2000);
       },
       onError: (err) => setError(err.message || "Erro ao registrar"),
@@ -49,7 +49,7 @@ const RegisterSection: React.FC = () => {
             <h2 className="mb-2 text-2xl font-bold text-green-600">
               Registro exitoso
             </h2>
-            <p className="text-gray-700">Serás redirigido al login...</p>
+            <p className="text-gray-700">Serás redirigido para completar tu perfil...</p>
           </div>
         </div>
       )}

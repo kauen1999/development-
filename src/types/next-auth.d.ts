@@ -1,4 +1,3 @@
-//src/types/next-auth.d.ts
 import type { DefaultSession, DefaultUser } from "next-auth";
 
 type UserRole = "USER" | "ADMIN" | "ORGANIZER"; // ajuste conforme seu sistema
@@ -9,7 +8,7 @@ declare module "next-auth" {
       id: string;
       profileCompleted: boolean;
       role: UserRole;
-      image?: string | null;
+      image: string;
     } & DefaultSession["user"];
   }
 
@@ -17,7 +16,7 @@ declare module "next-auth" {
     id: string;
     profileCompleted: boolean;
     role: UserRole;
-    image?: string | null;
+    image: string;
   }
 }
 
@@ -26,6 +25,6 @@ declare module "next-auth/jwt" {
     id: string;
     profileCompleted: boolean;
     role: UserRole;
-    image?: string | null;
+    image: string;
   }
 }

@@ -2,17 +2,22 @@ import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { signIn } from "next-auth/react";
+import { trpc } from "@/utils/trpc";
 import concierto from "../../../../public/images/concierto.jpg";
 import logo from "../../../../public/images/logo_white.png";
 import { FcGoogle } from "react-icons/fc";
 import { AiFillFacebook } from "react-icons/ai";
-import { signIn } from "next-auth/react";
 
 const LoginSection: React.FC = () => {
   const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { refetch: checkProfile } = trpc.auth.isProfileComplete.useQuery(undefined, {
+    enabled: false, // só será chamado manualmente
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({
@@ -25,14 +30,27 @@ const LoginSection: React.FC = () => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
+
     const res = await signIn("credentials", {
       email: form.email,
       password: form.password,
       redirect: false,
     });
+
     setIsSubmitting(false);
+
     if (res?.ok) {
-      router.push((router.query.redirect as string) || "/auth");
+      try {
+        const result = await checkProfile();
+        if (result.data === true) {
+          router.push("/");
+        } else {
+          router.push("/auth");
+        }
+      } catch (err) {
+        console.error("Erro ao verificar perfil:", err);
+        router.push("/auth");
+      }
     } else {
       setError("Login inválido.");
     }
