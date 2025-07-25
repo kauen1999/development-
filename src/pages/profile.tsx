@@ -17,7 +17,7 @@ function formatDate(input: Date | string | null | undefined): string {
   try {
     const date = typeof input === "string" ? new Date(input) : input;
     if (isNaN(date.getTime())) return ""; // Data inválida tratada aqui
-    return date.toISOString().split("T")[0];
+    return date.toISOString().split("T")[0] as string;
   } catch {
     return "";
   }
@@ -51,7 +51,7 @@ const Profile: NextPage = () => {
   const [valueBirthdate, setValueBirthdate] = useState("");
 
   // URL da imagem de perfil
-  const [URL, setURL] = useState<string>("https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png");
+  const [URL, setURL] = useState<string>("/imagens/perfil-de-usuario.webp");
 
   // Obter userId do session (string vazia se não logado)
   const userId: string | undefined = session?.user?.id;
@@ -65,7 +65,7 @@ const Profile: NextPage = () => {
       setValueDni(safeStr(data.dni));
       setValuePhone(safeStr(data.phone));
       setValueBirthdate(formatDate(data.birthdate));
-      setURL(data.image ?? "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png");
+      setURL(data.image ?? "/imagens/perfil-de-usuario.webp");
     },
   });
 
@@ -140,7 +140,7 @@ const Profile: NextPage = () => {
   // Atualiza URL da imagem quando sessão muda
   useEffect(() => {
     const image = session?.user?.image;
-    setURL(typeof image === "string" ? image : "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png");
+    setURL(typeof image === "string" ? image : "/imagens/perfil-de-usuario.webp");
   }, [session?.user?.image]);
 
   if (status === "loading" || isLoading) {
@@ -160,7 +160,7 @@ const Profile: NextPage = () => {
           {URL && (
             <div className="m-6">
               <Image
-                src={URL ?? "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png"}
+                src={URL ?? "/imagens/perfil-de-usuario.webp"}
                 alt="imagen de perfil"
                 width={300}
                 height={300}

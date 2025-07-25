@@ -12,6 +12,18 @@ const modifydniSchema = z.object({ id: z.string(), dni: z.string().min(3) });
 const modifyPhoneSchema = z.object({ id: z.string(), phone: z.string().min(8) });
 const modifyBirthdateSchema = z.object({ id: z.string(), birthdate: z.string().min(8) });
 
+// ✅ Novo schema de retorno do perfil
+const userProfileSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  dniName: z.string().nullable(),
+  dni: z.string().nullable(),
+  phone: z.string().nullable(),
+  birthdate: z.union([z.string(), z.date(), z.null()]),
+  email: z.string().nullable(),
+  image: z.string().nullable(),
+});
+
 export const authRouter = router({
   // REGISTRO
   register: publicProcedure
@@ -37,9 +49,10 @@ export const authRouter = router({
       return await AuthService.isProfileComplete(ctx.session.user.id);
     }),
 
-  // GET USER BY ID (profile)
+  // ✅ GET USER BY ID (com .output)
   getUserById: protectedProcedure
     .input(z.string())
+    .output(userProfileSchema)
     .query(async ({ input, ctx }) => {
       const user = await ctx.prisma.user.findUnique({
         where: { id: input },
@@ -52,11 +65,15 @@ export const authRouter = router({
           birthdate: true,
           email: true,
           image: true,
-          // Adicione aqui mais campos se seu profile precisar
         },
       });
       if (!user) throw new Error("User not found");
-      return user;
+
+      // (Opcional) Garante que birthdate seja string
+      return {
+        ...user,
+        birthdate: user.birthdate?.toISOString() ?? null,
+      };
     }),
 
   // EDITAR NOME DE USUÁRIO

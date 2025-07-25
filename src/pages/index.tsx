@@ -33,7 +33,7 @@ const Home: NextPage = () => {
         <meta name="description" content="EntradaMaster" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <Header home={true} />
+      <Header home={true} buyPage={undefined} />
 
       <main>
         <Hero />
