@@ -12,20 +12,19 @@ export const serverSchema = z.object({
       ? z.string().min(1)
       : z.string().min(1).optional(),
 
-  // Corrigido: fallback seguro para VERCEL_URL + validação robusta
-  NEXTAUTH_URL: z.preprocess(
-    () => {
-      const raw =
-        typeof process.env.NEXTAUTH_URL === "string"
-          ? process.env.NEXTAUTH_URL
-          : typeof process.env.VERCEL_URL === "string"
-            ? `https://${process.env.VERCEL_URL}`
-            : undefined;
+  // ✅ Corrigido: fallback seguro para VERCEL_URL + validação robusta
+  // Inclui log no build para facilitar o diagnóstico
+  NEXTAUTH_URL: z.preprocess(() => {
+    const raw =
+      typeof process.env.NEXTAUTH_URL === "string"
+        ? process.env.NEXTAUTH_URL
+        : typeof process.env.VERCEL_URL === "string"
+        ? `https://${process.env.VERCEL_URL}`
+        : undefined;
 
-      return raw;
-    },
-    z.string().url()
-  ),
+    console.log("🧪 Resolved NEXTAUTH_URL:", raw);
+    return raw;
+  }, z.string().url()),
 
   // OAuth Providers
   GOOGLE_CLIENT_ID: z.string(),
@@ -39,7 +38,9 @@ export const serverSchema = z.object({
   PAGOTIC_COLLECTOR_ID: z.string().min(1),
 });
 
-
+/**
+ * Variáveis do lado do cliente (NEXT_PUBLIC_)
+ */
 export const clientSchema = z.object({
   NEXT_PUBLIC_API_BASE: z.string().url(),
   NEXT_PUBLIC_APP_URL: z.string().url(),
