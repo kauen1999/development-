@@ -1,3 +1,4 @@
+// src/store/index.ts
 import create from "zustand";
 import { IUser } from "../types/types";
 

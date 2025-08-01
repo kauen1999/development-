@@ -1,3 +1,4 @@
+// src/components/buydetailsComponent/BuyBody/Asientos.tsx
 import React from 'react'
 
 const Asientos = () => {

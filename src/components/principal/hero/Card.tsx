@@ -1,3 +1,4 @@
+// src/components/principal/hero/Card.tsx
 import React from "react";
 import Image, { StaticImageData } from "next/image";
 

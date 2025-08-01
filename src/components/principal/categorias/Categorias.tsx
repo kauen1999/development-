@@ -1,3 +1,4 @@
+// src/components/principal/categorias/Categorias.tsx
 import React from "react";
 import Link from "next/link";
 import { AiFillStar } from "react-icons/ai";

@@ -1,3 +1,4 @@
+// src/components/buydetailsComponent/BuyBody/SeccionCampo.tsx
 import React, { SetStateAction } from "react";
 
 interface Props {

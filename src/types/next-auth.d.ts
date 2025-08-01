@@ -1,3 +1,4 @@
+// src/types/next-auth-d.ts
 import type { DefaultSession, DefaultUser } from "next-auth";
 
 type UserRole = "USER" | "ADMIN" | "ORGANIZER"; // ajuste conforme seu sistema

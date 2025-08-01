@@ -1,9 +1,9 @@
+// src/components/principal/login/LoginSection.tsx
 import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { signIn } from "next-auth/react";
-import { trpc } from "@/utils/trpc";
 import concierto from "../../../../public/images/concierto.jpg";
 import logo from "../../../../public/images/logo_white.png";
 import { FcGoogle } from "react-icons/fc";
@@ -14,10 +14,6 @@ const LoginSection: React.FC = () => {
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const { refetch: checkProfile } = trpc.auth.isProfileComplete.useQuery(undefined, {
-    enabled: false, // só será chamado manualmente
-  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({
@@ -41,14 +37,18 @@ const LoginSection: React.FC = () => {
 
     if (res?.ok) {
       try {
-        const result = await checkProfile();
-        if (result.data === true) {
+        const sessionRes = await fetch("/api/auth/session");
+        const session = await sessionRes.json();
+
+        if (session?.user?.role === "ADMIN") {
+          router.push("/dashboard");
+        } else if (session?.user?.profileCompleted) {
           router.push("/");
         } else {
           router.push("/auth");
         }
       } catch (err) {
-        console.error("Erro ao verificar perfil:", err);
+        console.error("Erro ao obter sessão:", err);
         router.push("/auth");
       }
     } else {
@@ -136,7 +136,8 @@ const LoginSection: React.FC = () => {
               {isSubmitting ? "Ingresando..." : "Ingresar"}
             </button>
           </form>
-          <div className="flex flex-col p-9 ">
+
+          <div className="flex flex-col p-9">
             <button
               className="btn-warning btn my-2 flex bg-white"
               onClick={() => {
@@ -164,6 +165,7 @@ const LoginSection: React.FC = () => {
               </div>
             </button>
           </div>
+
           <Link href="/register">
             <div className="text-center text-primary-100">
               ¿Todavía no tienes una cuenta?

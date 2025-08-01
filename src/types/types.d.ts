@@ -1,3 +1,4 @@
+// src/types/types.d.ts
 export interface IUser {
   id: string;
   email: string;

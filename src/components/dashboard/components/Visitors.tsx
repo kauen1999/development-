@@ -1,3 +1,4 @@
+// src/components/dashboard/components/Visitors.tsx
 import React from "react";
 
 const Visitors = () => {

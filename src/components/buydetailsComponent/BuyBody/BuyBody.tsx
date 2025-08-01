@@ -1,23 +1,46 @@
+// src/components/buydetailsComponent/BuyBody/BuyBody.tsx
 import React, { useState } from "react";
 import { useSession } from "next-auth/react";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { EventMap } from "../../BuyBody/EventMap";
 import { eventMaps } from "../../../data/maps";
+import { trpc } from "@/utils/trpc";
 
 interface Props {
-  foto: string;
-  titulo: string;
+  event: {
+    id: string;
+    name: string;
+    date: string;
+    price: number;
+    city: string;
+    theater: string;
+    ticketCategories: {
+      id: string;
+      title: string;
+      price: number;
+      stock: number;
+      seats: {
+        id: string;
+        label: string;
+        row: string;
+        number: number;
+      }[];
+    }[];
+    categories: {
+      id: string;
+      name: string;
+    }[];
+  };
 }
 
 type Seat = {
   sector: string;
-  row: number;
+  row: string;
   seat: number;
   price: number;
 };
 
-const BuyBody: React.FC<Props> = ({ foto, titulo }) => {
+const BuyBody: React.FC<Props> = ({ event }) => {
   const router = useRouter();
   const { data: sessionData } = useSession();
   const [selectedSeats, setSelectedSeats] = useState<Seat[]>([]);
@@ -25,7 +48,7 @@ const BuyBody: React.FC<Props> = ({ foto, titulo }) => {
 
   const handleSelect = (
     sector: string,
-    row: number,
+    row: string,
     seat: number,
     price: number
   ) => {
@@ -34,16 +57,13 @@ const BuyBody: React.FC<Props> = ({ foto, titulo }) => {
     );
 
     if (isAlreadySelected) {
-      // Se já está selecionado, remova normalmente
       setSelectedSeats((prev) =>
         prev.filter(
           (s) => !(s.sector === sector && s.row === row && s.seat === seat)
         )
       );
     } else {
-      // Se já tem 5 selecionados, não permite mais
       if (selectedSeats.length >= 5) return;
-
       setSelectedSeats((prev) => [...prev, { sector, row, seat, price }]);
     }
   };
@@ -54,6 +74,16 @@ const BuyBody: React.FC<Props> = ({ foto, titulo }) => {
 
   const location = (router.query.location as string) || "belgrano";
   const mapConfig = eventMaps[location];
+
+  const createOrder = trpc.order.create.useMutation({
+    onSuccess: (order) => {
+      router.push(`/checkout/${order.id}`);
+    },
+    onError: (error) => {
+      console.error("Erro ao criar pedido:", error);
+      alert("Ocorreu um erro ao criar seu pedido.");
+    },
+  });
 
   if (!mapConfig) {
     return (
@@ -82,16 +112,13 @@ const BuyBody: React.FC<Props> = ({ foto, titulo }) => {
           <div className="mt-4 max-h-64 space-y-4 overflow-y-auto pr-2">
             {selectedSeats.map((s, i) => (
               <div key={i} className="border-b pb-2">
-                {/* Linha 1 */}
                 <div className="flex items-center justify-between">
                   <p>Setor: Platea {s.sector}</p>
                   <button className="rounded bg-gray-200 px-2 py-1 text-sm">
                     1
-                  </button>{" "}
-                  {/* ou ícone de remover/editar */}
+                  </button>
                 </div>
 
-                {/* Linha 2 */}
                 <div className="flex items-center justify-between">
                   <p>
                     Fila: {s.sector}
@@ -108,7 +135,7 @@ const BuyBody: React.FC<Props> = ({ foto, titulo }) => {
 
         {selectedSeats.length > 0 && (
           <div className="mt-4 pt-4">
-            <h3 className="mb-4 text-lg font-semibold"> Resumen de tu compra</h3>
+            <h3 className="mb-4 text-lg font-semibold">Resumen de tu compra</h3>
             {selectedSeats.map((s, i) => (
               <div className="flex justify-between text-sm" key={i}>
                 <span>
@@ -124,6 +151,7 @@ const BuyBody: React.FC<Props> = ({ foto, titulo }) => {
             </div>
           </div>
         )}
+
         {selectedSeats.length > 0 && (
           <div className="mt-4">
             <label className="flex items-center gap-2 text-sm">
@@ -134,7 +162,7 @@ const BuyBody: React.FC<Props> = ({ foto, titulo }) => {
                 className="accent-blue-600 focus:outline-none"
               />
               <span>
-                 Acepto los {" "}
+                Acepto los{" "}
                 <a href="#" className="text-blue-600 underline">
                   términos y condiciones
                 </a>
@@ -143,6 +171,7 @@ const BuyBody: React.FC<Props> = ({ foto, titulo }) => {
             </label>
           </div>
         )}
+
         {selectedSeats.length > 0 && (
           <div className="mt-6">
             {disabled || !termsAccepted ? (
@@ -153,23 +182,29 @@ const BuyBody: React.FC<Props> = ({ foto, titulo }) => {
                 Comprar ahora
               </button>
             ) : sessionData ? (
-              <Link
-                href={{
-                  pathname: "../checkout/[id]",
-                  query: {
-                    id: "01",
-                    title: titulo,
-                    price: totalPrice,
-                    cant: totalTickets,
-                    picture: foto,
-                    details: JSON.stringify(selectedSeats),
-                  },
+              <button
+                onClick={() => {
+                  createOrder.mutateAsync({
+                    eventId: event.id,
+                    items: selectedSeats.map((s) => {
+                      const ticketCategory = event.ticketCategories.find((tc) =>
+                        tc.seats.find(
+                          (seat) =>
+                            seat.row === s.row && seat.number === Number(s.seat)
+                        )
+                      );
+                      return {
+                        ticketCategoryId: ticketCategory?.id || "",
+                        categoryId: event.categories[0]?.id || "",
+                        quantity: 1,
+                      };
+                    }),
+                  });
                 }}
+                className="w-full rounded-md bg-[#FF5F00] py-3 px-6 font-semibold text-white hover:bg-[#ff6c14]"
               >
-                <button className="w-full rounded-md bg-[#FF5F00] py-3 px-6 font-semibold text-white transition hover:bg-[#FF5F00]">
-                  Comprar ahora
-                </button>
-              </Link>
+                Comprar ahora
+              </button>
             ) : (
               <button
                 onClick={() => router.push("/login")}

@@ -1,3 +1,4 @@
+// src/components/maps/LunaParkMap.tsx
 import React from "react";
 
 const LunaParkMap = () => {

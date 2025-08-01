@@ -1,3 +1,4 @@
+// src/components/principal/footer/Footer.tsx
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";

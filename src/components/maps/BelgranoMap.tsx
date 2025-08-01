@@ -1,3 +1,4 @@
+// src/components/maps/BelgranoMap.tsx
 import React from "react";
 
 interface Props {

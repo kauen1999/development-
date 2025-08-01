@@ -1,3 +1,4 @@
+// src/components/details/details/Details.tsx
 import React from "react";
 import { useRouter } from "next/router";
 import Datos from "./Datos";

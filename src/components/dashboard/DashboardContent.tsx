@@ -1,3 +1,4 @@
+// src/components/dashboard/DashboardContent.tsx
 import React from "react";
 import Header from "../principal/header/Header";
 import Footer from "../principal/footer/Footer";
@@ -7,12 +8,13 @@ import LatestCostumers from "./components/LatestCostumers";
 import NewFunctions from "./components/NewFunctions";
 import Visitors from "./components/Visitors";
 import UserSignUp from "./components/UserSignUp";
+import Link from "next/link";
 
 const DashboardContent = () => {
   return (
     <div>
       <div>
-        <Header home />
+        <Header home buyPage={false} />
         <div className="flex overflow-hidden bg-white pt-5">
           <div
             id="main-content"
@@ -20,6 +22,17 @@ const DashboardContent = () => {
           >
             <main>
               <div className="px-4">
+                {/* Botão Criar Evento */}
+                <div className="mb-6 flex justify-end">
+                  <Link
+                    href="/event/create"
+                    className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white transition duration-200 hover:bg-blue-700"
+                  >
+                    Criar Evento
+                  </Link>
+                </div>
+
+                {/* Grids do conteúdo */}
                 <div className="mt-4 grid w-full grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                   <NewFunctions />
                   <Visitors />

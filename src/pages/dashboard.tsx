@@ -1,6 +1,8 @@
 import React from "react";
 import DashboardContent from "../components/dashboard/DashboardContent";
-import { NextPage } from "next";
+import type { NextPage, GetServerSidePropsContext } from "next";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/modules/auth/auth-options";
 
 const Dashboard: NextPage = () => {
   return (
@@ -10,17 +12,20 @@ const Dashboard: NextPage = () => {
   );
 };
 
-export async function getServerSideProps({ req }: any) {
-  if (req.cookies.userType === "admin") {
+export async function getServerSideProps(ctx: GetServerSidePropsContext) {
+  const session = await getServerSession(ctx.req, ctx.res, authOptions);
+
+  if (!session || session.user.role !== "ADMIN") {
     return {
-      props: {},
+      redirect: {
+        destination: "/",
+        permanent: false,
+      },
     };
   }
+
   return {
-    redirect: {
-      destination: "/",
-      permanent: false,
-    },
+    props: {},
   };
 }
 

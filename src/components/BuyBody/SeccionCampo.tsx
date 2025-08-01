@@ -1,3 +1,4 @@
+// src/components/BuyBody/SeccionCampo.tsx
 import React from "react";
 
 interface Props {

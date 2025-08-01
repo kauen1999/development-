@@ -3,7 +3,7 @@ import { type NextPage } from "next";
 import Details from "../../components/details/details/Details";
 import HeroD from "../../components/details/hero/HeroD";
 import Footer from "../../components/principal/footer/Footer";
-import { StaticImageData } from "next/image";
+import type { StaticImageData } from "next/image";
 
 interface Props {
   picture: StaticImageData;

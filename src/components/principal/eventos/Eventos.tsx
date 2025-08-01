@@ -1,12 +1,15 @@
+// src/components/principal/eventos/Eventos.tsx
 import React, { useState } from "react";
-import Link from "next/link";
 import Card from "./EventoCard";
-import { cards } from "../../../data";
 import { AiOutlineSearch } from "react-icons/ai";
 import style from "./../header/Header.module.css";
+import { trpc } from "@/utils/trpc";
+import Spinner from "@/components/principal/loader/Spinner"; // ajuste o path conforme onde está o Spinner
 
 const Eventos = () => {
   const [categoria, setCategoria] = useState("Todos");
+
+  const { data: events = [], isLoading } = trpc.event.list.useQuery();
 
   const categorias = [
     "Todos",
@@ -22,8 +25,10 @@ const Eventos = () => {
 
   const eventosFiltrados =
     categoria === "Todos"
-      ? cards
-      : cards.filter((card) => card.categoria === categoria);
+      ? events
+      : events.filter((event) =>
+          event.categories?.some((c) => c.title === categoria)
+        );
 
   return (
     <section id="eventos" className="mx-auto mt-10 w-11/12 pb-10">
@@ -31,7 +36,6 @@ const Eventos = () => {
         <h3 className="text-3xl font-bold">Eventos</h3>
       </div>
 
-      {/* Botões de filtro por categoria */}
       <div className="mb-6 flex flex-nowrap items-center justify-between gap-4">
         <div className="flex flex-wrap gap-4">
           {categorias.map((cat) => (
@@ -50,7 +54,7 @@ const Eventos = () => {
         <div className={`${style.search_bar} ${style.form_element}`}>
           <input
             type="text"
-            style={{ width: "400px"}}
+            style={{ width: "400px" }}
             className="mr-3 w-full appearance-none border-none bg-transparent py-1 px-2 leading-tight text-gray-700 outline-0 focus:outline-none"
             name="search"
             placeholder="Búsqueda por nombre, artista, ciudad, fecha..."
@@ -59,18 +63,27 @@ const Eventos = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {eventosFiltrados.map((card, index) => (
-          <Card
-            key={card.artist + card.fecha}
-            artist={card.artist}
-            fecha={card.fecha}
-            ubicacion={card.ubicacion}
-            ciudad={card.ciudad}
-            foto={card.foto}
-          />
-        ))}
-      </div>
+      {isLoading ? (
+        <div className="flex justify-center py-10">
+          <Spinner />
+          <span className="ml-3 text-lg font-bold text-primary-100">
+            Cargando eventos...
+          </span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {eventosFiltrados.map((event) => (
+            <Card
+              key={event.id}
+              artist={event.name}
+              fecha={new Date(event.date).toLocaleDateString()}
+              foto={event.image ?? ""}
+              ubicacion={event.theater}
+              ciudad={event.city}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 };

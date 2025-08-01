@@ -1,8 +1,10 @@
+// src/components/buydetailsComponent/BuyHero/Details.tsx
 import React from "react";
-import Image, { StaticImageData } from "next/image";
+import type { StaticImageData } from "next/image";
+import Image from "next/image";
 
 interface Props {
-  img: StaticImageData;
+  img: string | StaticImageData;
   title: string;
   fecha: string;
   ubi: string;

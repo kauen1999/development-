@@ -1,36 +1,34 @@
-import React, { useState, useRef, useEffect } from "react";
-import img from "../../../../public/images/queen.jpg";
+// src/components/buydetailsComponent/BuyHero/BuyHero.tsx
+import React, { useState, useEffect } from "react";
 import { AiOutlineClockCircle } from "react-icons/ai";
 import Details from "./Details";
 import { useRouter } from "next/router";
-import { StaticImageData } from "next/image";
 
 interface Props {
-  foto: StaticImageData;
+  foto: string;
   titulo: string;
+  fecha: string;
+  horas: string;
+  ubicacion: string;
+  ciudad: string;
 }
 
-const BuyHero = ({ foto, titulo }: Props) => {
-  const [time, setTime] = useState(260); // 4 minutes in seconds
+const BuyHero = ({ foto, titulo, fecha, horas, ubicacion, ciudad }: Props) => {
+  const [time, setTime] = useState(260); // 4 minutos e 20 segundos
   const router = useRouter();
 
   useEffect(() => {
+    if (time === 0) {
+      router.push("/");
+      return;
+    }
+
     const timer = setInterval(() => {
       setTime((prevTime) => prevTime - 1);
     }, 1000);
 
-    return () => {
-      clearInterval(timer);
-    };
-  }, []);
-
-  const handleRedirect = () => {
-    if (time === 0) {
-      router.push("/");
-    }
-  };
-
-  handleRedirect();
+    return () => clearInterval(timer);
+  }, [time, router]);
 
   return (
     <div className="mt-5 bg-gray-50">
@@ -50,8 +48,8 @@ const BuyHero = ({ foto, titulo }: Props) => {
         <Details
           img={foto}
           title={titulo}
-          fecha="27 Nov - Dom - 19:20pm"
-          ubi="Auditorio de Belgrano - Buenos Aires"
+          fecha={`${fecha} - ${horas}`}
+          ubi={`${ubicacion} - ${ciudad}`}
         />
 
         <div className="flex w-max items-center gap-2 rounded-lg bg-white p-2 text-slate-400">

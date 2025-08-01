@@ -1,3 +1,4 @@
+// src/components/principal/register/RegisterSection.tsx
 import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -34,7 +35,7 @@ const RegisterSection: React.FC = () => {
       onSuccess: () => {
         setShowSuccessModal(true);
         setTimeout(() => {
-          router.push("/auth");
+          router.push("/login");
         }, 2000);
       },
       onError: (err) => setError(err.message || "Erro ao registrar"),

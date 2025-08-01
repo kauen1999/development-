@@ -1,3 +1,4 @@
+// src/components/dashboard/components/AdquisitionsOverview.tsx
 import React from "react";
 
 const AdquisitionsOverview = () => {

@@ -1,3 +1,4 @@
+// src/data/maps.ts
 export interface Sector {
   id: string;
   name: string;

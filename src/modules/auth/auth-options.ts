@@ -1,8 +1,7 @@
-// src/modules/auth/auth-options.ts
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "../../server/db/client";
+import { prisma } from "@/server/db/client";
 import { AuthService } from "./service";
 import type { UserRole } from "@/types/next-auth";
 
@@ -17,21 +16,26 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
+
         const user = await AuthService.validateCredentials(credentials.email, credentials.password);
         if (!user) return null;
+
         const profileCompleted = await AuthService.isProfileComplete(user.id);
+
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           role: user.role,
           profileCompleted,
-          image: user.image ?? "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png"
-        };  
+          image: user.image ?? "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png",
+        };
       },
     }),
   ],
-  session: { strategy: "jwt" },
+  session: {
+    strategy: "jwt",
+  },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
@@ -47,9 +51,15 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = token.role as UserRole;
         session.user.profileCompleted = token.profileCompleted as boolean;
-        session.user.image = (token.image as string) ?? "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png";
+        session.user.image = token.image as string;
       }
       return session;
+    },
+    async redirect({ baseUrl, url }) {
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      if (url.includes("/login")) return `${baseUrl}/dashboard`;
+
+      return baseUrl;
     },
   },
   pages: {

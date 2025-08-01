@@ -1,3 +1,4 @@
+// src/components/details/hero/HeroD.tsx
 import React from "react";
 import Header from "../../principal/header/Header";
 import Image, { StaticImageData } from "next/image";

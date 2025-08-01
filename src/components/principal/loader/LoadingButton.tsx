@@ -1,3 +1,4 @@
+// src/components/principal/loader/LoadingButton.tsx
 import React from "react";
 import Spinner from "./Spinner";
 

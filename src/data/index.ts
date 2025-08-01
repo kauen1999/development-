@@ -1,3 +1,4 @@
+// src/data/index.ts
 import { StaticImageData } from "next/image";
 
 interface Card {

@@ -1,3 +1,4 @@
+// src/components/principal/hero/Hero.tsx
 import React from "react";
 
 import { Swiper, SwiperSlide } from "swiper/react";

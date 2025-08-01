@@ -1,3 +1,4 @@
+// src/components/principal/loader/Spinner.tsx
 import React from "react";
 type SpinnerProps = {
   width?: number;
@@ -6,8 +7,6 @@ type SpinnerProps = {
   bgColor?: string;
 };
 const Spinner: React.FC<SpinnerProps> = ({
-  width = 5,
-  height = 5,
   color,
   bgColor,
 }) => {

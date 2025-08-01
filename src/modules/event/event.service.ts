@@ -1,265 +1,154 @@
-// src/server/services/event.service.ts
+// src/modules/event/event.service.ts
+import { prisma } from "@/lib/prisma";
+import type { z } from "zod";
+import type {
+  createEventSchema,
+  updateEventSchema,
+  getEventByIdSchema,
+} from "./event.schema";
 
-import { prisma } from "@/server/db/client";
-import { TRPCError } from "@trpc/server";
-import slugify from "slugify";
+export const createEvent = async (input: z.infer<typeof createEventSchema>) => {
+  const foundCategories = await prisma.category.findMany({
+    where: { id: { in: input.categoryIds } },
+    select: { id: true },
+  });
 
-export type CreateEventInput = {
-  name: string;
-  description: string;
-  city: string;
-  theater: string;
-  price: number;
-  date: string;
-  saleStart: string;
-  saleEnd: string;
-  capacity: number;
-  ticketCategories: {
-    title: string;
-    price: number;
-    stock: number;
-  }[];
-};
+  const existingIds = foundCategories.map((cat) => cat.id);
+  const missing = input.categoryIds.filter((id) => !existingIds.includes(id));
+  if (missing.length > 0) {
+    throw new Error(`Invalid categoryIds: ${missing.join(", ")}`);
+  }
 
-export type UpdateEventInput = CreateEventInput & {
-  eventId: string;
-};
+  const ticketCategoriesWithSeats = input.ticketCategories.map((category) => {
+    const rows = category.generateSeats?.rows ?? [];
+    const seatsPerRow = category.generateSeats?.seatsPerRow ?? 0;
 
-export const createEventService = async (
-  input: CreateEventInput,
-  userId: string
-) => {
-  try {
-    // ✅ Validação da capacidade total vs. ticket stock
-    const totalStock = input.ticketCategories.reduce(
-      (sum, cat) => sum + cat.stock,
-      0
+    const seats = rows.flatMap((row) =>
+      Array.from({ length: seatsPerRow }, (_, i) => ({
+        label: `${row}${i + 1}`,
+        row,
+        number: i + 1,
+      }))
     );
 
-    if (totalStock > input.capacity) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "Total ticket stock cannot exceed event capacity.",
-      });
-    }
+    return {
+      title: category.title,
+      price: category.price,
+      stock: category.stock,
+      seats: {
+        create: seats,
+      },
+    };
+  });
 
-    let slug = slugify(input.name, { lower: true, strict: true });
-
-    return await prisma.$transaction(async (tx) => {
-      const existing = await tx.event.findFirst({
-        where: {
-          OR: [{ name: input.name }, { slug }],
-        },
-      });
-
-      if (existing) {
-        slug += "-" + Math.random().toString(36).substring(2, 6);
-      }
-
-      const event = await tx.event.create({
-        data: {
-          name: input.name,
-          description: input.description,
-          city: input.city,
-          theater: input.theater,
-          price: input.price,
-          date: new Date(input.date),
-          saleStart: new Date(input.saleStart),
-          saleEnd: new Date(input.saleEnd),
-          capacity: input.capacity,
-          slug,
-          userId,
-          status: "DRAFT",
-          ticketCategories: {
-            create: input.ticketCategories.map((cat) => ({
-              title: cat.title,
-              price: cat.price,
-              stock: cat.stock,
-            })),
-          },
-        },
+  return prisma.event.create({
+    data: {
+      name: input.name, // atualizado
+      description: input.description ?? "",
+      city: input.city,
+      theater: input.theater,
+      price: input.price,
+      date: new Date(input.date),
+      saleStart: new Date(input.saleStart),
+      saleEnd: new Date(input.saleEnd),
+      capacity: input.capacity ?? 0,
+      slug: input.slug ?? "",
+      status: input.status ?? "DRAFT",
+      publishedAt: input.publishedAt,
+      userId: input.userId,
+      categories: {
+        connect: input.categoryIds.map((id) => ({ id })),
+      },
+      ticketCategories: {
+        create: ticketCategoriesWithSeats,
+      },
+    },
+    include: {
+      categories: true,
+      ticketCategories: {
         include: {
-          ticketCategories: true,
+          seats: true,
         },
-      });
-
-      return { status: "success", event };
-    });
-  } catch (error) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Failed to create event.",
-      cause: error,
-    });
-  }
-};
-
-export const updateEventService = async (
-  input: UpdateEventInput,
-  userId: string
-) => {
-  try {
-    const event = await prisma.event.findUnique({ where: { id: input.eventId } });
-
-    if (!event) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
-    }
-
-    if (event.userId !== userId) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "You are not allowed to update this event.",
-      });
-    }
-
-    // ✅ Validação de capacidade na atualização
-    const totalStock = input.ticketCategories.reduce(
-      (sum, cat) => sum + cat.stock,
-      0
-    );
-
-    if (totalStock > input.capacity) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "Total ticket stock cannot exceed event capacity.",
-      });
-    }
-
-    const slug = slugify(input.name, { lower: true, strict: true });
-
-    const updatedEvent = await prisma.event.update({
-      where: { id: input.eventId },
-      data: {
-        name: input.name,
-        description: input.description,
-        city: input.city,
-        theater: input.theater,
-        price: input.price,
-        date: new Date(input.date),
-        saleStart: new Date(input.saleStart),
-        saleEnd: new Date(input.saleEnd),
-        capacity: input.capacity,
-        slug,
-        // Se desejar atualizar categorias, adicionar lógica aqui.
       },
-    });
-
-    return { status: "success", event: updatedEvent };
-  } catch (error) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Failed to update event.",
-      cause: error,
-    });
-  }
+    },
+  });
 };
 
-export const cancelEventService = async (eventId: string, userId: string) => {
-  try {
-    const event = await prisma.event.findUnique({ where: { id: eventId } });
+export const updateEvent = async (input: z.infer<typeof updateEventSchema>) => {
+  const { id, categoryIds, ...rest } = input;
 
-    if (!event) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
-    }
+  const allowedFields = [
+    "name", "description", "location", "date",
+    "saleStart", "saleEnd", "city", "theater",
+    "slug", "price", "capacity", "status", "publishedAt"
+  ] as const;
 
-    if (event.userId !== userId) {
-      throw new TRPCError({ code: "FORBIDDEN", message: "You are not allowed to cancel this event." });
-    }
+  const data = Object.fromEntries(
+    Object.entries(rest).filter(([key]) =>
+      allowedFields.includes(key as (typeof allowedFields)[number])
+    )
+  );
 
-    const cancelled = await prisma.event.update({
-      where: { id: eventId },
-      data: { status: "CANCELLED" },
-    });
-
-    return { status: "success", event: cancelled };
-  } catch (error) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Failed to cancel event.",
-      cause: error,
-    });
-  }
+  return prisma.event.update({
+    where: { id },
+    data: {
+      ...data,
+      categories: categoryIds
+        ? {
+            set: [],
+            connect: categoryIds.map((id) => ({ id })),
+          }
+        : undefined,
+    },
+  });
 };
 
-export const publishEventService = async (eventId: string, userId: string) => {
-  try {
-    const event = await prisma.event.findUnique({ where: { id: eventId } });
-
-    if (!event) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
-    }
-
-    if (event.userId !== userId) {
-      throw new TRPCError({ code: "FORBIDDEN", message: "You are not allowed to publish this event." });
-    }
-
-    if (event.status !== "DRAFT") {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "Only draft events can be published." });
-    }
-
-    const publishedEvent = await prisma.event.update({
-      where: { id: eventId },
-      data: { status: "PUBLISHED" },
-    });
-
-    return { status: "success", event: publishedEvent };
-  } catch (error) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Failed to publish event.",
-      cause: error,
-    });
-  }
+export const cancelEvent = async (id: string) => {
+  return prisma.event.update({
+    where: { id },
+    data: { status: "CANCELLED" },
+  });
 };
 
-export const getAllEventsService = async () => {
-  return prisma.event.findMany({ orderBy: { date: "asc" } });
-};
-
-export const getEventByIdService = async (id: string) => {
-  if (!id) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "Event ID is required." });
-  }
-
-  const event = await prisma.event.findUnique({ where: { id } });
-
-  if (!event) {
-    throw new TRPCError({ code: "NOT_FOUND", message: `No event found with ID ${id}` });
-  }
-
-  return event;
-};
-
-export const enrollUserInEventService = async (userId: string, eventId: string) => {
-  try {
-    const event = await prisma.event.findUnique({ where: { id: eventId } });
-
-    if (!event) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Event not found." });
-    }
-
-    const existing = await prisma.notification.findFirst({
-      where: { userId, title: { contains: event.name } },
-    });
-
-    if (existing) {
-      throw new TRPCError({ code: "CONFLICT", message: "User is already enrolled in this event." });
-    }
-
-    await prisma.notification.create({
-      data: {
-        userId,
-        title: "Enrollment Confirmed",
-        description: `You have successfully enrolled in: ${event.name}`,
+export const getEventById = async (input: z.infer<typeof getEventByIdSchema>) => {
+  return prisma.event.findUnique({
+    where: { id: input.id },
+    include: {
+      categories: true,
+      user: true,
+      ticketCategories: {
+        include: {
+          seats: true,
+        },
       },
-    });
+    },
+  });
+};
 
-    return { status: "success", message: "User successfully enrolled in the event." };
-  } catch (error) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Error while enrolling user in the event.",
-      cause: error,
-    });
-  }
+export const listEvents = async () => {
+  return prisma.event.findMany({
+    where: { status: "PUBLISHED" },
+    orderBy: { date: "asc" },
+    include: {
+      categories: true,
+      user: true,
+    },
+  });
+};
+
+export const listTodayEvents = async () => {
+  const today = new Date();
+  const start = new Date(today.setHours(0, 0, 0, 0));
+  const end = new Date(today.setHours(23, 59, 59, 999));
+
+  return prisma.event.findMany({
+    where: {
+      date: { gte: start, lte: end },
+      status: "PUBLISHED",
+    },
+    orderBy: { date: "asc" },
+    include: {
+      categories: true,
+    },
+  });
 };

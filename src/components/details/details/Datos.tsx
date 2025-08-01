@@ -1,3 +1,4 @@
+// src/components/details/details/Datos.tsx
 import React from "react";
 import { IoIosArrowDown } from "react-icons/io";
 

@@ -1,17 +1,19 @@
+// src/components/principal/eventos/EventoCard.tsx
 import React from "react";
-import Image, { StaticImageData } from "next/image";
+import type { StaticImageData } from "next/image";
+import Image from "next/image";
 
 import { BiTimeFive } from "react-icons/bi";
 import { CiLocationOn } from "react-icons/ci";
 import Link from "next/link";
 
-interface Props {
+type Props = {
   artist: string;
   fecha: string;
+  foto: string | StaticImageData; // ✅ permite URL externa ou import local
   ubicacion: string;
   ciudad: string;
-  foto: StaticImageData;
-}
+};
 
 const EventoCard = ({ artist, fecha, ubicacion, ciudad, foto }: Props) => {
   return (

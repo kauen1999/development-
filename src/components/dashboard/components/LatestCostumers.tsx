@@ -1,3 +1,4 @@
+// src/components/dashboard/components/LatestCostumers.tsx
 import Image from "next/image";
 import React from "react";
 

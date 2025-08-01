@@ -1,84 +1,53 @@
-import { createWriteStream, existsSync, mkdirSync } from "fs";
-import path from "path";
 import QRCode from "qrcode";
 import PDFDocument from "pdfkit";
-import { createId } from "@paralleldrive/cuid2";
-import { logger } from "@/server/logger";
-import type { Prisma } from "@prisma/client";
+import fs from "fs";
+import path from "path";
+import { prisma } from "@/lib/prisma";
 
-type TicketAsset = {
-  qrCodeUrl: string;
-  pdfUrl?: string;
-  walletPassUrl?: string;
-};
+export async function generateTicketAssets(ticketId: string) {
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: ticketId },
+    include: {
+      orderItem: {
+        include: {
+          order: {
+            include: {
+              event: true,
+            },
+          },
+        },
+      },
+    },
+  });
 
-interface TicketData {
-  orderId: string;
-  userName?: string;
-}
+  if (!ticket) throw new Error("Ticket não encontrado");
 
-//Generates all assets for a ticket: QR code image, PDF with embedded QR, and (optionally) wallet pass.
-export async function generateTicketAssets(
-  orderId: string,
-  tx: Prisma.TransactionClient, // Explicit and safe for use with Prisma $transaction
-  ticketData: TicketData
-): Promise<TicketAsset> {
-  const ticketId = createId();
-  const ticketsDir = path.join(process.cwd(), "public", "tickets");
+  const qrValue = `ticket:${ticket.id}`;
+  const qrPath = path.join(process.cwd(), "public", "tickets", `qr-${ticket.id}.png`);
+  const pdfPath = path.join(process.cwd(), "public", "tickets", `ticket-${ticket.id}.pdf`);
 
-  // Ensure directory exists
-  try {
-    if (!existsSync(ticketsDir)) {
-      mkdirSync(ticketsDir, { recursive: true });
-      logger.info("Created directory: /public/tickets");
-    }
-  } catch (err) {
-    logger.error("Failed to create tickets directory:", err);
-    throw new Error("Failed to initialize ticket storage directory.");
-  }
+  await QRCode.toFile(qrPath, qrValue);
 
-  // Generate QR code
-  const qrFilename = `${ticketId}-qr.png`;
-  const qrPath = path.join(ticketsDir, qrFilename);
-  const qrCodeUrl = `/tickets/${qrFilename}`;
-  const qrCodeContent = `https://entrada.app/validate/${ticketId}`;
+  const doc = new PDFDocument();
+  const writeStream = fs.createWriteStream(pdfPath);
+  doc.pipe(writeStream);
 
-  try {
-    await QRCode.toFile(qrPath, qrCodeContent);
-  } catch (err) {
-    logger.error("Failed to generate QR code:", err);
-    throw new Error("QR code generation failed.");
-  }
+  const { event } = ticket.orderItem.order;
+  doc.fontSize(20).text(`Ingresso para: ${event.name}`);
+  doc.fontSize(14).text(`Data: ${event.date.toLocaleString()}`);
+  doc.text(`Local: ${event.theater}, ${event.city}`);
+  doc.text(`Código do Ingresso: ${ticket.id}`);
+  doc.image(qrPath, { width: 150, align: "center" });
 
-  // Generate PDF with ticket details
-  const pdfFilename = `${ticketId}.pdf`;
-  const pdfPath = path.join(ticketsDir, pdfFilename);
-  const pdfUrl = `/tickets/${pdfFilename}`;
+  doc.end();
 
-  try {
-    const doc = new PDFDocument();
-    const stream = createWriteStream(pdfPath);
-    doc.pipe(stream);
+  await new Promise((resolve) => writeStream.on("finish", resolve));
 
-    doc.fontSize(20).text("Your Ticket", { underline: true });
-    doc.moveDown();
-    doc.fontSize(12).text(`Order: ${ticketData.orderId}`);
-    if (ticketData.userName) {
-      doc.text(`Name: ${ticketData.userName}`);
-    }
-    doc.image(qrPath, { width: 150, align: "center" });
-
-    doc.end();
-  } catch (err) {
-    logger.error("Failed to generate PDF ticket:", err);
-    throw new Error("PDF ticket generation failed.");
-  }
-
-  logger.info({ ticketId, qrCodeUrl, pdfUrl }, "Ticket assets generated successfully");
-
-  return {
-    qrCodeUrl,
-    pdfUrl,
-    walletPassUrl: undefined, // Reserved for future Apple/Google Wallet integration
-  };
+  await prisma.ticket.update({
+    where: { id: ticket.id },
+    data: {
+      qrCodeUrl: `/tickets/qr-${ticket.id}.png`,
+      pdfUrl: `/tickets/ticket-${ticket.id}.pdf`,
+    },
+  });
 }

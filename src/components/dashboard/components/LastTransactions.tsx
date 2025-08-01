@@ -1,3 +1,4 @@
+// src/components/dashboard/components/LastTransactions.tsx
 import React from "react";
 
 const LastTransactions = () => {

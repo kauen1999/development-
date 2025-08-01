@@ -1,45 +1,12 @@
-import { createTRPCRouter, protectedProcedure } from "../../server/trpc/trpc";
-import {
-  createOrderSchema,
-  getOrderSchema,
-  listOrdersSchema,
-} from "@/modules/order/order.schema";
-import {
-  createOrderService,
-  getOrderByIdService,
-  listOrdersService,
-} from "@/modules/order/order.service";
+// src/modules/order/order.router.ts
+import { router, protectedProcedure } from "@/server/trpc/trpc";
+import { createOrderSchema } from "./order.schema";
+import { createOrderService } from "./order.service";
 
-export const orderRouter = createTRPCRouter({
-  
-  //Create a new order (authenticated user only)
-  
-  createOrder: protectedProcedure
+export const orderRouter = router({
+  create: protectedProcedure
     .input(createOrderSchema)
-    .mutation(async ({ ctx, input }) => {
-      const userId = ctx.session.user.id;
-      return createOrderService(input, userId);
-    }),
-
-  
-  //Get a single order by ID (only if it belongs to current user)
-  
-  getOrder: protectedProcedure
-    .input(getOrderSchema)
-    .query(async ({ ctx, input }) => {
-      const userId = ctx.session.user.id;
-      return getOrderByIdService(input.id, userId);
-    }),
-
-
-  //List all orders from current user, with optional pagination
-
-  listOrders: protectedProcedure
-    .input(listOrdersSchema)
-    .query(async ({ ctx, input }) => {
-      const userId = ctx.session.user.id;
-      const skip = input.skip ?? 0;
-      const take = Math.min(input.take ?? 10, 50); // Segurança: limite de 50 registros por requisição
-      return listOrdersService(userId, skip, take);
+    .mutation(async ({ input, ctx }) => {
+      return createOrderService(input, ctx.session.user.id);
     }),
 });

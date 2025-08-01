@@ -1,3 +1,4 @@
+// src/components/BuyBody/Asientos.tsx
 import React from "react";
 
 const Asientos: React.FC = () => {

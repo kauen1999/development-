@@ -1,3 +1,4 @@
+// src/components/principal/header/Header.tsx
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -22,11 +23,12 @@ import Notification from "./Notification";
 import { useRouter } from "next/router";
 
 interface Props {
-  home: boolean | undefined;
-  buyPage: boolean | undefined;
+  home?: boolean;
+  buyPage?: boolean;
 }
 
-const HeaderComponent = ({ home, buyPage }: Props) => {
+const HeaderComponent = ({ home = false, buyPage = false }: Props) => {
+
   const router = useRouter();
 
   const handleLogout = () => {

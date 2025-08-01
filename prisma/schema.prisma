@@ -11,7 +11,6 @@ datasource db {
 enum Role {
   USER
   ADMIN
-  ORGANIZER
 }
 
 enum EventStatus {
@@ -36,6 +35,12 @@ enum PaymentStatus {
   APPROVED
   FAILED
   CANCELLED
+}
+
+enum SeatStatus {
+  AVAILABLE
+  RESERVED
+  SOLD
 }
 
 // Auth (NextAuth)
@@ -74,22 +79,21 @@ model VerificationToken {
 }
 
 // Domain Models
-  model User {
-    id            String    @id @default(cuid())
-    createdAt     DateTime  @default(now())
-    name          String?
-    password      String?
-    dniName       String?
-    dni           String?
-    phone         String?
-    birthdate     DateTime?
-    email         String?   @unique
-    emailVerified DateTime?
-    image         String?   @default("https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png")
-    role          Role      @default(USER)
-    provider      String?
+model User {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  name          String?
+  password      String?
+  dniName       String?
+  dni           String?
+  phone         String?
+  birthdate     DateTime?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?   @default("https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png")
+  role          Role      @default(USER)
+  provider      String?
 
-  // Relations
   accounts         Account[]
   sessions         Session[]
   organizedEvents  Event[]        @relation("OrganizerEvents")
@@ -102,6 +106,7 @@ model VerificationToken {
 model Event {
   id          String      @id @default(cuid())
   name        String
+  image       String?
   description String
   city        String
   theater     String
@@ -112,18 +117,21 @@ model Event {
   capacity    Int         @default(0)
   slug        String      @unique @default("")
   status      EventStatus @default(DRAFT)
+  publishedAt DateTime?  
   userId      String
   user        User        @relation("OrganizerEvents", fields: [userId], references: [id])
-
   categories       Category[]       @relation("EventCategories")
   enrolledUsers    User[]           @relation("EnrolledUsers")
   orders           Order[]
   ticketCategories TicketCategory[]
+  seats            Seat[]
 }
+
 
 model Category {
   id         String      @id @default(cuid())
   title      String      @unique
+  iconName   String 
   events     Event[]     @relation("EventCategories")
   orderItems OrderItem[]
 }
@@ -172,12 +180,26 @@ model OrderItem {
 
 model TicketCategory {
   id         String      @id @default(cuid())
-  title      String      @unique
+  title      String      
   price      Float
   stock      Int
   eventId    String
   event      Event       @relation(fields: [eventId], references: [id])
   orderItems OrderItem[]
+  seats      Seat[]
+}
+
+model Seat {
+  id               String        @id @default(cuid())
+  label            String
+  row              String?
+  number           Int?
+  status           SeatStatus    @default(AVAILABLE)
+  eventId          String?
+  ticketCategoryId String
+
+  event            Event?         @relation(fields: [eventId], references: [id])
+  ticketCategory   TicketCategory @relation(fields: [ticketCategoryId], references: [id])
 }
 
 model Ticket {
@@ -185,7 +207,6 @@ model Ticket {
   orderItemId   String
   qrCodeUrl     String
   pdfUrl        String?
-  walletPassUrl String?
   usedAt        DateTime?
   validatedById String?
   device        String?
@@ -217,12 +238,11 @@ model Invoice {
   order Order @relation(fields: [orderId], references: [id])
 }
 
-/// Stores raw webhook events for debugging, audits or recovery purposes
 model WebhookLog {
   id        String   @id @default(cuid())
-  provider  String // ex: "stripe", "mercadopago"
-  eventType String // ex: "payment_intent.succeeded"
-  payload   Json // full payload from webhook event
+  provider  String
+  eventType String
+  payload   Json
   createdAt DateTime @default(now())
 
   @@index([provider, eventType])

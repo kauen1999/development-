@@ -1,3 +1,4 @@
+// src/components/dashboard/components/NewFunctions.tsx
 import React from "react";
 
 const NewFunctions = () => {

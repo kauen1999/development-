@@ -1,15 +1,14 @@
+// src/components/principal/eventos_hoy/HoyCard.tsx
 import React from "react";
-import Image, { StaticImageData } from "next/image";
+import type { StaticImageData } from "next/image";
+import Image from "next/image";
 import Link from "next/link";
 import { BiTimeFive } from "react-icons/bi";
 import { CiLocationOn } from "react-icons/ci";
-import queen from "../../../../public/images/queen.jpg";
-import dante from "../../../../public/images/dante.jpg";
-import cuarteto from "../../../../public/images/cuarteto.jpg";
 
 export const hoyCard = [
   {
-    foto: queen,
+    foto: "/images/queen.jpg",
     titulo: "Queen Tribute",
     horas: "20:00",
     fecha: "2023-10-15",
@@ -20,7 +19,7 @@ export const hoyCard = [
     categoria: "Música",
   },
   {
-    foto: dante,
+    foto: "/images/dante.jpg",
     titulo: "Dante Alighieri",
     horas: "18:00",
     fecha: "2023-10-16",
@@ -31,7 +30,7 @@ export const hoyCard = [
     categoria: "Teatro",
   },
   {
-    foto: cuarteto,
+    foto: "/images/cuarteto.jpg",
     titulo: "Cuarteto de Cuerdas",
     horas: "19:00",
     fecha: "2023-10-17",
@@ -44,7 +43,7 @@ export const hoyCard = [
 ];
 
 interface Props {
-  foto: StaticImageData;
+  foto: StaticImageData | string;
   titulo: string;
   horas: string;
   fecha: string;
@@ -70,7 +69,7 @@ const HoyCard = ({
       <div className="relative h-[200px] lg:h-[13vw]">
         <Image
           src={foto}
-          alt="queen"
+          alt={titulo}
           style={{
             objectFit: "cover",
             width: "100%",
@@ -118,14 +117,14 @@ const HoyCard = ({
               pathname: "buydetails/[id]",
               query: {
                 id: "01",
-                foto: foto,
-                titulo: titulo,
-                horas: horas,
-                fecha: fecha,
-                precio: precio,
-                duracion: duracion,
-                ubicacion: ubicacion,
-                ciudad: ciudad,
+                foto: typeof foto === "string" ? foto : foto.src,
+                titulo,
+                horas,
+                fecha,
+                precio,
+                duracion,
+                ubicacion,
+                ciudad,
               },
             }}
           >
