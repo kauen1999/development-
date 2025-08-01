@@ -8,9 +8,10 @@ export const serverSchema = z.object({
       ? z.string().min(1)
       : z.string().min(1).optional(),
   NEXTAUTH_URL: z.preprocess(
-    (val) => process.env.VERCEL_URL ?? val,
+    (val) => (typeof val === "string" ? val : undefined),
     z.string().url()
   ),
+
 
   // OAuth
   GOOGLE_CLIENT_ID: z.string(),
