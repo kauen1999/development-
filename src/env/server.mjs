@@ -3,6 +3,9 @@ import { serverSchema } from "./schema.mjs";
 import { env as clientEnv, formatErrors } from "./client.mjs";
 
 const parsed = serverSchema.safeParse(process.env);
+console.log("🔍 NEXTAUTH_URL", process.env.NEXTAUTH_URL);
+console.log("🔍 VERCEL_URL", process.env.VERCEL_URL);
+
 if (!parsed.success) {
   console.error("❌ Invalid server env vars:", ...formatErrors(parsed.error.format()));
   throw new Error("Invalid environment variables");
