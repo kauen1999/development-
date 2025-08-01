@@ -14,17 +14,7 @@ export const serverSchema = z.object({
 
   // ✅ Corrigido: fallback seguro para VERCEL_URL + validação robusta
   // Inclui log no build para facilitar o diagnóstico
-  NEXTAUTH_URL: z.preprocess(() => {
-    const raw =
-      typeof process.env.NEXTAUTH_URL === "string"
-        ? process.env.NEXTAUTH_URL
-        : typeof process.env.VERCEL_URL === "string"
-        ? `https://${process.env.VERCEL_URL}`
-        : undefined;
-
-    console.log("🧪 Resolved NEXTAUTH_URL:", raw);
-    return raw;
-  }, z.string().url()),
+  NEXTAUTH_URL: z.string().url(),
 
   // OAuth Providers
   GOOGLE_CLIENT_ID: z.string(),
