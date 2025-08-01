@@ -1,19 +1,33 @@
 import { z } from "zod";
 
+/**
+ * Variáveis do lado do servidor (.env ou painel da Vercel)
+ */
 export const serverSchema = z.object({
   DATABASE_URL: z.string().url(),
   NODE_ENV: z.enum(["development", "test", "production"]),
+
   NEXTAUTH_SECRET:
     process.env.NODE_ENV === "production"
       ? z.string().min(1)
       : z.string().min(1).optional(),
+
+  // Corrigido: fallback seguro para VERCEL_URL + validação robusta
   NEXTAUTH_URL: z.preprocess(
-    (val) => (typeof val === "string" ? val : undefined),
+    () => {
+      const raw =
+        typeof process.env.NEXTAUTH_URL === "string"
+          ? process.env.NEXTAUTH_URL
+          : typeof process.env.VERCEL_URL === "string"
+            ? `https://${process.env.VERCEL_URL}`
+            : undefined;
+
+      return raw;
+    },
     z.string().url()
   ),
 
-
-  // OAuth
+  // OAuth Providers
   GOOGLE_CLIENT_ID: z.string(),
   GOOGLE_CLIENT_SECRET: z.string(),
   FACEBOOK_CLIENT_ID: z.string(),
@@ -21,9 +35,10 @@ export const serverSchema = z.object({
   LINKEDIN_CLIENT_ID: z.string(),
   LINKEDIN_CLIENT_SECRET: z.string(),
 
-  // Payment (Pagotic)
+  // Pagotic
   PAGOTIC_COLLECTOR_ID: z.string().min(1),
 });
+
 
 export const clientSchema = z.object({
   NEXT_PUBLIC_API_BASE: z.string().url(),
@@ -32,6 +47,8 @@ export const clientSchema = z.object({
 
 export const clientEnv = clientSchema.parse(
   Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => key.startsWith("NEXT_PUBLIC_"))
+    Object.entries(process.env).filter(([key]) =>
+      key.startsWith("NEXT_PUBLIC_")
+    )
   )
 );
