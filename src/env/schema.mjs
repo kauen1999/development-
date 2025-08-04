@@ -14,7 +14,7 @@
     // Inclui log no build para facilitar o diagnóstico
     NEXTAUTH_URL: z.string().trim().url(),
 
-    // OAuth Providers
+    // Auth Providers
     GOOGLE_CLIENT_ID: z.string(),
     GOOGLE_CLIENT_SECRET: z.string(),
     FACEBOOK_CLIENT_ID: z.string(),
