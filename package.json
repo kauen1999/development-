@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "generate:prisma": "prisma generate"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.7",
