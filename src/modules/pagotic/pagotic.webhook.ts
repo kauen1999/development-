@@ -1,6 +1,8 @@
+// src/modules/pagotic/pagotic.webhook.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "@/lib/prisma";
 import { generateTicketAssets } from "@/modules/ticket/ticketGeneration.service";
+import { PaymentStatus } from "@prisma/client";
 
 export default async function handlePagoTICWebhook(
   req: NextApiRequest,
@@ -8,53 +10,100 @@ export default async function handlePagoTICWebhook(
 ) {
   try {
     const payload = req.body;
-    const externalId = payload.external_transaction_id;
-    const status = payload.status;
+
+    if (
+      typeof payload !== "object" ||
+      !payload.external_transaction_id ||
+      !payload.status
+    ) {
+      return res.status(400).json({ error: "Payload inválido" });
+    }
+
+    const externalId = payload.external_transaction_id as string;
+    const rawStatus = String(payload.status).toUpperCase();
+
+    if (!Object.values(PaymentStatus).includes(rawStatus as PaymentStatus)) {
+      return res.status(400).json({ error: "Status inválido no payload" });
+    }
+
+    const status = rawStatus as PaymentStatus;
+
+    // extrai o orderId da string "order-<orderId>-<timestamp>"
+    const parts = externalId.split("-");
+    const orderId = parts[1];
 
     await prisma.payment.updateMany({
-      where: { order: { id: externalId } },
+      where: { orderId },
       data: {
-        status: status.toUpperCase(),
+        status,
         rawResponse: payload,
       },
     });
 
-    // Quando aprovado, gerar tickets automaticamente
-    if (status === "approved") {
+    if (status === "APPROVED") {
       const order = await prisma.order.findUnique({
-        where: { id: externalId },
+        where: { id: orderId },
         include: {
-          items: {
+          orderItems: {
             include: {
-              TicketCategory: true,
+              seat: {
+                include: {
+                  ticketCategory: true,
+                },
+              },
             },
           },
         },
       });
 
-      if (!order) throw new Error("Pedido não encontrado para gerar ingressos");
+      if (!order) {
+        throw new Error("Pedido não encontrado para gerar ingressos.");
+      }
 
-      for (const item of order.items) {
-        const ticketsExist = await prisma.ticket.count({
+      for (const item of order.orderItems) {
+        // Cria Seat se ainda não existe
+        const existingSeat = await prisma.seat.findUnique({
+          where: { id: item.seat.id },
+        });
+
+        if (!existingSeat) {
+          await prisma.seat.create({
+            data: {
+              id: item.seat.id,
+              label: item.seat.label,
+              row: item.seat.row,
+              number: item.seat.number,
+              status: "SOLD",
+              userId: item.seat.userId,
+              eventId: item.seat.eventId,
+              sessionId: item.seat.sessionId,
+              ticketCategoryId: item.seat.ticketCategoryId,
+            },
+          });
+        } else {
+          await prisma.seat.update({
+            where: { id: item.seat.id },
+            data: { status: "SOLD" },
+          });
+        }
+
+        // Cria o Ticket (caso ainda não exista)
+        const existing = await prisma.ticket.count({
           where: { orderItemId: item.id },
         });
 
-        if (ticketsExist >= item.quantity) continue;
+        if (existing === 0) {
+          const ticket = await prisma.ticket.create({
+            data: {
+              orderItemId: item.id,
+              seatId: item.seat.id,
+              sessionId: item.seat.sessionId,
+              userId: item.seat.userId,
+              eventId: item.seat.eventId,
+              qrCodeUrl: "",
+            },
+          });
 
-        const ticketsToCreate = item.quantity - ticketsExist;
-
-        await prisma.ticket.createMany({
-          data: Array.from({ length: ticketsToCreate }, () => ({
-            orderItemId: item.id,
-            qrCodeUrl: "",
-          })),
-        });
-
-        const tickets = await prisma.ticket.findMany({
-          where: { orderItemId: item.id },
-        });
-
-        for (const ticket of tickets) {
           await generateTicketAssets(ticket.id);
         }
       }
@@ -63,11 +112,30 @@ export default async function handlePagoTICWebhook(
         where: { id: order.id },
         data: { status: "PAID" },
       });
+
+      // Verifica se o evento esgotou
+      const totalSold = await prisma.seat.count({
+        where: {
+          eventId: order.eventId,
+          status: "SOLD",
+        },
+      });
+
+      const event = await prisma.event.findUnique({
+        where: { id: order.eventId },
+      });
+
+      if (event && totalSold >= event.capacity) {
+        await prisma.event.update({
+          where: { id: event.id },
+          data: { status: "SOLD_OUT" },
+        });
+      }
     }
 
-    res.status(200).end();
+    return res.status(200).json({ received: true });
   } catch (error) {
     console.error("[PagoTIC Webhook] Error:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 }

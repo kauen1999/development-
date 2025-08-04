@@ -1,217 +1,288 @@
 // src/pages/event/create.tsx
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
+import Image from "next/image";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { createEventFormSchema } from "@/modules/event/event.schema";
-import type { z } from "zod";
-import { trpc } from "@/utils/trpc";
+import { z } from "zod";
 import { useRouter } from "next/router";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useSession } from "next-auth/react";
-import type { FieldError, UseFormRegisterReturn } from "react-hook-form";
+import { EventStatus } from "@prisma/client";
+import { trpc } from "@/utils/trpc";
+import { supabase } from "@/lib/supabaseClient";
 
-type CreateEventFormInput = z.infer<typeof createEventFormSchema>;
-const CATEGORY_ID = "cmdt510590000iabptnrsobd4";
+const FIXED_TICKET_TYPES = ["Platea A", "Platea B", "Platea C", "Pullman"] as const;
+type FixedType = (typeof FIXED_TICKET_TYPES)[number];
+
+const eventSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  slug: z.string().min(1),
+  street: z.string(),
+  number: z.string(),
+  neighborhood: z.string(),
+  city: z.string(),
+  state: z.string(),
+  zipCode: z.string(),
+  venueName: z.string(),
+  image: z.string().optional(),
+  categoryId: z.string().min(1),
+  capacity: z.number().min(1).max(150),
+  sessions: z.array(
+    z.object({
+      date: z.string().min(1),
+      city: z.string().min(1),
+      venueName: z.string().min(1),
+    })
+  ),
+  ticketCategories: z.array(
+    z.object({
+      title: z.enum(FIXED_TICKET_TYPES),
+      price: z.number().min(1),
+    })
+  ),
+});
+
+type EventFormInput = z.infer<typeof eventSchema>;
 
 export default function CreateEventPage() {
-  const router = useRouter();
   const { data: session } = useSession();
-  const [ticketTypes, setTicketTypes] = useState([
-    { title: "Pista", price: 50, stock: 100 },
+  const router = useRouter();
+
+  const [sessions, setSessions] = useState<EventFormInput["sessions"]>([
+    { date: "", city: "", venueName: "" },
   ]);
+  const [tickets, setTickets] = useState<EventFormInput["ticketCategories"]>([]);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [categoryId, setCategoryId] = useState("");
+
+  const { data: categories = [] } = trpc.category.list.useQuery();
 
   const mutation = trpc.event.create.useMutation({
-    onSuccess: () => router.push("/dashboard"),
-    onError: (err) => {
-      if (err.message.includes("Unique constraint failed on the fields: (`name`)")) {
-        alert("Já existe um evento com esse nome. Escolha outro.");
-      } else if (err.message.includes("Unique constraint failed on the fields: (`slug`)")) {
-        alert("Já existe um evento com esse slug. Tente outro.");
-      } else if (err.message.includes("Unique constraint failed on the fields: (`title`)")) {
-        alert("Já existe uma categoria de ingresso com esse título. Use nomes diferentes.");
-      } else {
-        console.error("❌ Erro ao criar evento:", err);
-        alert("Erro ao criar evento: " + err.message);
-      }
+    onSuccess: () => {
+      router.push("/dashboard");
     },
   });
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    watch,
-  } = useForm<CreateEventFormInput>({
-    resolver: zodResolver(createEventFormSchema),
+  const { register, getValues } = useForm<
+    Omit<EventFormInput, "sessions" | "ticketCategories" | "image">
+  >({
+    resolver: zodResolver(
+      eventSchema.omit({ sessions: true, ticketCategories: true, image: true })
+    ),
     mode: "onTouched",
   });
 
-  const watchAll = watch();
-  useEffect(() => {
-    console.log("👀 Form data:", watchAll);
-  }, [watchAll]);
-
-  useEffect(() => {
-    if (Object.keys(errors).length > 0) {
-      console.log("📋 Form errors:", errors);
-    }
-  }, [errors]);
-
-  const hasDuplicateTitles = (tickets: typeof ticketTypes) => {
-    const titles = tickets.map((t) => t.title.trim().toLowerCase());
-    return new Set(titles).size !== titles.length;
+  const uploadImage = async (): Promise<string | undefined> => {
+    if (!imageFile) return imagePreview ?? undefined;
+    const fileName = `${Date.now()}-${imageFile.name}`;
+    const { error } = await supabase.storage
+      .from("event-images")
+      .upload(fileName, imageFile);
+    if (error) throw error;
+    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/event-images/${fileName}`;
   };
 
-  const onSubmit = (formData: CreateEventFormInput) => {
-    if (!session?.user?.id) {
-      alert("Usuário não autenticado");
+  const handleSubmit = async () => {
+    if (!session?.user?.id) return alert("Usuário não autenticado");
+    if (!categoryId) return alert("Categoria obrigatória");
+    if (!tickets.length) return alert("Adicione pelo menos um tipo de ingresso");
+
+    const raw = getValues();
+    let image: string | undefined = undefined;
+
+    try {
+      image = await uploadImage();
+    } catch {
+      alert("Erro ao subir imagem");
       return;
     }
 
-    if (hasDuplicateTitles(ticketTypes)) {
-      alert("Cada categoria de ingresso deve ter um nome único.");
-      return;
-    }
+    const payload: EventFormInput = {
+      ...raw,
+      categoryId,
+      image,
+      sessions,
+      ticketCategories: tickets,
+    };
 
-    if (ticketTypes.length === 0) {
-      alert("Adicione ao menos uma categoria de ingresso.");
+    try {
+      eventSchema.parse(payload);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        console.error("Erro de validação:", err.flatten());
+        alert("Preencha todos os campos obrigatórios corretamente.");
+      } else {
+        console.error("Erro desconhecido:", err);
+      }
       return;
     }
 
     mutation.mutate({
-      ...formData,
+      ...payload,
       userId: session.user.id,
-      categoryIds: [CATEGORY_ID],
-      ticketCategories: ticketTypes,
-      status: "PUBLISHED",
+      status: EventStatus.OPEN,
       publishedAt: new Date(),
     });
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-10">
-      <div className="mx-auto w-full max-w-2xl rounded-lg bg-white p-6 shadow-md">
-        <h1 className="mb-6 text-2xl font-bold text-gray-800">Criar Evento</h1>
+    <div className="max-w-2xl mx-auto px-4 py-10">
+      <h1 className="text-2xl font-bold mb-6">Criar Evento</h1>
 
-        <form className="space-y-6">
-          <Input label="Nome do Evento" name="name" register={register("name")} error={errors.name} placeholder="Ex: Festival de Inverno 2025" />
-          <Input label="Descrição" name="description" register={register("description")} error={errors.description} placeholder="Ex: Um evento inesquecível" />
-          <Input label="Slug" name="slug" register={register("slug")} error={errors.slug} placeholder="Ex: festival-inverno-2025" />
-          <Input label="Local" name="location" register={register("location")} error={errors.location} placeholder="Ex: Auditório Municipal" />
-          <Input label="Cidade" name="city" register={register("city")} error={errors.city} placeholder="Ex: São Paulo" />
-          <Input label="Teatro" name="theater" register={register("theater")} error={errors.theater} placeholder="Ex: Teatro Central" />
-          <Input label="Data do Evento" name="date" type="date" register={register("date")} error={errors.date} />
-          <Input label="Início das Vendas" name="saleStart" type="date" register={register("saleStart")} error={errors.saleStart} />
-          <Input label="Fim das Vendas" name="saleEnd" type="date" register={register("saleEnd")} error={errors.saleEnd} />
-          <Input label="Preço Base" name="price" type="number" register={register("price", { valueAsNumber: true })} error={errors.price} placeholder="Ex: 50" />
-          <Input label="Capacidade" name="capacity" type="number" register={register("capacity", { valueAsNumber: true })} error={errors.capacity} placeholder="Ex: 300" />
+      <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+        <input {...register("name")} placeholder="Nome do evento" className="input" />
+        <input {...register("description")} placeholder="Descrição" className="input" />
+        <input {...register("slug")} placeholder="Slug" className="input" />
+        <input {...register("street")} placeholder="Rua" className="input" />
+        <input {...register("number")} placeholder="Número" className="input" />
+        <input {...register("neighborhood")} placeholder="Bairro" className="input" />
+        <input {...register("city")} placeholder="Cidade" className="input" />
+        <input {...register("state")} placeholder="Estado" className="input" />
+        <input {...register("zipCode")} placeholder="CEP" className="input" />
+        <input {...register("venueName")} placeholder="Local" className="input" />
+        <input {...register("capacity", { valueAsNumber: true })} type="number" placeholder="Capacidade (1 a 150)" className="input" />
 
-          <div>
-            <p className="mb-1 font-medium text-gray-700">Categorias de Ingressos</p>
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          className="input"
+        >
+          <option value="">Selecione categoria</option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {cat.title}
+            </option>
+          ))}
+        </select>
 
-            {ticketTypes.map((ticket, i) => (
-              <div key={i} className="mb-6 rounded border border-gray-200 p-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Nome</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: VIP, Pista"
-                      className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
-                      value={ticket.title}
-                      onChange={(e) =>
-                        setTicketTypes((prev) =>
-                          prev.map((t, index) =>
-                            index === i ? { ...t, title: e.target.value } : t
-                          )
-                        )
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Preço (R$)</label>
-                    <input
-                      type="number"
-                      placeholder="Ex: 150"
-                      className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
-                      value={ticket.price}
-                      onChange={(e) =>
-                        setTicketTypes((prev) =>
-                          prev.map((t, index) =>
-                            index === i ? { ...t, price: Number(e.target.value) } : t
-                          )
-                        )
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Estoque</label>
-                    <input
-                      type="number"
-                      placeholder="Ex: 200"
-                      className="mt-1 w-full rounded border border-gray-300 px-2 py-1"
-                      value={ticket.stock}
-                      onChange={(e) =>
-                        setTicketTypes((prev) =>
-                          prev.map((t, index) =>
-                            index === i ? { ...t, stock: Number(e.target.value) } : t
-                          )
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setTicketTypes((prev) => prev.filter((_, index) => index !== i))}
-                  className="mt-2 text-sm text-red-600 hover:underline"
-                >
-                  Remover
-                </button>
-              </div>
-            ))}
-
-            <button
-              type="button"
-              onClick={() => setTicketTypes((prev) => [...prev, { title: "", price: 0, stock: 0 }])}
-              className="mt-2 rounded bg-primary-100 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-200"
-            >
-              + Adicionar Categoria
-            </button>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              setImageFile(file);
+              setImagePreview(URL.createObjectURL(file));
+            }
+          }}
+          className="input"
+        />
+        {imagePreview && (
+          <div className="h-48 relative">
+            <Image src={imagePreview} alt="Preview" fill className="object-cover rounded" />
           </div>
+        )}
 
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={handleSubmit(onSubmit)}
-              className="rounded-lg bg-primary-100 px-6 py-2 font-semibold text-white transition hover:bg-primary-200"
-            >
-              Criar e Publicar
-            </button>
-          </div>
-        </form>
-      </div>
+        <div>
+          <p className="font-semibold mb-2">Sessões</p>
+          {sessions.map((s, i) => (
+            <div key={i} className="grid grid-cols-3 gap-2 mb-2">
+              <input
+                type="date"
+                className="input"
+                value={sessions[i]?.date ?? ""}
+                onChange={(e) => {
+                  setSessions((prev) => {
+                    const updated = [...prev];
+                    if (updated[i]) updated[i].date = e.target.value;
+                    return updated;
+                  });
+                }}
+              />
+              <input
+                placeholder="Cidade"
+                className="input"
+                value={sessions[i]?.city ?? ""}
+                onChange={(e) => {
+                  setSessions((prev) => {
+                    const updated = [...prev];
+                    if (updated[i]) updated[i].city = e.target.value;
+                    return updated;
+                  });
+                }}
+              />
+              <input
+                placeholder="Local"
+                className="input"
+                value={sessions[i]?.venueName ?? ""}
+                onChange={(e) => {
+                  setSessions((prev) => {
+                    const updated = [...prev];
+                    if (updated[i]) updated[i].venueName = e.target.value;
+                    return updated;
+                  });
+                }}
+              />
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() =>
+              setSessions((prev) => [...prev, { date: "", city: "", venueName: "" }])
+            }
+            className="text-sm text-blue-600 underline mt-2"
+          >
+            + Adicionar sessão
+          </button>
+        </div>
+
+        <div>
+          <p className="font-semibold mb-2">Ingressos</p>
+          {tickets.map((ticket, i) => (
+            <div key={i} className="flex gap-2 mb-2">
+              <select
+                className="input"
+                value={tickets[i]?.title ?? "Platea A"}
+                onChange={(e) => {
+                  setTickets((prev) => {
+                    const updated = [...prev];
+                    if (updated[i]) updated[i].title = e.target.value as FixedType;
+                    return updated;
+                  });
+                }}
+              >
+                {FIXED_TICKET_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                className="input"
+                value={tickets[i]?.price ?? ""}
+                onChange={(e) => {
+                  setTickets((prev) => {
+                    const updated = [...prev];
+                    if (updated[i]) updated[i].price = Number(e.target.value);
+                    return updated;
+                  });
+                }}
+              />
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() =>
+              setTickets((prev) => [...prev, { title: "Platea A", price: 0 }])
+            }
+            className="text-sm text-blue-600 underline mt-2"
+          >
+            + Adicionar ingresso
+          </button>
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="bg-primary-100 text-white font-semibold px-6 py-2 rounded hover:bg-primary-200"
+          >
+            Criar Evento
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
-
-interface InputProps {
-  label: string;
-  name: keyof CreateEventFormInput;
-  type?: "text" | "number" | "date";
-  register: UseFormRegisterReturn;
-  error?: FieldError;
-  placeholder?: string;
-}
-
-const Input = ({ label, type = "text", register, error, placeholder }: InputProps) => (
-  <div className="mb-4">
-    <label className="mb-1 block text-sm font-medium text-gray-700">{label}</label>
-    <input
-      {...register}
-      type={type}
-      placeholder={placeholder}
-      className="w-full rounded-lg border border-gray-300 px-3 py-2"
-    />
-    {error && <p className="text-sm text-red-600">{error.message}</p>}
-  </div>
-);

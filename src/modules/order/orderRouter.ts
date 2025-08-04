@@ -7,6 +7,12 @@ export const orderRouter = router({
   create: protectedProcedure
     .input(createOrderSchema)
     .mutation(async ({ input, ctx }) => {
-      return createOrderService(input, ctx.session.user.id);
+      try {
+        const result = await createOrderService(input, ctx.session.user.id);
+        return result;
+      } catch (err) {
+        console.error("❌ Erro ao criar pedido:", err);
+        throw err;
+      }
     }),
 });

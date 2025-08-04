@@ -1,16 +1,17 @@
+// src/modules/ticket/generateTicketAssets
 import QRCode from "qrcode";
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
 import { prisma } from "@/lib/prisma";
 
-/**
- * Generates and saves the QR code and PDF file for a ticket.
- */
+// Generates and saves the QR code and PDF file for a ticket.
 export async function generateTicketAssets(ticketId: string): Promise<void> {
   const ticket = await prisma.ticket.findUnique({
     where: { id: ticketId },
     include: {
+      session: true,
+      seat: true,
       orderItem: {
         include: {
           order: {
@@ -27,7 +28,8 @@ export async function generateTicketAssets(ticketId: string): Promise<void> {
     throw new Error("Ticket not found");
   }
 
-  const { event } = ticket.orderItem.order;
+  const event = ticket.orderItem.order.event;
+
   const qrValue = `ticket:${ticket.id}`;
   const qrFilename = `qr-${ticket.id}.png`;
   const pdfFilename = `ticket-${ticket.id}.pdf`;
@@ -51,8 +53,9 @@ export async function generateTicketAssets(ticketId: string): Promise<void> {
 
   doc.fontSize(20).text(`Event: ${event.name}`);
   doc.moveDown();
-  doc.fontSize(14).text(`Location: ${event.theater}, ${event.city}`);
-  doc.text(`Date: ${event.date.toLocaleString()}`);
+  doc.fontSize(14).text(`Location: ${event.venueName}, ${event.city}`);
+  doc.text(`Date: ${ticket.session.date.toLocaleString()}`);
+  doc.text(`Seat: ${ticket.seat.label}`);
   doc.text(`Ticket ID: ${ticket.id}`);
   doc.moveDown();
   doc.image(qrPath, { width: 150, align: "center" });
@@ -61,7 +64,7 @@ export async function generateTicketAssets(ticketId: string): Promise<void> {
 
   await new Promise<void>((resolve) => {
     stream.on("finish", () => resolve());
-    });
+  });
 
   // Update ticket with file paths
   await prisma.ticket.update({

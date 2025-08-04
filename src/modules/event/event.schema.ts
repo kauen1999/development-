@@ -1,59 +1,65 @@
-// src/modules/event/event.schema.ts
+// src/server/trpc/routers/event.schema.ts
 import { z } from "zod";
+import { EventStatus } from "@prisma/client";
 
-// Auto seat generation structure
+// Assentos gerados automaticamente (não usado na criação de evento, mas útil em UI)
 const generateSeatsSchema = z.object({
-  rows: z.array(z.string().min(1, "Informe as letras das fileiras")).min(1, "Mínimo 1 fileira"),
-  seatsPerRow: z.number().int().min(1, "Mínimo 1 assento por fileira"),
+  rows: z.array(z.string().min(1)).min(1),
+  seatsPerRow: z.number().min(1),
 });
 
-// Ticket category schema (usado fora do formulário)
+// Tipos fixos de ingresso
 export const ticketCategorySchema = z.object({
-  title: z.string().min(1, "Nome da categoria é obrigatório"),
-  price: z.number().min(0, "Preço deve ser zero ou maior"),
-  stock: z.number().int().min(1, "Estoque mínimo é 1"),
+  title: z.string().min(1),
+  price: z.number().min(0),
   generateSeats: generateSeatsSchema.optional(),
 });
 
-// Conversor de string para Date
-const dateStringToDate = z.preprocess(
-  (val) => {
-    const d = new Date(val as string);
-    return isNaN(d.getTime()) ? undefined : d;
-  },
-  z.date({ required_error: "Data inválida ou ausente", invalid_type_error: "Data inválida" })
-);
-
-// ✅ Schema usado apenas no formulário
-export const createEventFormSchema = z.object({
-  name: z.string().min(1, "Nome do evento é obrigatório"),
-  description: z.string().min(1, "Descrição é obrigatória"),
-  location: z.string().min(1, "Local é obrigatório"),
-  date: dateStringToDate,
-  saleStart: dateStringToDate,
-  saleEnd: dateStringToDate,
-  city: z.string().min(1, "Cidade é obrigatória"),
-  theater: z.string().min(1, "Teatro é obrigatório"),
-  slug: z.string().min(1, "Slug é obrigatório"),
-  price: z.number().min(0, "Preço base inválido"),
-  capacity: z.number().int().min(1, "Capacidade mínima é 1"),
+// Sessão do evento
+export const sessionSchema = z.object({
+  date: z.preprocess((val) => new Date(val as string), z.date()),
+  venueName: z.string().min(1),
+  city: z.string().min(1),
 });
 
-// ✅ Schema completo para validação antes da mutation (opcionalmente usado no backend)
+// Schema para criação de evento (sem userId e status)
+export const createEventFormSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  image: z.string().url("URL inválida").optional(),
+
+  street: z.string().min(1),
+  number: z.string().min(1),
+  neighborhood: z.string().min(1),
+  city: z.string().min(1),
+  state: z.string().min(1),
+  zipCode: z.string().min(1),
+  venueName: z.string().min(1),
+
+  slug: z.string().min(1),
+  categoryId: z.string().cuid(),
+  ticketCategories: z.array(ticketCategorySchema).min(1),
+  capacity: z.number().int().min(1).max(150),
+
+  sessions: z.array(sessionSchema).min(1),
+});
+
+// Schema completo para API (inclui userId, status, publishedAt)
 export const createEventSchema = createEventFormSchema.extend({
   userId: z.string().cuid(),
-  categoryIds: z.array(z.string().cuid()).min(1, "Categoria obrigatória"),
-  ticketCategories: z.array(ticketCategorySchema).min(1, "Adicione pelo menos uma categoria de ingresso"),
-  status: z.enum(["DRAFT", "PUBLISHED", "CANCELLED"]).optional(),
+  status: z.nativeEnum(EventStatus).optional(),
   publishedAt: z.date().optional(),
 });
 
-// Update event schema
+// Para atualizações parciais
 export const updateEventSchema = createEventSchema.partial().extend({
   id: z.string().cuid(),
 });
 
-// Get event by ID schema
+// Para buscar evento por ID
 export const getEventByIdSchema = z.object({
   id: z.string().cuid(),
 });
+
+// Tipagem auxiliar
+export type CreateEventFormInput = z.infer<typeof createEventFormSchema>;

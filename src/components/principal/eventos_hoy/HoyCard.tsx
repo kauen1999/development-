@@ -1,49 +1,12 @@
 // src/components/principal/eventos_hoy/HoyCard.tsx
 import React from "react";
-import type { StaticImageData } from "next/image";
 import Image from "next/image";
 import Link from "next/link";
 import { BiTimeFive } from "react-icons/bi";
 import { CiLocationOn } from "react-icons/ci";
 
-export const hoyCard = [
-  {
-    foto: "/images/queen.jpg",
-    titulo: "Queen Tribute",
-    horas: "20:00",
-    fecha: "2023-10-15",
-    precio: "$50",
-    duracion: "2 horas",
-    ubicacion: "Teatro Principal",
-    ciudad: "Madrid",
-    categoria: "Música",
-  },
-  {
-    foto: "/images/dante.jpg",
-    titulo: "Dante Alighieri",
-    horas: "18:00",
-    fecha: "2023-10-16",
-    precio: "$30",
-    duracion: "1.5 horas",
-    ubicacion: "Sala Dante",
-    ciudad: "Barcelona",
-    categoria: "Teatro",
-  },
-  {
-    foto: "/images/cuarteto.jpg",
-    titulo: "Cuarteto de Cuerdas",
-    horas: "19:00",
-    fecha: "2023-10-17",
-    precio: "$40",
-    duracion: "2 horas",
-    ubicacion: "Auditorio Nacional",
-    ciudad: "Valencia",
-    categoria: "Música",
-  },
-];
-
 interface Props {
-  foto: StaticImageData | string;
+  image: string | null;
   titulo: string;
   horas: string;
   fecha: string;
@@ -52,10 +15,18 @@ interface Props {
   ubicacion: string;
   ciudad: string;
   categoria: string;
+  slug: string;
 }
 
+const getSafeImage = (url: string | null): string => {
+  if (!url || url.trim() === "" || url.startsWith("blob:")) {
+    return "/vercel.svg";
+  }
+  return url;
+};
+
 const HoyCard = ({
-  foto,
+  image,
   titulo,
   horas,
   fecha,
@@ -63,20 +34,23 @@ const HoyCard = ({
   duracion,
   ubicacion,
   ciudad,
+  slug,
 }: Props) => {
+  const imageSrc = getSafeImage(image);
+
   return (
     <article className="max-w-md rounded-2xl shadow-xl lg:max-w-lg">
       <div className="relative h-[200px] lg:h-[13vw]">
         <Image
-          src={foto}
+          src={imageSrc}
           alt={titulo}
+          width={500}
+          height={500}
           style={{
             objectFit: "cover",
             width: "100%",
             height: "100%",
           }}
-          width={500}
-          height={500}
           className="rounded-2xl"
         />
         <h3 className="absolute top-5 left-3 text-3xl font-bold text-white lg:text-2xl">
@@ -112,22 +86,7 @@ const HoyCard = ({
             </div>
           </div>
 
-          <Link
-            href={{
-              pathname: "buydetails/[id]",
-              query: {
-                id: "01",
-                foto: typeof foto === "string" ? foto : foto.src,
-                titulo,
-                horas,
-                fecha,
-                precio,
-                duracion,
-                ubicacion,
-                ciudad,
-              },
-            }}
-          >
+          <Link href={`/buydetails/${slug}`}>
             <div className="cursor-pointer rounded-lg bg-primary-100 py-2 px-5 text-center text-xl font-bold text-white lg:text-base">
               Comprar ahora
             </div>

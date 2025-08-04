@@ -1,4 +1,4 @@
-// src/modules/event/event.service.ts
+// src/server/trpc/routers/event.service.ts
 import { prisma } from "@/lib/prisma";
 import type { z } from "zod";
 import type {
@@ -6,149 +6,167 @@ import type {
   updateEventSchema,
   getEventByIdSchema,
 } from "./event.schema";
+import { EventStatus } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
 
+// Criação de evento
 export const createEvent = async (input: z.infer<typeof createEventSchema>) => {
-  const foundCategories = await prisma.category.findMany({
-    where: { id: { in: input.categoryIds } },
-    select: { id: true },
-  });
-
-  const existingIds = foundCategories.map((cat) => cat.id);
-  const missing = input.categoryIds.filter((id) => !existingIds.includes(id));
-  if (missing.length > 0) {
-    throw new Error(`Invalid categoryIds: ${missing.join(", ")}`);
+  const existing = await prisma.event.findUnique({ where: { slug: input.slug } });
+  if (existing) {
+    throw new TRPCError({ code: "CONFLICT", message: "Slug já existe." });
   }
-
-  const ticketCategoriesWithSeats = input.ticketCategories.map((category) => {
-    const rows = category.generateSeats?.rows ?? [];
-    const seatsPerRow = category.generateSeats?.seatsPerRow ?? 0;
-
-    const seats = rows.flatMap((row) =>
-      Array.from({ length: seatsPerRow }, (_, i) => ({
-        label: `${row}${i + 1}`,
-        row,
-        number: i + 1,
-      }))
-    );
-
-    return {
-      title: category.title,
-      price: category.price,
-      stock: category.stock,
-      seats: {
-        create: seats,
-      },
-    };
-  });
 
   return prisma.event.create({
     data: {
-      name: input.name, // atualizado
-      description: input.description ?? "",
+      name: input.name,
+      description: input.description,
+      image: input.image,
+      street: input.street,
+      number: input.number,
+      neighborhood: input.neighborhood,
       city: input.city,
-      theater: input.theater,
-      price: input.price,
-      date: new Date(input.date),
-      saleStart: new Date(input.saleStart),
-      saleEnd: new Date(input.saleEnd),
-      capacity: input.capacity ?? 0,
-      slug: input.slug ?? "",
-      status: input.status ?? "DRAFT",
-      publishedAt: input.publishedAt,
-      userId: input.userId,
-      categories: {
-        connect: input.categoryIds.map((id) => ({ id })),
-      },
+      state: input.state,
+      zipCode: input.zipCode,
+      venueName: input.venueName,
+      slug: input.slug,
+      status: input.status ?? EventStatus.OPEN,
+      publishedAt: input.publishedAt ?? new Date(),
+      capacity: input.capacity,
+      category: { connect: { id: input.categoryId } },
+      organizer: { connect: { id: input.userId } },
       ticketCategories: {
-        create: ticketCategoriesWithSeats,
+        create: input.ticketCategories.map((cat) => ({
+          title: cat.title,
+          price: cat.price,
+        })),
+      },
+      sessions: {
+        create: input.sessions.map((s) => ({
+          date: s.date,
+          city: s.city,
+          venueName: s.venueName,
+        })),
       },
     },
     include: {
-      categories: true,
-      ticketCategories: {
-        include: {
-          seats: true,
-        },
-      },
+      category: true,
+      ticketCategories: true,
+      sessions: true,
+      organizer: true,
     },
   });
 };
 
+// Atualização de evento
 export const updateEvent = async (input: z.infer<typeof updateEventSchema>) => {
-  const { id, categoryIds, ...rest } = input;
-
-  const allowedFields = [
-    "name", "description", "location", "date",
-    "saleStart", "saleEnd", "city", "theater",
-    "slug", "price", "capacity", "status", "publishedAt"
-  ] as const;
-
-  const data = Object.fromEntries(
-    Object.entries(rest).filter(([key]) =>
-      allowedFields.includes(key as (typeof allowedFields)[number])
-    )
-  );
+  const { id, userId, categoryId, ticketCategories, sessions, ...fields } = input;
 
   return prisma.event.update({
     where: { id },
     data: {
-      ...data,
-      categories: categoryIds
-        ? {
-            set: [],
-            connect: categoryIds.map((id) => ({ id })),
-          }
-        : undefined,
+      ...fields,
+      ...(categoryId && { category: { connect: { id: categoryId } } }),
+      ...(userId && { organizer: { connect: { id: userId } } }),
+      ...(ticketCategories && {
+        ticketCategories: {
+          deleteMany: {},
+          create: ticketCategories.map((cat) => ({
+            title: cat.title,
+            price: cat.price,
+          })),
+        },
+      }),
+      ...(sessions && {
+        sessions: {
+          deleteMany: {},
+          create: sessions.map((s) => ({
+            date: s.date,
+            venueName: s.venueName,
+            city: s.city,
+          })),
+        },
+      }),
+    },
+    include: {
+      category: true,
+      ticketCategories: true,
+      sessions: true,
+      organizer: true,
     },
   });
 };
 
-export const cancelEvent = async (id: string) => {
+// Cancelar evento
+export const cancelEvent = async (eventId: string) => {
   return prisma.event.update({
-    where: { id },
-    data: { status: "CANCELLED" },
+    where: { id: eventId },
+    data: { status: EventStatus.FINISHED },
   });
 };
 
+// Finalizar evento
+export const finishEvent = async (eventId: string) => {
+  return prisma.event.update({
+    where: { id: eventId },
+    data: { status: EventStatus.FINISHED },
+  });
+};
+
+// Buscar evento por ID
 export const getEventById = async (input: z.infer<typeof getEventByIdSchema>) => {
   return prisma.event.findUnique({
     where: { id: input.id },
     include: {
-      categories: true,
-      user: true,
-      ticketCategories: {
+      category: true,
+      ticketCategories: { include: { seats: true } },
+      sessions: true,
+      organizer: true,
+    },
+  });
+};
+
+// Listar eventos abertos
+export const listEvents = async () => {
+  return prisma.event.findMany({
+    where: { status: EventStatus.OPEN },
+    orderBy: { createdAt: "asc" },
+    include: {
+      category: true,
+      ticketCategories: true,
+      sessions: true,
+      organizer: true,
+    },
+  });
+};
+
+// Listar eventos por data (usando session.date)
+export const listEventsByDate = async (dateString: string) => {
+  const start = new Date(`${dateString}T00:00:00`);
+  const end = new Date(`${dateString}T23:59:59`);
+
+  const sessions = await prisma.session.findMany({
+    where: {
+      date: { gte: start, lte: end },
+      event: { status: EventStatus.OPEN },
+    },
+    include: {
+      event: {
         include: {
-          seats: true,
+          category: true,
+          ticketCategories: true,
+          sessions: true,
+          organizer: true,
         },
       },
     },
   });
-};
 
-export const listEvents = async () => {
-  return prisma.event.findMany({
-    where: { status: "PUBLISHED" },
-    orderBy: { date: "asc" },
-    include: {
-      categories: true,
-      user: true,
-    },
-  });
-};
+  const unique = new Map<string, typeof sessions[0]["event"]>();
+  for (const s of sessions) {
+    if (s.event && !unique.has(s.event.id)) {
+      unique.set(s.event.id, s.event);
+    }
+  }
 
-export const listTodayEvents = async () => {
-  const today = new Date();
-  const start = new Date(today.setHours(0, 0, 0, 0));
-  const end = new Date(today.setHours(23, 59, 59, 999));
-
-  return prisma.event.findMany({
-    where: {
-      date: { gte: start, lte: end },
-      status: "PUBLISHED",
-    },
-    orderBy: { date: "asc" },
-    include: {
-      categories: true,
-    },
-  });
+  return Array.from(unique.values());
 };

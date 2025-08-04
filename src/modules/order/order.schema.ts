@@ -3,13 +3,8 @@ import { z } from "zod";
 
 export const createOrderSchema = z.object({
   eventId: z.string().cuid("Invalid event ID"),
-  items: z.array(
-    z.object({
-      ticketCategoryId: z.string().cuid("Invalid ticket category ID"),
-      categoryId: z.string().cuid("Invalid category ID"),
-      quantity: z.number().min(1, "Must select at least 1 ticket"),
-    })
-  ).min(1, "Must include at least one item"),
+  sessionId: z.string().cuid("Invalid session ID"),
+  selectedLabels: z.array(z.string().min(2)).min(1).max(5),
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;

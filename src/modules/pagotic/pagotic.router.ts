@@ -1,43 +1,39 @@
+import { protectedProcedure, router } from "@/server/trpc/trpc";
 import { z } from "zod";
-import { router, protectedProcedure } from "@/server/trpc/trpc";
-import { PagoTICService, createPagoSchema } from "./pagotic.service";
-import { buildPagoPayload } from "./pagotic.payload";
 import { prisma } from "@/lib/prisma";
+import { pagoticService } from "./pagotic.service";
+import { buildPagoPayload } from "./pagotic.payload";
 
 export const pagoticRouter = router({
-  createPayment: protectedProcedure
-    .input(createPagoSchema)
-    .mutation(async ({ input }) => {
-      return await PagoTICService.createPayment(input);
-    }),
-
   startPagoTICPayment: protectedProcedure
     .input(z.object({ orderId: z.string() }))
     .mutation(async ({ input, ctx }) => {
+      const { orderId } = input;
+      const userId = ctx.session.user.id;
+
       const order = await prisma.order.findUnique({
-        where: { id: input.orderId },
+        where: { id: orderId, userId },
         include: {
-          items: true,
+          orderItems: {
+            include: {
+              seat: { include: { ticketCategory: true } },
+            },
+          },
         },
       });
+      if (!order) throw new Error("Pedido não encontrado.");
 
-      if (!order) {
-        throw new Error("Order not found");
-      }
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) throw new Error("Usuário não encontrado.");
 
-      if (order.userId !== ctx.session.user.id) {
-        throw new Error("Unauthorized access to order");
-      }
+      const payload = buildPagoPayload(order, user);
+      const response = await pagoticService.createPayment(payload);
 
-      const user = await prisma.user.findUnique({
-        where: { id: ctx.session.user.id },
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { externalTransactionId: payload.external_transaction_id },
       });
 
-      if (!user) {
-        throw new Error("User not found");
-      }
-
-      const payload = buildPagoPayload({ order, user });
-      return await PagoTICService.createPayment(payload);
+      return { form_url: response.form_url };
     }),
 });

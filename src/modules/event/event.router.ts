@@ -1,4 +1,3 @@
-// src/modules/event/event.router.ts
 import {
   router,
   publicProcedure,
@@ -16,11 +15,12 @@ import {
   cancelEvent,
   getEventById,
   listEvents,
-  listTodayEvents,
+  listEventsByDate,
 } from "./event.service";
-import { prisma } from "@/lib/prisma";
+import { z } from "zod";
 
 export const eventRouter = router({
+  // ✅ ADMIN: Criar evento
   create: protectedProcedure
     .input(createEventSchema)
     .mutation(async ({ ctx, input }) => {
@@ -30,6 +30,7 @@ export const eventRouter = router({
       return createEvent(input);
     }),
 
+  // ✅ ADMIN: Atualizar evento
   update: protectedProcedure
     .input(updateEventSchema)
     .mutation(async ({ ctx, input }) => {
@@ -39,6 +40,7 @@ export const eventRouter = router({
       return updateEvent(input);
     }),
 
+  // ✅ ADMIN: Cancelar evento (marcar como FINISHED)
   cancel: protectedProcedure
     .input(getEventByIdSchema)
     .mutation(async ({ ctx, input }) => {
@@ -48,44 +50,16 @@ export const eventRouter = router({
       return cancelEvent(input.id);
     }),
 
-  publish: protectedProcedure
-    .input(getEventByIdSchema)
-    .mutation(async ({ ctx, input }) => {
-      if (ctx.session.user.role !== "ADMIN") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
-      }
-
-      const event = await prisma.event.findUnique({
-        where: { id: input.id },
-      });
-
-      if (!event) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Event not found" });
-      }
-
-      if (event.status === "PUBLISHED") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Event is already published",
-        });
-      }
-
-      return prisma.event.update({
-        where: { id: input.id },
-        data: {
-          status: "PUBLISHED",
-          publishedAt: new Date(),
-        },
-      });
-    }),
-
+  // ✅ PÚBLICO: Buscar evento por ID
   getById: publicProcedure
     .input(getEventByIdSchema)
-    .query(async ({ input }) => {
-      return getEventById(input);
-    }),
+    .query(({ input }) => getEventById(input)),
 
+  // ✅ PÚBLICO: Listar todos eventos OPEN
   list: publicProcedure.query(() => listEvents()),
 
-  today: publicProcedure.query(() => listTodayEvents()),
+  // ✅ PÚBLICO: Listar eventos por data de sessão (YYYY-MM-DD)
+  listByDate: publicProcedure
+    .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+    .query(({ input }) => listEventsByDate(input.date)),
 });

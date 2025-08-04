@@ -22,7 +22,7 @@ const DashboardContent = () => {
           >
             <main>
               <div className="px-4">
-                {/* Botão Criar Evento */}
+                {/* Create Event Button */}
                 <div className="mb-6 flex justify-end">
                   <Link
                     href="/event/create"
@@ -32,7 +32,7 @@ const DashboardContent = () => {
                   </Link>
                 </div>
 
-                {/* Grids do conteúdo */}
+                {/* Dashboard Grids */}
                 <div className="mt-4 grid w-full grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                   <NewFunctions />
                   <Visitors />

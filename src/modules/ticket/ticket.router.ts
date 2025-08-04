@@ -1,5 +1,4 @@
-// src/server/trpc/router/ticketRouter.ts
-
+// src/modules/ticket/ticket.router.ts
 import { z } from "zod";
 import {
   createTRPCRouter,
@@ -10,59 +9,59 @@ import {
 import {
   getTicketsByOrderItemSchema,
   markTicketAsUsedSchema,
-} from "@/modules/ticket/ticket.schema";
+} from "./ticket.schema";
 
 import {
   generateAndSaveTicket,
   getTicketsByOrderItemService,
   markTicketAsUsedService,
   validateTicketByQrService,
-} from "@/modules/ticket/ticket.service";
+  generateTicketsFromOrder,
+} from "./ticket.service";
 
 export const ticketRouter = createTRPCRouter({
-  /**
-   * 🔐 Generate a new ticket and save assets (QR, PDF, Wallet)
-   */
-  create: protectedProcedure
+  // Gera todos os tickets de um pedido
+  generateFromOrder: protectedProcedure
+    .input(
+      z.object({
+        orderId: z.string().cuid("Invalid order ID"),
+      })
+    )
+    .mutation(({ input }) => generateTicketsFromOrder(input.orderId)),
+
+  //  Gera manualmente um ticket único para um item de pedido
+  generateOne: protectedProcedure
     .input(
       z.object({
         orderItemId: z.string().cuid("Invalid orderItemId"),
-        orderId: z.string().cuid("Invalid orderId"),
-        userName: z.string().optional(),
       })
     )
     .mutation(({ input }) =>
-      generateAndSaveTicket(input.orderItemId, input.orderId, input.userName)
+      generateAndSaveTicket(input.orderItemId)
     ),
 
-  /**
-   * 🔐 Get all tickets by order item ID
-   */
+  // Lista os tickets de um item de pedido
   getByOrderItem: protectedProcedure
     .input(getTicketsByOrderItemSchema)
     .query(({ input }) =>
       getTicketsByOrderItemService(input.orderItemId)
     ),
 
-  /**
-   * 🔐 Mark a ticket as used
-   */
+  //  Marca um ticket como utilizado
   markAsUsed: protectedProcedure
     .input(markTicketAsUsedSchema)
     .mutation(({ input }) =>
       markTicketAsUsedService(input.ticketId)
     ),
 
-  /**
-   * 🌐 Validate ticket by QR ID (public for entrance scanning)
-   */
+  // Valida um ingresso via QR code
   validateByQrId: publicProcedure
     .input(
       z.object({
-        qrId: z.string().min(1, "QR ID is required"),
+        qrCodeId: z.string().min(8, "QR Code ID is too short"),
       })
     )
     .mutation(({ input }) =>
-      validateTicketByQrService(input.qrId)
+      validateTicketByQrService(input.qrCodeId)
     ),
 });

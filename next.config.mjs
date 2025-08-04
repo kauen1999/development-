@@ -1,11 +1,4 @@
-// @ts-check
-/**
- * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation.
- * This is especially useful for Docker builds.
- */
-!process.env.SKIP_ENV_VALIDATION && (await import("./src/env/server.mjs"));
-
-/** @type {import("next").NextConfig} */
+/** @type {import('next').NextConfig} */
 const config = {
   reactStrictMode: true,
   swcMinify: true,
@@ -14,12 +7,36 @@ const config = {
     defaultLocale: "en",
   },
   images: {
-    domains: [
-      "lh3.googleusercontent.com",
-      "platform-lookaside.fbsbx.com",
-      "definicion.de",
-      "demo.themesberg.com",
-      "entradamaster.com",
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+      },
+      {
+        protocol: "https",
+        hostname: "platform-lookaside.fbsbx.com",
+      },
+      {
+        protocol: "https",
+        hostname: "definicion.de",
+      },
+      {
+        protocol: "https",
+        hostname: "demo.themesberg.com",
+      },
+      {
+        protocol: "https",
+        hostname: "entradamaster.com",
+      },
+      {
+        protocol: "https",
+        hostname: "source.unsplash.com",
+      },
+
+      {
+        protocol: "https",
+        hostname: "rtbugxvtjadkeuyncdpp.supabase.co",
+      },
     ],
   },
   typescript: {
@@ -29,4 +46,5 @@ const config = {
     ignoreDuringBuilds: true,
   },
 };
+
 export default config;

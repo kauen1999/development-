@@ -170,7 +170,7 @@ const RegisterSection: React.FC = () => {
               />
             </div>
             <LoadingButton
-              loading={register.isLoading}
+              loading={register.isPending}
               textColor="text-ct-blue-600"
               type="submit"
             >

@@ -1,54 +1,53 @@
-import type { Order, OrderItem, User } from "@prisma/client";
-import { generateExternalTransactionId, formatAmount, toRFCDate, addMinutes } from "./pagotic.utils";
-import type { z } from "zod";
-import type { createPagoSchema } from "./pagotic.service";
+import type { Order, User, Seat, TicketCategory, OrderItem } from "@prisma/client";
+import { toRFCDate, addMinutes, generateExternalTransactionId } from "./pagotic.utils";
+import type { PagoTICPayload } from "./pagotic.types";
 
-type PagoPayload = z.infer<typeof createPagoSchema>;
-
-interface BuildPagoPayloadInput {
-  order: Order & { items: (OrderItem & { categoryId: string })[] };
-  user: User;
-}
-
-export function buildPagoPayload({ order, user }: BuildPagoPayloadInput): PagoPayload {
-  const external_transaction_id = generateExternalTransactionId(order.id);
-  const dueDate = toRFCDate(addMinutes(new Date(), 30));
-  const lastDueDate = toRFCDate(addMinutes(new Date(), 60));
-
-  const collectorId = process.env.PAGOTIC_COLLECTOR_ID;
+export function buildPagoPayload(
+  order: Order & {
+    orderItems: (OrderItem & {
+      seat: Seat & { ticketCategory: TicketCategory };
+    })[];
+  },
+  user: User
+): PagoTICPayload {
   const returnUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!returnUrl) throw new Error("Missing NEXT_PUBLIC_APP_URL");
 
-  if (!collectorId || !returnUrl) {
-    throw new Error("Missing PagoTIC environment variables.");
+  if (!user.email || !user.dni) {
+    throw new Error("Usuário sem e-mail ou DNI.");
   }
 
-  if (!user.email) {
-    throw new Error("User must have a valid email.");
-  }
+  const external_transaction_id = generateExternalTransactionId(order.id);
+  const due_date = toRFCDate(addMinutes(new Date(), 30));
+  const last_due_date = toRFCDate(addMinutes(new Date(), 60));
 
-  return {
+  const payload = {
     type: "online",
-    collector_id: collectorId,
     return_url: `${returnUrl}/payment/success`,
     back_url: `${returnUrl}/payment/cancel`,
     notification_url: `${returnUrl}/api/webhooks/pagotic`,
     external_transaction_id,
-    details: order.items.map((item) => ({
-      concept_id: item.categoryId,
-      concept_description: `Ticket - ${item.id}`,
-      amount: parseFloat(formatAmount(item.price * item.quantity)),
-      currency_id: "ARS",
-    })),
+    due_date,
+    last_due_date,
+    payment_methods: [{ method: "credit" }],
+    details: [
+      {
+        concept_id: "woocommerce",
+        concept_description: `Compra de ingressos - Pedido ${order.id}`,
+        amount: parseFloat(order.total.toFixed(2)),
+        external_reference: order.id,
+      },
+    ],
     payer: {
-      name: user.name ?? "Unnamed",
+      name: user.name ?? "Comprador",
       email: user.email,
       identification: {
         type: "DNI_ARG",
-        number: user.dni ?? "00000000",
+        number: user.dni,
         country: "ARG",
       },
     },
-    due_date: dueDate,
-    last_due_date: lastDueDate,
-  };
+  } as const; // garante que os literais sejam corretamente inferidos
+
+  return payload;
 }

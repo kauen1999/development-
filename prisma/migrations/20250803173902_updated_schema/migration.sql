@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Seat" ALTER COLUMN "status" SET DEFAULT 'RESERVED';

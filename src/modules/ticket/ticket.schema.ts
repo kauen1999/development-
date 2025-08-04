@@ -1,52 +1,28 @@
+// src/modules/ticket/ticket.schema.ts
 import { z } from "zod";
 
-export const createTicketSchema = z
-  .object({
-    orderItemId: z
-      .string()
-      .cuid({ message: "ID do item do pedido inválido (esperado CUID)" }),
-
-    qrCodeUrl: z
-      .string()
-      .url({ message: "QR Code URL inválido" }),
-
-    pdfUrl: z
-      .string()
-      .url({ message: "URL do PDF inválida" })
-      .optional(),
-
-    walletPassUrl: z
-      .string()
-      .url({ message: "URL do Wallet Pass inválida" })
-      .optional(),
-  })
-  .refine((data) => data.pdfUrl || data.walletPassUrl, {
-    message: "Pelo menos um formato (PDF ou Wallet Pass) deve ser fornecido.",
-    path: ["pdfUrl", "walletPassUrl"],
-  });
-
-export type CreateTicketInput = z.infer<typeof createTicketSchema>;
-
-export const getTicketsByOrderItemSchema = z.object({
-  orderItemId: z
-    .string()
-    .cuid({ message: "ID do item do pedido inválido (esperado CUID)" }),
+// Criar ticket manual (não usado no fluxo automático)
+export const createTicketSchema = z.object({
+  orderItemId: z.string().cuid("Invalid orderItemId"),
+  qrCodeUrl: z.string().url("Invalid QR code URL"),
+  pdfUrl: z.string().url("Invalid PDF URL").optional(),
 });
 
-export type GetTicketsByOrderItemInput = z.infer<typeof getTicketsByOrderItemSchema>;
+// Buscar tickets por OrderItem
+export const getTicketsByOrderItemSchema = z.object({
+  orderItemId: z.string().cuid("Invalid orderItemId"),
+});
 
 export const markTicketAsUsedSchema = z.object({
-  ticketId: z
-    .string()
-    .cuid({ message: "ID do ingresso inválido (esperado CUID)" }),
+  ticketId: z.string().cuid("Invalid ticket ID"),
 });
-
-export type MarkTicketAsUsedInput = z.infer<typeof markTicketAsUsedSchema>;
 
 export const validateTicketSchema = z.object({
-  qrCodeId: z
-    .string()
-    .min(8, { message: "QR Code inválido — mínimo 8 caracteres" }),
+  qrCodeId: z.string().min(8, "QR Code must be at least 8 characters"),
 });
 
+// Types
+export type CreateTicketInput = z.infer<typeof createTicketSchema>;
+export type GetTicketsByOrderItemInput = z.infer<typeof getTicketsByOrderItemSchema>;
+export type MarkTicketAsUsedInput = z.infer<typeof markTicketAsUsedSchema>;
 export type ValidateTicketInput = z.infer<typeof validateTicketSchema>;

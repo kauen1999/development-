@@ -1,43 +1,43 @@
-import React from "react";
-import { type NextPage, type GetServerSidePropsContext } from "next";
-import CheckoutContent from "../../components/checkout/CheckoutContent";
-import Footer from "../../components/principal/footer/Footer";
-import Header from "../../components/principal/header/Header";
-import type { StaticImageData } from "next/image";
-import { getSession } from "next-auth/react";
+// src/pages/checkout/[id].tsx
+import type { GetServerSideProps, NextPage } from "next";
+import Header from "@/components/principal/header/Header";
+import Footer from "@/components/principal/footer/Footer";
+import CheckoutContent from "@/components/checkout/CheckoutContent";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/modules/auth/auth-options";
+import { prisma } from "@/lib/prisma";
 
 interface Props {
   title: string;
   price: number;
   sector: string;
   cant: number;
-  picture: StaticImageData;
+  picture: string;
+  orderId: string;
 }
 
-const Checkout: NextPage<Props> = ({ title, price, sector, cant, picture }) => {
+const CheckoutPage: NextPage<Props> = ({ title, price, sector, cant, picture, orderId }) => {
   return (
-    <div>
-      <Header buyPage={true} home={true} />
-      <section>
-        <CheckoutContent
-          title={title}
-          price={price}
-          sector={sector}
-          cant={cant}
-          picture={picture}
-        />
-      </section>
+    <>
+      <Header buyPage home />
+      <CheckoutContent
+        title={title}
+        price={price}
+        sector={sector}
+        cant={cant}
+        picture={picture}
+        orderId={orderId}
+      />
       <Footer />
-    </div>
+    </>
   );
 };
 
-export default Checkout;
+export default CheckoutPage;
 
-export async function getServerSideProps(context: GetServerSidePropsContext) {
-  const { req, query } = context;
-
-  const session = await getSession({ req });
+export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  const session = await getServerSession(ctx.req, ctx.res, authOptions);
+  const orderId = ctx.params?.id as string;
 
   if (!session) {
     return {
@@ -48,13 +48,41 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     };
   }
 
+  if (!orderId) {
+    return { notFound: true };
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      event: true,
+      orderItems: {
+        include: {
+          seat: {
+            include: {
+              ticketCategory: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const firstItem = order?.orderItems?.[0];
+  const firstSeat = firstItem?.seat;
+
+  if (!order || !firstItem || !firstSeat || !firstSeat.ticketCategory) {
+    return { notFound: true };
+  }
+
   return {
     props: {
-      title: query.title ?? "",
-      price: Number(query.price ?? 0),
-      sector: query.sector ?? "",
-      cant: Number(query.cant ?? 1),
-      picture: query.picture ?? "",
+      title: order.event.name,
+      price: order.total,
+      cant: order.orderItems.length,
+      sector: firstSeat.ticketCategory.title ?? "",
+      picture: order.event.image || "/banner.jpg",
+      orderId,
     },
   };
-}
+};

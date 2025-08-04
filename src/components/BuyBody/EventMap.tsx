@@ -1,25 +1,25 @@
-// src/components/BuyBody/EventMap.tsx
 import React from "react";
 
-// Ajuste: row agora é string[]
 interface Sector {
   id: string;
   name: string;
-  rows: string[]; // ✅ array de strings
-  pricesByRow: { [row: string]: number }; // ✅ chaves são strings
+  rows: string[];
+  pricesByRow: { [row: string]: number };
 }
 
-interface MapConfig {
+export interface EventMapConfig {
   name: string;
   seatsPerRow: number;
   sectors: Sector[];
 }
 
 interface EventMapProps {
-  mapConfig: MapConfig;
+  mapConfig: EventMapConfig;
   onSelect: (sector: string, row: string, seat: number, price: number) => void;
   selectedSeats: { sector: string; row: string; seat: number }[];
   maxReached: boolean;
+  // Renomeado para refletir que são apenas assentos vendidos
+  soldSeats?: { sector: string; row: string; seat: number }[];
 }
 
 export const EventMap: React.FC<EventMapProps> = ({
@@ -27,9 +27,15 @@ export const EventMap: React.FC<EventMapProps> = ({
   onSelect,
   selectedSeats,
   maxReached,
+  soldSeats = [],
 }) => {
   const isSeatSelected = (sector: string, row: string, seat: number) =>
     selectedSeats.some(
+      (s) => s.sector === sector && s.row === row && s.seat === seat
+    );
+
+  const isSeatSold = (sector: string, row: string, seat: number) =>
+    soldSeats.some(
       (s) => s.sector === sector && s.row === row && s.seat === seat
     );
 
@@ -41,22 +47,37 @@ export const EventMap: React.FC<EventMapProps> = ({
           <h3>{sec.name}</h3>
           {sec.rows.map((row) => (
             <div key={row} className="mb-1 flex items-center gap-1">
-              <span className="w-16">
-                {sec.id}
-                {row}
-              </span>
+              <span className="w-16">{`${sec.id}${row}`}</span>
               {[...Array(mapConfig.seatsPerRow)].map((_, si) => {
                 const seat = si + 1;
-                const selected = isSeatSelected(sec.id, row, seat);
+                const fullRow = `${sec.id}${row}`;
+                const selected = isSeatSelected(sec.name, fullRow, seat);
+                const sold = isSeatSold(sec.name, fullRow, seat);
+                const price = sec.pricesByRow?.[row] ?? 0;
+
+                const isDisabled =
+                  sold || price <= 0 || (maxReached && !selected);
+
                 return (
                   <button
-                    disabled={maxReached && !selected}
                     key={seat}
-                    className={`h-8 w-8 rounded transition 
-                      ${selected ? "bg-green-500 text-white" : "bg-gray-200"}
-                      ${maxReached && !selected ? "cursor-not-allowed opacity-50" : ""}`}
+                    disabled={isDisabled}
                     onClick={() =>
-                      onSelect(sec.id, row, seat, sec.pricesByRow[row] ?? 0)
+                      onSelect(sec.name, fullRow, seat, price)
+                    }
+                    className={`h-8 w-8 rounded transition
+                      ${
+                        isDisabled
+                          ? "bg-gray-400 text-white cursor-not-allowed"
+                          : selected
+                          ? "bg-green-500 text-white"
+                          : "bg-gray-200 hover:bg-blue-300"
+                      }
+                      ${maxReached && !selected ? "opacity-50" : ""}`}
+                    title={
+                      sold
+                        ? `Indisponível (vendido)`
+                        : `Setor ${sec.name}, fila ${row}, assento ${seat}`
                     }
                   >
                     {seat}

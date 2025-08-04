@@ -1,125 +1,100 @@
-import { prisma } from "@/server/db/client";
+// src/modules/ticket/ticket.service.ts
+import { prisma } from "@/lib/prisma";
 import { TRPCError } from "@trpc/server";
-import { generateTicketAssets } from "@/modules/ticket/ticketGeneration.service";
+import { generateTicketAssets } from "./ticketGeneration.service";
 
-/**
- * Generate and persist a ticket with assets (QR, PDF, Wallet)
- */
+// Gera e salva um ingresso individual com assets (QR, PDF)
 export async function generateAndSaveTicket(
-  orderItemId: string,
-  orderId: string,
-  userName?: string
+  orderItemId: string
 ) {
-  if (!orderItemId || !orderId) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Missing orderItemId or orderId.",
-    });
-  }
-
-  try {
-    const assets = await generateTicketAssets(orderId, prisma, { orderId, userName });
-
-    return await prisma.ticket.create({
-      data: {
-        orderItemId,
-        qrCodeUrl: assets.qrCodeUrl,
-        pdfUrl: assets.pdfUrl,
-        walletPassUrl: assets.walletPassUrl,
+  const orderItem = await prisma.orderItem.findUnique({
+    where: { id: orderItemId },
+    include: {
+      order: {
+        include: {
+          session: true,
+          user: true,
+          event: true,
+        },
       },
-    });
-  } catch (error) {
+      seat: true,
+    },
+  });
+
+  if (!orderItem) {
     throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Failed to generate and save ticket.",
-      cause: error,
+      code: "NOT_FOUND",
+      message: "Order item not found",
     });
   }
+
+  const ticket = await prisma.ticket.create({
+    data: {
+      seatId: orderItem.seatId,
+      sessionId: orderItem.order.sessionId,
+      orderItemId: orderItem.id,
+      userId: orderItem.order.userId,
+      eventId: orderItem.order.eventId,
+      qrCodeUrl: "", // será atualizado depois
+    },
+  });
+
+  const assets = await generateTicketAssets(ticket.id);
+
+  return prisma.ticket.update({
+    where: { id: ticket.id },
+    data: {
+      qrCodeUrl: assets.qrCodeUrl,
+      pdfUrl: assets.pdfUrl,
+    },
+  });
 }
 
-/**
- * Generate all tickets from order
- */
-export async function generateTicketsFromOrder(order: {
-  id: string;
-  items: {
-    id: string;
-    quantity: number;
-  }[];
-}) {
-  const createdTickets = [];
+// Gera múltiplos ingressos a partir de um pedido (1 por assento = 1 por orderItem)
+export async function generateTicketsFromOrder(orderId: string) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      orderItems: true,
+    },
+  });
 
-  for (const item of order.items) {
-    for (let i = 0; i < item.quantity; i++) {
-      const ticket = await generateAndSaveTicket(item.id, order.id);
-      createdTickets.push(ticket);
-    }
+  if (!order) throw new Error("Order not found");
+
+  const tickets = [];
+
+  for (const item of order.orderItems) {
+    const ticket = await generateAndSaveTicket(item.id);
+    tickets.push(ticket);
   }
 
-  return createdTickets;
+  return tickets;
 }
 
-/**
- * List all tickets for a given order item
- */
+// Busca todos os ingressos vinculados a um orderItem
 export async function getTicketsByOrderItemService(orderItemId: string) {
-  if (!orderItemId) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Missing orderItemId",
-    });
-  }
-
   return prisma.ticket.findMany({
     where: { orderItemId },
   });
 }
 
-/**
- * Mark a ticket as used (entrance validation)
- */
+// Marca ingresso como usado (para controle de entrada)
 export async function markTicketAsUsedService(ticketId: string) {
-  if (!ticketId) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Missing ticketId",
-    });
-  }
-
   return prisma.ticket.update({
     where: { id: ticketId },
     data: { usedAt: new Date() },
   });
 }
 
-/**
- * Validate a ticket using its QR code ID (part of the URL)
- */
+// Validação pública via QR Code (entrada do evento)
 export async function validateTicketByQrService(qrCodeId: string) {
-  if (!qrCodeId || typeof qrCodeId !== "string") {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Invalid QR Code ID",
-    });
-  }
-
   const ticket = await prisma.ticket.findFirst({
     where: {
-      qrCodeUrl: {
-        contains: qrCodeId,
-      },
+      qrCodeUrl: { contains: qrCodeId },
     },
     include: {
-      orderItem: {
-        include: {
-          order: {
-            include: {
-              event: true,
-              user: true,
-            },
-          },
-        },
-      },
+      event: true,
+      user: true,
     },
   });
 
@@ -148,7 +123,7 @@ export async function validateTicketByQrService(qrCodeId: string) {
     status: "valid",
     usedAt,
     ticketId: ticket.id,
-    eventName: ticket.orderItem.order.event.name,
-    userEmail: ticket.orderItem.order.user.email,
+    eventName: ticket.event.name,
+    userEmail: ticket.user.email,
   };
 }

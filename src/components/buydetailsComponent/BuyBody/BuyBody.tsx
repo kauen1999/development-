@@ -1,35 +1,39 @@
-// src/components/buydetailsComponent/BuyBody/BuyBody.tsx
 import React, { useState } from "react";
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { EventMap } from "../../BuyBody/EventMap";
 import { eventMaps } from "../../../data/maps";
 import { trpc } from "@/utils/trpc";
+import type { EventMapConfig } from "@/data/maps";
 
 interface Props {
   event: {
     id: string;
     name: string;
     date: string;
-    price: number;
+    image: string | null;
     city: string;
-    theater: string;
+    venueName: string;
+    sessions: {
+      id: string;
+      date: string;
+      venueName: string;
+    }[];
     ticketCategories: {
       id: string;
       title: string;
       price: number;
-      stock: number;
       seats: {
         id: string;
         label: string;
-        row: string;
-        number: number;
+        row: string | null;
+        number: number | null;
+        status: "AVAILABLE" | "RESERVED" | "SOLD";
       }[];
     }[];
-    categories: {
+    category: {
       id: string;
       name: string;
-    }[];
+    };
   };
 }
 
@@ -40,27 +44,46 @@ type Seat = {
   price: number;
 };
 
+// Utilitário para mesclar mapa estático com preços reais do banco
+const mergeMapWithTicketPrices = (
+  mapConfig: EventMapConfig,
+  ticketCategories: Props["event"]["ticketCategories"]
+): EventMapConfig => {
+  const newSectors = mapConfig.sectors.map((sector) => {
+    const ticketCategory = ticketCategories.find(
+      (tc) => tc.title.toLowerCase() === sector.name.toLowerCase()
+    );
+    const price = ticketCategory?.price ?? 0;
+
+    const newPricesByRow = Object.fromEntries(
+      sector.rows.map((row) => [row, price])
+    );
+
+    return {
+      ...sector,
+      pricesByRow: newPricesByRow,
+    };
+  });
+
+  return {
+    ...mapConfig,
+    sectors: newSectors,
+  };
+};
+
 const BuyBody: React.FC<Props> = ({ event }) => {
   const router = useRouter();
-  const { data: sessionData } = useSession();
   const [selectedSeats, setSelectedSeats] = useState<Seat[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
-  const handleSelect = (
-    sector: string,
-    row: string,
-    seat: number,
-    price: number
-  ) => {
+  const handleSelect = (sector: string, row: string, seat: number, price: number) => {
     const isAlreadySelected = selectedSeats.some(
       (s) => s.sector === sector && s.row === row && s.seat === seat
     );
 
     if (isAlreadySelected) {
       setSelectedSeats((prev) =>
-        prev.filter(
-          (s) => !(s.sector === sector && s.row === row && s.seat === seat)
-        )
+        prev.filter((s) => !(s.sector === sector && s.row === row && s.seat === seat))
       );
     } else {
       if (selectedSeats.length >= 5) return;
@@ -72,26 +95,47 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   const totalTickets = selectedSeats.length;
   const disabled = totalTickets === 0;
 
-  const location = (router.query.location as string) || "belgrano";
-  const mapConfig = eventMaps[location];
-
-  const createOrder = trpc.order.create.useMutation({
-    onSuccess: (order) => {
-      router.push(`/checkout/${order.id}`);
-    },
-    onError: (error) => {
-      console.error("Erro ao criar pedido:", error);
-      alert("Ocorreu um erro ao criar seu pedido.");
-    },
-  });
-
-  if (!mapConfig) {
+  const staticMap = eventMaps["belgrano"];
+  if (!staticMap) {
     return (
       <div className="flex h-64 items-center justify-center">
         <span className="text-gray-500">Mapa do evento não encontrado.</span>
       </div>
     );
   }
+
+  const mapConfig = mergeMapWithTicketPrices(staticMap, event.ticketCategories);
+
+  const createOrder = trpc.order.create.useMutation({
+    onSuccess: (order) => {
+      router.push(`/checkout/${order.id}`);
+    },
+    onError: (error) => {
+      console.error("💥 Erro ao criar pedido:", error);
+      alert("Um ou mais assentos não estão mais disponíveis.");
+    },
+  });
+
+  const handleBuy = () => {
+    if (!termsAccepted || selectedSeats.length === 0) {
+      alert("Você precisa aceitar os termos e selecionar pelo menos um ingresso.");
+      return;
+    }
+
+    const sessionId = event.sessions?.[0]?.id;
+    if (!sessionId) {
+      alert("Sessão do evento não encontrada.");
+      return;
+    }
+
+    const selectedLabels = selectedSeats.map((s) => `${s.row}-${s.seat}`);
+
+    createOrder.mutate({
+      eventId: event.id,
+      sessionId,
+      selectedLabels,
+    });
+  };
 
   return (
     <div className="mx-auto my-4 flex max-w-[1200px] flex-col gap-8 rounded-lg border border-gray-300 bg-white p-6 shadow-lg lg:flex-row">
@@ -101,8 +145,18 @@ const BuyBody: React.FC<Props> = ({ event }) => {
           onSelect={handleSelect}
           selectedSeats={selectedSeats}
           maxReached={selectedSeats.length >= 5}
+          blockedSeats={event.ticketCategories.flatMap((cat) =>
+            cat.seats
+              .filter((s) => s.status === "SOLD" || s.status === "RESERVED")
+              .map((s) => ({
+                sector: cat.title,
+                row: s.row ?? "",
+                seat: s.number ?? 0,
+              }))
+          )}
         />
       </div>
+
       <div className="w-full lg:w-1/2">
         <h2 className="w-fit rounded bg-gray-400 px-4 py-2 text-sm font-bold text-white">
           DOM-06/JUL
@@ -113,108 +167,38 @@ const BuyBody: React.FC<Props> = ({ event }) => {
             {selectedSeats.map((s, i) => (
               <div key={i} className="border-b pb-2">
                 <div className="flex items-center justify-between">
-                  <p>Setor: Platea {s.sector}</p>
-                  <button className="rounded bg-gray-200 px-2 py-1 text-sm">
-                    1
-                  </button>
+                  <p>Setor: {s.sector}</p>
+                  <p>Assento: {s.row}-{s.seat}</p>
                 </div>
-
-                <div className="flex items-center justify-between">
-                  <p>
-                    Fila: {s.sector}
-                    {s.row} - Assento {s.seat}
-                  </p>
-                  <p className="font-semibold">$ {s.price}.00</p>
-                </div>
+                <p>Preço: ${s.price.toFixed(2)}</p>
               </div>
             ))}
           </div>
         ) : (
-          <p className="mt-4 text-gray-600">Selecione ao menos um assento</p>
+          <p className="mt-4 text-sm text-gray-500">Nenhum assento selecionado.</p>
         )}
 
-        {selectedSeats.length > 0 && (
-          <div className="mt-4 pt-4">
-            <h3 className="mb-4 text-lg font-semibold">Resumen de tu compra</h3>
-            {selectedSeats.map((s, i) => (
-              <div className="flex justify-between text-sm" key={i}>
-                <span>
-                  Platea {s.sector}
-                  {s.row} - {s.seat}
-                </span>
-                <span>$ {s.price}.00</span>
-              </div>
-            ))}
-            <div className="mt-2 flex justify-between font-bold">
-              <span>Total de la compra</span>
-              <span>$ {totalPrice}.00</span>
-            </div>
-          </div>
-        )}
-
-        {selectedSeats.length > 0 && (
-          <div className="mt-4">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={termsAccepted}
-                onChange={(e) => setTermsAccepted(e.target.checked)}
-                className="accent-blue-600 focus:outline-none"
-              />
-              <span>
-                Acepto los{" "}
-                <a href="#" className="text-blue-600 underline">
-                  términos y condiciones
-                </a>
-                .
-              </span>
+        <div className="mt-6 flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <input
+              id="terms"
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            <label htmlFor="terms" className="text-sm text-gray-600">
+              Aceito os termos e condições
             </label>
           </div>
-        )}
-
-        {selectedSeats.length > 0 && (
-          <div className="mt-6">
-            {disabled || !termsAccepted ? (
-              <button
-                className="w-full cursor-not-allowed rounded-md bg-gray-300 py-3 px-6 font-semibold text-gray-600"
-                disabled
-              >
-                Comprar ahora
-              </button>
-            ) : sessionData ? (
-              <button
-                onClick={() => {
-                  createOrder.mutateAsync({
-                    eventId: event.id,
-                    items: selectedSeats.map((s) => {
-                      const ticketCategory = event.ticketCategories.find((tc) =>
-                        tc.seats.find(
-                          (seat) =>
-                            seat.row === s.row && seat.number === Number(s.seat)
-                        )
-                      );
-                      return {
-                        ticketCategoryId: ticketCategory?.id || "",
-                        categoryId: event.categories[0]?.id || "",
-                        quantity: 1,
-                      };
-                    }),
-                  });
-                }}
-                className="w-full rounded-md bg-[#FF5F00] py-3 px-6 font-semibold text-white hover:bg-[#ff6c14]"
-              >
-                Comprar ahora
-              </button>
-            ) : (
-              <button
-                onClick={() => router.push("/login")}
-                className="w-full rounded-md bg-[#FF5F00] py-3 px-6 font-semibold text-white hover:bg-[#ff6c14]"
-              >
-                Comprar ahora
-              </button>
-            )}
-          </div>
-        )}
+          <button
+            disabled={disabled || !termsAccepted}
+            onClick={handleBuy}
+            className="w-full rounded bg-primary-100 py-2 font-bold text-white hover:bg-primary-200 disabled:cursor-not-allowed disabled:bg-gray-400"
+          >
+            Comprar ahora ({totalTickets} ingresso{totalTickets > 1 ? "s" : ""}) - ${totalPrice.toFixed(2)}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -14,7 +14,11 @@ import "swiper/css/pagination";
 export default function EventosHoy() {
   useScrollToHash();
 
-  const { data: eventos = [], isLoading } = trpc.event.today.useQuery();
+  const today = new Date().toISOString().split("T")[0] ?? "";
+
+  const { data: eventos = [], isLoading } = trpc.event.listByDate.useQuery({
+    date: today || "", 
+  });
 
   return (
     <section id="eventos-hoy" className="mx-auto mt-10 w-11/12">
@@ -45,21 +49,30 @@ export default function EventosHoy() {
             1024: { slidesPerView: 3 },
           }}
         >
-          {eventos.map((event) => (
-            <SwiperSlide key={event.id}>
-              <HoyCard
-                foto={event.image ?? ""}
-                titulo={event.name}
-                horas={""}
-                fecha={new Date(event.date).toLocaleDateString()}
-                precio={`$${event.price}`}
-                duracion={""}
-                ubicacion={event.theater}
-                ciudad={event.city}
-                categoria={event.categories[0]?.title ?? ""}
-              />
-            </SwiperSlide>
-          ))}
+          {eventos.map((event) => {
+            const fecha = new Date(event.date);
+            const hora = fecha.toLocaleTimeString("es-AR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+
+            return (
+              <SwiperSlide key={event.id}>
+                <HoyCard
+                  slug={event.slug}
+                  image={event.image ?? null}
+                  titulo={event.name}
+                  horas={hora}
+                  fecha={fecha.toLocaleDateString("es-AR")}
+                  precio={`$${event.ticketCategories?.[0]?.price ?? 0}`}
+                  duracion={"2 horas"}
+                  ubicacion={event.venueName}
+                  ciudad={event.city}
+                  categoria={event.category?.title ?? "General"}
+                />
+              </SwiperSlide>
+            );
+          })}
         </Swiper>
       )}
     </section>

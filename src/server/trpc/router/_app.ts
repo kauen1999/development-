@@ -5,11 +5,13 @@ import { router } from "../trpc";
 import { authRouter } from "@/modules/auth/trpcRouter";
 import { eventRouter } from "@/modules/event/event.router";
 import { orderRouter } from "@/modules/order/orderRouter";
+import { categoryRouter } from "@/modules/category/category.router";
 
 export const appRouter = router({
   auth: authRouter,
   pagotic: pagoticRouter,
   event: eventRouter,
   order: orderRouter,
+  category: categoryRouter,
 });
 export type AppRouter = typeof appRouter;

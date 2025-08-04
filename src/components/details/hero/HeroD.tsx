@@ -1,25 +1,27 @@
 // src/components/details/hero/HeroD.tsx
 import React from "react";
 import Header from "../../principal/header/Header";
-import Image, { StaticImageData } from "next/image";
-import duki from "../../../../public/images/duki.png";
 import { BiTimeFive } from "react-icons/bi";
 import { CiLocationOn } from "react-icons/ci";
 import Link from "next/link";
 import { MdExpandMore } from "react-icons/md";
 
 interface Props {
-  picture: StaticImageData;
+  picture: string;
   artist: string;
   date: string;
 }
 
 const HeroD = ({ picture, artist, date }: Props) => {
+  const safeImage = picture || "/fallback.jpg";
+
   return (
     <section
       className="hero h-[100vh] bg-center bg-no-repeat object-cover"
       style={{
-        backgroundImage: `url("${picture}")`,
+        backgroundImage: `url("${safeImage}")`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
       }}
     >
       <div className="relative hero-overlay bg-black bg-opacity-50">
@@ -58,7 +60,7 @@ const HeroD = ({ picture, artist, date }: Props) => {
             <div className="mx-auto w-fit rounded-lg bg-primary-100 px-5 py-3 text-xl font-bold text-white lg:mx-0">
               <Link
                 href={{
-                  pathname: "../buydetails/[id].tsx",
+                  pathname: "/buydetails/[id]",
                   query: {
                     id: "01",
                     foto: picture,
@@ -71,6 +73,7 @@ const HeroD = ({ picture, artist, date }: Props) => {
                     ciudad: null,
                   },
                 }}
+                as={`/buydetails/01`}
               >
                 <button>Comprar Ahora</button>
               </Link>

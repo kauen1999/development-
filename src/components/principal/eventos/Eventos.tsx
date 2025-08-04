@@ -4,31 +4,20 @@ import Card from "./EventoCard";
 import { AiOutlineSearch } from "react-icons/ai";
 import style from "./../header/Header.module.css";
 import { trpc } from "@/utils/trpc";
-import Spinner from "@/components/principal/loader/Spinner"; // ajuste o path conforme onde está o Spinner
+import Spinner from "@/components/principal/loader/Spinner";
 
 const Eventos = () => {
   const [categoria, setCategoria] = useState("Todos");
 
   const { data: events = [], isLoading } = trpc.event.list.useQuery();
+  const { data: categoriasDb = [], isLoading: loadingCats } = trpc.category.list.useQuery();
 
-  const categorias = [
-    "Todos",
-    "Culinaria",
-    "Deportes",
-    "Especiales",
-    "Familia",
-    "Literatura",
-    "Música",
-    "Stand Up",
-    "Teatro",
-  ];
+  const categorias = ["Todos", ...categoriasDb.map((c) => c.title)];
 
   const eventosFiltrados =
     categoria === "Todos"
       ? events
-      : events.filter((event) =>
-          event.categories?.some((c) => c.title === categoria)
-        );
+      : events.filter((event) => event.category?.title === categoria);
 
   return (
     <section id="eventos" className="mx-auto mt-10 w-11/12 pb-10">
@@ -38,17 +27,21 @@ const Eventos = () => {
 
       <div className="mb-6 flex flex-nowrap items-center justify-between gap-4">
         <div className="flex flex-wrap gap-4">
-          {categorias.map((cat) => (
-            <button
-              key={cat}
-              className={`rounded-lg px-4 py-2 ${
-                categoria === cat ? "bg-primary-100 text-white" : "bg-gray-200"
-              }`}
-              onClick={() => setCategoria(cat)}
-            >
-              {cat}
-            </button>
-          ))}
+          {loadingCats ? (
+            <Spinner />
+          ) : (
+            categorias.map((cat) => (
+              <button
+                key={cat}
+                className={`rounded-lg px-4 py-2 ${
+                  categoria === cat ? "bg-primary-100 text-white" : "bg-gray-200"
+                }`}
+                onClick={() => setCategoria(cat)}
+              >
+                {cat}
+              </button>
+            ))
+          )}
         </div>
 
         <div className={`${style.search_bar} ${style.form_element}`}>
@@ -75,10 +68,11 @@ const Eventos = () => {
           {eventosFiltrados.map((event) => (
             <Card
               key={event.id}
+              slug={event.slug}
               artist={event.name}
-              fecha={new Date(event.date).toLocaleDateString()}
+              fecha={new Date(event.date).toLocaleDateString("es-AR")}
               foto={event.image ?? ""}
-              ubicacion={event.theater}
+              ubicacion={event.venueName}
               ciudad={event.city}
             />
           ))}
