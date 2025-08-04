@@ -1,7 +1,7 @@
   // src/env/schema.mjs
   import { z } from "zod";
 
-  //Variáveis do lado do servidor (.env ou painel da Vercel)
+  //Variaveis do lado do servidor (.env ou painel da Vercel)
   export const serverSchema = z.object({
     DATABASE_URL: z.string().url(),
     NODE_ENV: z.enum(["development", "test", "production"]),
