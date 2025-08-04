@@ -13,7 +13,7 @@ export interface PagoTICPayload {
   external_transaction_id: string;
   due_date: string;
   last_due_date: string;
-  payment_methods: ReadonlyArray<{ method: "credit" }>;
+  currency_id: string;
   details: ReadonlyArray<{
     concept_id: "woocommerce";
     concept_description: string;

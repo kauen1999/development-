@@ -21,6 +21,13 @@
     FACEBOOK_CLIENT_SECRET: z.string(),
     LINKEDIN_CLIENT_ID: z.string(),
     LINKEDIN_CLIENT_SECRET: z.string(),
+
+    // Adicione essas linhas
+    PAGOTIC_BASE_URL: z.string().url(),
+    PAGOTIC_USERNAME: z.string().min(1),
+    PAGOTIC_PASSWORD: z.string().min(1),
+    PAGOTIC_CLIENT_ID: z.string(),
+    PAGOTIC_CLIENT_SECRET: z.string(),
   });
 
   // Variáveis do lado do cliente (NEXT_PUBLIC_)
@@ -28,7 +35,7 @@
     NEXT_PUBLIC_API_BASE: z.string().url(),
     NEXT_PUBLIC_APP_URL: z.string().url(),
   });
-
+  
   export const clientEnv = clientSchema.parse(
     Object.fromEntries(
       Object.entries(process.env).filter(([key]) =>

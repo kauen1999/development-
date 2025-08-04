@@ -29,7 +29,7 @@ export function buildPagoPayload(
     external_transaction_id,
     due_date,
     last_due_date,
-    payment_methods: [{ method: "credit" }],
+    currency_id: "ARS",
     details: [
       {
         concept_id: "woocommerce",
@@ -47,7 +47,12 @@ export function buildPagoPayload(
         country: "ARG",
       },
     },
-  } as const; // garante que os literais sejam corretamente inferidos
+    payment_methods: [
+  {
+    media_payment_id: 1,
+  },
+],
+  } as const;
 
   return payload;
 }
