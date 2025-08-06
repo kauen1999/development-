@@ -1,5 +1,5 @@
 // src/env/index.ts
-import { serverSchema, clientSchema } from "./schema.mjs";
+import { serverSchema, clientSchema } from "./schema.js";
 
 const _server = serverSchema.parse(process.env);
 

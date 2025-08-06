@@ -1,5 +1,5 @@
 // src/env/client.mjs
-import { clientEnv, clientSchema } from "./schema.mjs";
+import { clientEnv, clientSchema } from "./schema.js";
 
 const result = clientSchema.safeParse(clientEnv);
 if (!result.success) {

@@ -1,4 +1,5 @@
 // src/env/schema.ts
+import type { ZodTypeAny } from "zod";
 import { z } from "zod";
 
 // OAuth providers and Pagotic constants
@@ -24,7 +25,7 @@ export const serverSchema = z.object({
   // Dynamic provider entries
   ...Object.fromEntries(
     [...oauthProviders, ...pagoticProviders].flatMap((provider) => {
-      const entries: [string, any][] = [
+      const entries: [string, ZodTypeAny][] = [
         [`${provider}_CLIENT_ID`, z.string().min(1)],
         [`${provider}_CLIENT_SECRET`, z.string().min(1)],
       ];
