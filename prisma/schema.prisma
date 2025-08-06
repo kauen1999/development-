@@ -11,12 +11,18 @@ datasource db {
 enum Role {
   USER
   ADMIN
+  PROMOTER
+  FINANCE
+  SUPPORT
 }
 
 enum EventStatus {
+  DRAFT
+  PUBLISHED
   OPEN
   SOLD_OUT
   FINISHED
+  CANCELLED
 }
 
 enum OrderStatus {
@@ -41,33 +47,44 @@ enum SeatStatus {
   AVAILABLE
   RESERVED
   SOLD
+  BLOCKED
 }
 
-// Models
+enum DiscountType {
+  FIXED
+  PERCENTAGE
+}
+
+// Core Models
 model User {
   id            String    @id @default(cuid())
-  createdAt     DateTime  @default(now())
   name          String?
+  email         String?   @unique
   password      String?
   dniName       String?
   dni           String?
   phone         String?
   birthdate     DateTime?
-  email         String?   @unique
   emailVerified DateTime?
   image         String?   @default("https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png")
   role          Role      @default(USER)
   provider      String?
+  createdAt     DateTime  @default(now())
 
-  accounts         Account[]         // OAuth
-  sessions         SessionAuth[]     @relation("UserSessions")
-  organizedEvents  Event[]           @relation("OrganizerEvents")
-  enrolledEvents   Event[]           @relation("EnrolledUsers")
-  notifications    Notification[]    @relation("UserNotifications")
-  orders           Order[]
-  validatedTickets Ticket[]          @relation("UserValidatedTickets")
-  tickets          Ticket[]
-  seats            Seat[]
+  accounts           Account[]
+  sessions           SessionAuth[]
+  notifications      Notification[]
+  pushNotifications  PushNotification[]
+  validatedTickets   Ticket[]           @relation("UserValidatedTickets")
+  transferredTickets Ticket[]           @relation("TransferredTickets")
+  orders             Order[]
+  tickets            Ticket[]
+  seats              Seat[]
+  cartItems          CartItem[]
+  commissions        Commission[]
+  accessLogs         EventAccessLog[]
+  validations        ValidationLog[]
+  Event              Event[]
 }
 
 model Account {
@@ -91,7 +108,7 @@ model SessionAuth {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-  user         User     @relation("UserSessions", fields: [userId], references: [id])
+  user         User     @relation(fields: [userId], references: [id])
 }
 
 model VerificationToken {
@@ -102,48 +119,56 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model Notification {
-  id        String   @id @default(cuid())
-  message   String
-  userId    String
-  user      User     @relation("UserNotifications", fields: [userId], references: [id])
-  createdAt DateTime @default(now())
-}
-
+// Event Models
 model Category {
   id     String  @id @default(cuid())
   title  String
   events Event[]
 }
 
+model Artist {
+  id        String   @id @default(cuid())
+  name      String
+  eventId   String
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id])
+}
+
 model Event {
-  id               String           @id @default(cuid())
-  name             String
-  slug             String           @unique
-  description      String?
-  image            String?
-  city             String
-  state            String
-  venueName        String
-  zipCode          String
-  neighborhood     String
-  street           String
-  number           String
-  publishedAt      DateTime?
-  status           EventStatus      @default(OPEN)
-  capacity         Int              @default(0)
-  categoryId       String
+  id           String      @id @default(cuid())
+  name         String
+  slug         String      @unique
+  description  String?
+  image        String?
+  city         String
+  state        String
+  venueName    String
+  zipCode      String
+  neighborhood String
+  street       String
+  number       String
+  publishedAt  DateTime?
+  status       EventStatus @default(DRAFT)
+  capacity     Int         @default(0)
+  isFeatured   Boolean     @default(false)
+  views        Int         @default(0)
+  categoryId   String
+  organizerId  String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
   category         Category         @relation(fields: [categoryId], references: [id])
-  organizerId      String
-  organizer        User             @relation("OrganizerEvents", fields: [organizerId], references: [id])
-  enrolledUsers    User[]           @relation("EnrolledUsers")
+  organizer        User             @relation(fields: [organizerId], references: [id])
   ticketCategories TicketCategory[]
   sessions         Session[]
   orders           Order[]
   seats            Seat[]
   tickets          Ticket[]
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  artists          Artist[]
+  discountCodes    DiscountCode[]
+  commissions      Commission[]
+  accessLogs       EventAccessLog[]
 }
 
 model Session {
@@ -152,61 +177,68 @@ model Session {
   venueName String
   city      String
   eventId   String
-  event     Event    @relation(fields: [eventId], references: [id])
-  seats     Seat[]
-  tickets   Ticket[]
-  orders    Order[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([eventId])
+  event        Event          @relation(fields: [eventId], references: [id])
+  seats        Seat[]
+  tickets      Ticket[]
+  orders       Order[]
+  cartItems    CartItem[]
+  DiscountCode DiscountCode[]
 }
 
+// Seating & Ticketing
 model TicketCategory {
   id      String @id @default(cuid())
   title   String
   price   Float
   eventId String
-  event   Event  @relation(fields: [eventId], references: [id])
-  seats   Seat[]
+
+  event Event  @relation(fields: [eventId], references: [id])
+  seats Seat[]
 }
 
 model Seat {
-  id               String         @id @default(cuid())
+  id               String     @id @default(cuid())
   label            String
   row              String
   number           Int
-  status           SeatStatus     @default(AVAILABLE)
+  status           SeatStatus @default(AVAILABLE)
   sessionId        String
-  session          Session        @relation(fields: [sessionId], references: [id])
   ticketCategoryId String
-  ticketCategory   TicketCategory @relation(fields: [ticketCategoryId], references: [id])
   userId           String
-  user             User           @relation(fields: [userId], references: [id])
   eventId          String
-  event            Event          @relation(fields: [eventId], references: [id])
-  orderItems       OrderItem[]
-  ticket           Ticket?
-  createdAt        DateTime       @default(now())
+  createdAt        DateTime   @default(now())
+
+  session        Session        @relation(fields: [sessionId], references: [id])
+  ticketCategory TicketCategory @relation(fields: [ticketCategoryId], references: [id])
+  user           User           @relation(fields: [userId], references: [id])
+  event          Event          @relation(fields: [eventId], references: [id])
+  orderItems     OrderItem[]
+  ticket         Ticket?
+  CartItem       CartItem?
 
   @@index([eventId])
   @@index([sessionId, status])
 }
 
+// Orders & Cart
 model Order {
   id                    String      @id @default(cuid())
   userId                String
-  user                  User        @relation(fields: [userId], references: [id])
   sessionId             String
-  session               Session     @relation(fields: [sessionId], references: [id])
   eventId               String
-  event                 Event       @relation(fields: [eventId], references: [id])
   status                OrderStatus
   total                 Float
-  createdAt             DateTime    @default(now())
-  orderItems            OrderItem[]
-  payment               Payment?
   externalTransactionId String?     @unique
+  createdAt             DateTime    @default(now())
+
+  user       User        @relation(fields: [userId], references: [id])
+  session    Session     @relation(fields: [sessionId], references: [id])
+  event      Event       @relation(fields: [eventId], references: [id])
+  orderItems OrderItem[]
+  payment    Payment?
 }
 
 model OrderItem {
@@ -215,42 +247,158 @@ model OrderItem {
   seatId    String
   createdAt DateTime @default(now())
 
-  order     Order @relation(fields: [orderId], references: [id])
-  seat      Seat  @relation(fields: [seatId], references: [id])
-  ticket    Ticket?
+  order  Order   @relation(fields: [orderId], references: [id])
+  seat   Seat    @relation(fields: [seatId], references: [id])
+  ticket Ticket?
 
   @@unique([orderId, seatId])
 }
 
-model Ticket {
-  id          String    @id @default(cuid())
-  qrCodeUrl   String
-  pdfUrl      String?
-  usedAt      DateTime?
-  device      String?
-  sessionId   String
-  session     Session   @relation(fields: [sessionId], references: [id])
-  seatId      String    @unique
-  seat        Seat      @relation(fields: [seatId], references: [id])
-  orderItemId String    @unique
-  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
-  userId      String
-  user        User      @relation(fields: [userId], references: [id])
-  eventId     String
-  event       Event     @relation(fields: [eventId], references: [id])
-  validatorId String?
-  validator   User?     @relation("UserValidatedTickets", fields: [validatorId], references: [id])
-  createdAt   DateTime  @default(now())
+model CartItem {
+  id        String   @id @default(cuid())
+  userId    String
+  sessionId String
+  seatId    String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  session Session @relation(fields: [sessionId], references: [id])
+  seat    Seat    @relation(fields: [seatId], references: [id])
+
+  @@index([userId, sessionId])
+  @@index([expiresAt])
 }
 
+model Ticket {
+  id                 String    @id @default(cuid())
+  qrCodeUrl          String
+  pdfUrl             String?
+  usedAt             DateTime?
+  device             String?
+  sessionId          String
+  seatId             String    @unique
+  orderItemId        String    @unique
+  userId             String
+  eventId            String
+  validatorId        String?
+  transferedToUserId String?
+  createdAt          DateTime  @default(now())
+
+  session          Session         @relation(fields: [sessionId], references: [id])
+  seat             Seat            @relation(fields: [seatId], references: [id])
+  orderItem        OrderItem       @relation(fields: [orderItemId], references: [id])
+  user             User            @relation(fields: [userId], references: [id])
+  event            Event           @relation(fields: [eventId], references: [id])
+  validator        User?           @relation("UserValidatedTickets", fields: [validatorId], references: [id])
+  transferedToUser User?           @relation("TransferredTickets", fields: [transferedToUserId], references: [id])
+  validations      ValidationLog[]
+}
+
+// Payments
 model Payment {
   id          String          @id @default(cuid())
   orderId     String          @unique
-  order       Order           @relation(fields: [orderId], references: [id])
   provider    PaymentProvider
   status      PaymentStatus
   amount      Float
   metadata    Json?
   rawResponse Json?
   createdAt   DateTime        @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+}
+
+// Coupons & Commissions
+model DiscountCode {
+  id             String       @id @default(cuid())
+  code           String       @unique
+  type           DiscountType
+  amount         Float
+  validUntil     DateTime?
+  maxUses        Int?
+  maxUsesPerUser Int?
+  eventId        String
+  sessionId      String?
+  createdAt      DateTime     @default(now())
+
+  event   Event    @relation(fields: [eventId], references: [id])
+  session Session? @relation(fields: [sessionId], references: [id])
+}
+
+model Commission {
+  id        String       @id @default(cuid())
+  eventId   String
+  userId    String
+  type      DiscountType
+  value     Float
+  createdAt DateTime     @default(now())
+
+  event Event @relation(fields: [eventId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+}
+
+// Logs & Notifications
+model EventAccessLog {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id])
+  user  User? @relation(fields: [userId], references: [id])
+}
+
+model ValidationLog {
+  id        String   @id @default(cuid())
+  ticketId  String
+  userId    String
+  device    String?
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  message   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model PushNotification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  userId    String
+  isRead    Boolean  @default(false)
+  metadata  Json?
+  channel   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model WebhookLog {
+  id        String   @id @default(cuid())
+  source    String
+  event     String
+  payload   Json
+  response  Json?
+  success   Boolean
+  errorMsg  String?
+  createdAt DateTime @default(now())
+}
+
+model ErrorLog {
+  id         String   @id @default(cuid())
+  location   String
+  message    String
+  stacktrace String?
+  createdAt  DateTime @default(now())
 }

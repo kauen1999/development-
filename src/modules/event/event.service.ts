@@ -47,19 +47,27 @@ export const createEvent = async (input: z.infer<typeof createEventSchema>) => {
           venueName: s.venueName,
         })),
       },
+      artists: input.artists?.length
+        ? {
+            create: input.artists.map((name) => ({
+              name,
+            })),
+          }
+        : undefined,
     },
     include: {
       category: true,
       ticketCategories: true,
       sessions: true,
       organizer: true,
+      artists: true, // incluir os artistas na resposta
     },
   });
 };
 
 // Atualização de evento
 export const updateEvent = async (input: z.infer<typeof updateEventSchema>) => {
-  const { id, userId, categoryId, ticketCategories, sessions, ...fields } = input;
+  const { id, userId, categoryId, ticketCategories, sessions, artists, ...fields } = input;
 
   return prisma.event.update({
     where: { id },
@@ -86,15 +94,23 @@ export const updateEvent = async (input: z.infer<typeof updateEventSchema>) => {
           })),
         },
       }),
+      ...(artists && {
+        artists: {
+          deleteMany: {},
+          create: artists.map((name) => ({ name })),
+        },
+      }),
     },
     include: {
       category: true,
       ticketCategories: true,
       sessions: true,
       organizer: true,
+      artists: true,
     },
   });
 };
+
 
 // Cancelar evento
 export const cancelEvent = async (eventId: string) => {

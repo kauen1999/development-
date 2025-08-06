@@ -37,11 +37,12 @@ export const createEventFormSchema = z.object({
   venueName: z.string().min(1),
 
   slug: z.string().min(1),
-  categoryId: z.string().cuid(),
+  categoryId: z.string().cuid(),  
   ticketCategories: z.array(ticketCategorySchema).min(1),
   capacity: z.number().int().min(1).max(150),
-
   sessions: z.array(sessionSchema).min(1),
+
+  artists: z.array(z.string().min(1)).optional(),
 });
 
 // Schema completo para API (inclui userId, status, publishedAt)
@@ -49,6 +50,7 @@ export const createEventSchema = createEventFormSchema.extend({
   userId: z.string().cuid(),
   status: z.nativeEnum(EventStatus).optional(),
   publishedAt: z.date().optional(),
+  artists: z.array(z.string().min(1)).optional(),
 });
 
 // Para atualizações parciais

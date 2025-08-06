@@ -35,7 +35,7 @@ const config = {
 
       {
         protocol: "https",
-        hostname: "rtbugxvtjadkeuyncdpp.supabase.co",
+        hostname: "mdueqvcazdypzlepvxoc.supabase.co",
       },
     ],
   },
