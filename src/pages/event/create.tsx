@@ -8,7 +8,8 @@ import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { EventStatus, EventType } from "@prisma/client";
 import { trpc } from "@/utils/trpc";
-import { supabase } from "@/lib/supabaseClient";
+import { getBrowserSupabase } from "@/lib/supabaseClient";
+import { getRequiredEnv } from "@/lib/env";
 import type { CreateEventInput } from "@/modules/event/event.schema";
 
 const FIXED_TICKET_TYPES = ["Platea A", "Platea B", "Platea C", "Pullman"] as const;
@@ -103,13 +104,24 @@ export default function CreateEventPage() {
     }
   };
 
-  const uploadImage = async (): Promise<string | undefined> => {
+    const uploadImage = async (): Promise<string | undefined> => {
     if (!imageFile) return imagePreview ?? undefined;
+
+    // Create client only in the browser
+    const supabase = getBrowserSupabase();
+
     const fileName = `${Date.now()}-${imageFile.name}`;
-    const { error } = await supabase.storage.from("entrad-maestro").upload(fileName, imageFile);
+    const { error } = await supabase
+      .storage
+      .from("entrad-maestro")
+      .upload(fileName, imageFile);
+
     if (error) throw error;
-    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/entrad-maestro/${fileName}`;
+
+    const base = getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL");
+    return `${base}/storage/v1/object/public/entrad-maestro/${fileName}`;
   };
+
 
   const totalTicketCapacity = useMemo(
     () => tickets.reduce((acc, t) => acc + (Number(t.capacity) || 0), 0),

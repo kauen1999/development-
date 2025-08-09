@@ -1,4 +1,4 @@
-// src/modules/ticket/generateTicketAssets
+// src/modules/ticket/generateTicketAssets.ts
 import QRCode from "qrcode";
 import PDFDocument from "pdfkit";
 import fs from "fs";
@@ -11,22 +11,16 @@ export async function generateTicketAssets(ticketId: string): Promise<void> {
     where: { id: ticketId },
     include: {
       session: true,
-      seat: true,
+      seat: true, // <- pode ser null em GENERAL
       orderItem: {
         include: {
-          order: {
-            include: {
-              event: true,
-            },
-          },
+          order: { include: { event: true } },
         },
       },
     },
   });
 
-  if (!ticket) {
-    throw new Error("Ticket not found");
-  }
+  if (!ticket) throw new Error("Ticket not found");
 
   const event = ticket.orderItem.order.event;
 
@@ -55,18 +49,23 @@ export async function generateTicketAssets(ticketId: string): Promise<void> {
   doc.moveDown();
   doc.fontSize(14).text(`Location: ${event.venueName}, ${event.city}`);
   doc.text(`Date: ${ticket.session.date.toLocaleString()}`);
-  doc.text(`Seat: ${ticket.seat.label}`);
+
+  // 🔧 seat pode ser null → usa opcional + fallback
+  const seatLabel = ticket.seat?.label ?? "General";
+  doc.text(`Seat: ${seatLabel}`);
+
   doc.text(`Ticket ID: ${ticket.id}`);
   doc.moveDown();
   doc.image(qrPath, { width: 150, align: "center" });
 
   doc.end();
 
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
     stream.on("finish", () => resolve());
+    stream.on("error", reject);
   });
 
-  // Update ticket with file paths
+  // Update ticket with file paths (relativos; em produção prefira URL absoluta)
   await prisma.ticket.update({
     where: { id: ticket.id },
     data: {

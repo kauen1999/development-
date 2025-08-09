@@ -1,67 +1,26 @@
 // src/modules/ticket/ticket.router.ts
+import { router, protectedProcedure } from "@/server/trpc/trpc";
 import { z } from "zod";
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  publicProcedure,
-} from "@/server/trpc/trpc";
+import { prisma } from "@/lib/prisma";
+import { TRPCError } from "@trpc/server";
 
-import {
-  getTicketsByOrderItemSchema,
-  markTicketAsUsedSchema,
-} from "./ticket.schema";
+export const ticketRouter = router({
+  validate: protectedProcedure
+    .input(z.object({ ticketId: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
 
-import {
-  generateAndSaveTicket,
-  getTicketsByOrderItemService,
-  markTicketAsUsedService,
-  validateTicketByQrService,
-  generateTicketsFromOrder,
-} from "./ticket.service";
+      const ticket = await prisma.ticket.findUnique({
+        where: { id: input.ticketId },
+      });
+      if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket não encontrado" });
+      if (ticket.usedAt) throw new TRPCError({ code: "BAD_REQUEST", message: "Ticket já utilizado" });
 
-export const ticketRouter = createTRPCRouter({
-  // Gera todos os tickets de um pedido
-  generateFromOrder: protectedProcedure
-    .input(
-      z.object({
-        orderId: z.string().cuid("Invalid order ID"),
-      })
-    )
-    .mutation(({ input }) => generateTicketsFromOrder(input.orderId)),
+      const updated = await prisma.ticket.update({
+        where: { id: ticket.id },
+        data: { usedAt: new Date(), validatorId: userId },
+      });
 
-  //  Gera manualmente um ticket único para um item de pedido
-  generateOne: protectedProcedure
-    .input(
-      z.object({
-        orderItemId: z.string().cuid("Invalid orderItemId"),
-      })
-    )
-    .mutation(({ input }) =>
-      generateAndSaveTicket(input.orderItemId)
-    ),
-
-  // Lista os tickets de um item de pedido
-  getByOrderItem: protectedProcedure
-    .input(getTicketsByOrderItemSchema)
-    .query(({ input }) =>
-      getTicketsByOrderItemService(input.orderItemId)
-    ),
-
-  //  Marca um ticket como utilizado
-  markAsUsed: protectedProcedure
-    .input(markTicketAsUsedSchema)
-    .mutation(({ input }) =>
-      markTicketAsUsedService(input.ticketId)
-    ),
-
-  // Valida um ingresso via QR code
-  validateByQrId: publicProcedure
-    .input(
-      z.object({
-        qrCodeId: z.string().min(8, "QR Code ID is too short"),
-      })
-    )
-    .mutation(({ input }) =>
-      validateTicketByQrService(input.qrCodeId)
-    ),
+      return { ok: true, ticketId: updated.id, usedAt: updated.usedAt };
+    }),
 });
