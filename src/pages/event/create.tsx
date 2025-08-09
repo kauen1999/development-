@@ -9,8 +9,8 @@ import { useSession } from "next-auth/react";
 import { EventStatus, EventType } from "@prisma/client";
 import { trpc } from "@/utils/trpc";
 import { getBrowserSupabase } from "@/lib/supabaseClient";
-import { getRequiredEnv } from "@/lib/env";
 import type { CreateEventInput } from "@/modules/event/event.schema";
+import { getRequiredEnv } from "@/lib/env";
 
 const FIXED_TICKET_TYPES = ["Platea A", "Platea B", "Platea C", "Pullman"] as const;
 type FixedType = (typeof FIXED_TICKET_TYPES)[number];
