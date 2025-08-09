@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+import { execSync } from 'child_process';
+
 const config = {
   reactStrictMode: true,
   swcMinify: true,
@@ -32,7 +34,6 @@ const config = {
         protocol: "https",
         hostname: "source.unsplash.com",
       },
-
       {
         protocol: "https",
         hostname: "mdueqvcazdypzlepvxoc.supabase.co",
@@ -44,6 +45,15 @@ const config = {
   },
   eslint: {
     ignoreDuringBuilds: true,
+  },
+
+  // Webpack hook to run Prisma Client generation before Next.js build
+  webpack(config, { dev, isServer }) {
+    if (!dev && isServer) {
+      console.log("🛠️ Running `prisma generate` before build...");
+      execSync("npx prisma generate", { stdio: "inherit" });
+    }
+    return config;
   },
 };
 

@@ -16,7 +16,14 @@ interface Props {
   orderId: string;
 }
 
-const CheckoutPage: NextPage<Props> = ({ title, price, sector, cant, picture, orderId }) => {
+const CheckoutPage: NextPage<Props> = ({
+  title,
+  price,
+  sector,
+  cant,
+  picture,
+  orderId,
+}) => {
   return (
     <>
       <Header buyPage home />
@@ -35,22 +42,16 @@ const CheckoutPage: NextPage<Props> = ({ title, price, sector, cant, picture, or
 
 export default CheckoutPage;
 
-export const getServerSideProps: GetServerSideProps = async (ctx) => {
+export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
-  const orderId = ctx.params?.id as string;
+  const orderId = ctx.params?.id as string | undefined;
 
   if (!session) {
     return {
-      redirect: {
-        destination: "/login",
-        permanent: false,
-      },
+      redirect: { destination: "/login", permanent: false },
     };
   }
-
-  if (!orderId) {
-    return { notFound: true };
-  }
+  if (!orderId) return { notFound: true };
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -58,29 +59,37 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       event: true,
       orderItems: {
         include: {
-          seat: {
-            include: {
-              ticketCategory: true,
-            },
-          },
+          seat: { include: { ticketCategory: true } }, // SEATED
+          ticketCategory: true,                         // GENERAL
         },
       },
     },
   });
 
-  const firstItem = order?.orderItems?.[0];
-  const firstSeat = firstItem?.seat;
-
-  if (!order || !firstItem || !firstSeat || !firstSeat.ticketCategory) {
+  if (!order || !order.event) {
     return { notFound: true };
   }
+
+  const hasItems = (order.orderItems?.length ?? 0) > 0;
+  if (!hasItems) {
+    return { notFound: true };
+  }
+
+  const firstItem = order.orderItems[0]; // pode ser undefined para o TS — tratamos abaixo
+
+  const sector =
+    firstItem?.seat?.ticketCategory?.title ??
+    firstItem?.ticketCategory?.title ??
+    "General";
+
+  const cant = order.orderItems.length;
 
   return {
     props: {
       title: order.event.name,
-      price: order.total,
-      cant: order.orderItems.length,
-      sector: firstSeat.ticketCategory.title ?? "",
+      price: Number(order.total ?? 0),
+      cant,
+      sector,
       picture: order.event.image || "/banner.jpg",
       orderId,
     },

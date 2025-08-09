@@ -1,10 +1,16 @@
 // src/pages/eventdetail/[slug].tsx
 import type { GetServerSideProps, NextPage } from "next";
 import { prisma } from "@/lib/prisma";
-import Header from "@/components/principal/header/Header";
 import Footer from "@/components/principal/footer/Footer";
 import HeroD from "@/components/details/hero/HeroD";
 import Details from "@/components/details/details/Details";
+
+interface SessionDTO {
+  id: string;
+  date: string;       // ISO
+  venueName: string;
+  city: string;
+}
 
 interface PageProps {
   event: {
@@ -12,37 +18,66 @@ interface PageProps {
     name: string;
     slug: string;
     image: string | null;
-    date: string;
+    description: string;
     city: string;
     venueName: string;
-    sessions: {
-      id: string;
-      date: string;
-      venueName: string;
-      city: string;
-    }[];
+
+    // sessão “ativa” (próxima futura; senão a primeira)
+    dateISO: string | null;
+    nextSessionId: string | null;
+    nextVenueName: string | null;
+    nextCity: string | null;
+
+    // preço mínimo para CTA (opcional)
+    minPrice: number | null;
+
+    // lista completa para o bloco de sessões
+    sessions: SessionDTO[];
   };
 }
 
 const EventDetailPage: NextPage<PageProps> = ({ event }) => {
-  return (
-    <>
-      <Header />
-      <HeroD
-        picture={event.image ?? "/banner.jpg"}
-        artist={event.name}
-        date={new Date(event.date).toLocaleDateString("es-AR", {
+  const heroDate =
+    event.dateISO
+      ? new Date(event.dateISO).toLocaleDateString("es-AR", {
           weekday: "long",
           day: "2-digit",
           month: "2-digit",
           year: "numeric",
-        })}
+        })
+      : "";
+
+  const timeStart =
+    event.dateISO
+      ? new Date(event.dateISO).toLocaleTimeString("es-AR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : undefined;
+
+  return (
+    <>
+      <HeroD
+        picture={event.image ?? "/banner.jpg"}
+        artist={event.name}
+        date={heroDate}
+        // ► dinâmicos para o Hero
+        description={event.description}
+        timeStart={timeStart}
+        // timeEnd pode ser passado se você tiver no schema
+        venueName={event.nextVenueName ?? event.venueName}
+        city={event.nextCity ?? event.city}
+        price={event.minPrice ?? undefined}
+        buyId={event.nextSessionId ?? undefined}
       />
       <Details
         artist={event.name}
         slug={event.slug}
         image={event.image ?? "/banner.jpg"}
         sessions={event.sessions}
+        description={event.description}
+        venueName={event.venueName}
+        city={event.city}
       />
       <Footer />
     </>
@@ -51,23 +86,27 @@ const EventDetailPage: NextPage<PageProps> = ({ event }) => {
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const slug = context.params?.slug;
-
-  if (typeof slug !== "string") {
-    return { notFound: true };
-  }
+  if (typeof slug !== "string") return { notFound: true };
 
   const event = await prisma.event.findUnique({
     where: { slug },
     include: {
-      sessions: {
-        orderBy: { date: "asc" },
-      },
+      sessions: { orderBy: { date: "asc" } },
+      ticketCategories: true, // para calcular preço mínimo (opcional)
     },
   });
 
-  if (!event) {
-    return { notFound: true };
-  }
+  if (!event) return { notFound: true };
+
+  // escolhe a sessão “ativa”: próxima futura; se não houver, a primeira
+  const now = new Date();
+  const nextSession =
+    event.sessions.find((s) => s.date >= now) ?? event.sessions[0] ?? null;
+
+  const minPrice =
+    event.ticketCategories.length
+      ? Math.min(...event.ticketCategories.map((c) => Number(c.price)))
+      : null;
 
   return {
     props: {
@@ -76,9 +115,17 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         name: event.name,
         slug: event.slug,
         image: event.image,
-        date: event.sessions?.[0]?.date ? new Date(event.sessions[0].date).toISOString() : "",
+        description: event.description ?? "",
         city: event.city,
         venueName: event.venueName,
+
+        dateISO: nextSession ? nextSession.date.toISOString() : null,
+        nextSessionId: nextSession ? nextSession.id : null,
+        nextVenueName: nextSession ? nextSession.venueName : null,
+        nextCity: nextSession ? nextSession.city : null,
+
+        minPrice,
+
         sessions: event.sessions.map((s) => ({
           id: s.id,
           date: s.date.toISOString(),

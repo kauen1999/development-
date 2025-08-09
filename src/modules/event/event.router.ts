@@ -1,14 +1,18 @@
+// src/modules/event/event.router.ts
 import {
   router,
   publicProcedure,
   protectedProcedure,
 } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+
 import {
   createEventSchema,
   getEventByIdSchema,
   updateEventSchema,
 } from "./event.schema";
+
 import {
   createEvent,
   updateEvent,
@@ -17,38 +21,30 @@ import {
   listEvents,
   listEventsByDate,
 } from "./event.service";
-import { z } from "zod";
+
+// Centraliza a verificação de ADMIN
+const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.session.user.role !== "ADMIN") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
+  }
+  return next();
+});
 
 export const eventRouter = router({
   // ✅ ADMIN: Criar evento
-  create: protectedProcedure
+  create: adminProcedure
     .input(createEventSchema)
-    .mutation(async ({ ctx, input }) => {
-      if (ctx.session.user.role !== "ADMIN") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
-      }
-      return createEvent(input);
-    }),
+    .mutation(({ input }) => createEvent(input)),
 
   // ✅ ADMIN: Atualizar evento
-  update: protectedProcedure
+  update: adminProcedure
     .input(updateEventSchema)
-    .mutation(async ({ ctx, input }) => {
-      if (ctx.session.user.role !== "ADMIN") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
-      }
-      return updateEvent(input);
-    }),
+    .mutation(({ input }) => updateEvent(input)),
 
   // ✅ ADMIN: Cancelar evento (marcar como FINISHED)
-  cancel: protectedProcedure
+  cancel: adminProcedure
     .input(getEventByIdSchema)
-    .mutation(async ({ ctx, input }) => {
-      if (ctx.session.user.role !== "ADMIN") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
-      }
-      return cancelEvent(input.id);
-    }),
+    .mutation(({ input }) => cancelEvent(input.id)),
 
   // ✅ PÚBLICO: Buscar evento por ID
   getById: publicProcedure

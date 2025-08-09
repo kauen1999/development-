@@ -7,13 +7,42 @@ import Link from "next/link";
 import { MdExpandMore } from "react-icons/md";
 
 interface Props {
-  picture: string;
-  artist: string;
-  date: string;
+  picture: string;            // imagem do evento
+  artist: string;             // nome do evento/artista (event.name)
+  date: string;               // data já formatada (ex.: "viernes, 08/08/2025")
+
+  // Dinâmicos vindos do banco:
+  description?: string;       // event.description
+  timeStart?: string;         // hora início (ex.: "19:20")
+  timeEnd?: string;           // hora fim (ex.: "21:30") - opcional
+  venueName?: string;         // session.venueName ou event.venueName
+  city?: string;              // session.city ou event.city
+  price?: number | string;    // preço (opcional, se quiser exibir no link)
+  duration?: string;          // duração (opcional)
+  buyId?: string;             // normalmente session.id para o /buydetails/[id]
 }
 
-const HeroD = ({ picture, artist, date }: Props) => {
+const HeroD: React.FC<Props> = ({
+  picture,
+  artist,
+  date,
+  description,
+  timeStart,
+  timeEnd,
+  venueName,
+  city,
+  price,
+  duration,
+  buyId,
+}) => {
   const safeImage = picture || "/fallback.jpg";
+
+  // Monta o texto de horas mantendo o padrão visual "19:20 hasta 21:30"
+  const horas =
+    timeStart && timeEnd ? `${timeStart} hasta ${timeEnd}` : (timeStart ?? "");
+
+  const precioStr =
+    typeof price === "number" ? String(price) : (price ?? "");
 
   return (
     <section
@@ -34,46 +63,51 @@ const HeroD = ({ picture, artist, date }: Props) => {
             <div className="titles flex flex-col items-center text-white lg:items-start">
               <h1 className="text-5xl font-bold lg:text-7xl">{artist}</h1>
               <p className="text-3xl">{date}</p>
-              <p className="text-slate-300 lg:max-w-lg">
-                Lorem ipsum dolor sit amet consectetur adipisicing elit.
-                Provident eaque accusamus vitae hic praesentium quis dolorem nam
-                quo quaerat repudiandae ratione aut atque sed fuga mollitia
-                voluptas omnis, sit minus.
-              </p>
+              {/* Descrição dinâmica (substitui o lorem ipsum) */}
+              {description && (
+                <p className="text-slate-300 lg:max-w-lg">{description}</p>
+              )}
             </div>
 
             <div className="datos flex flex-col gap-2 text-white">
-              <div className="flex items-center gap-2">
-                <BiTimeFive className="text-3xl" />
-                <h4 className="text-lg">19:20 hasta 21:30</h4>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <CiLocationOn className="text-3xl" />
-                <div>
-                  <h4 className="text-lg">Auditorio de Belgrano</h4>
-                  <h4 className="text-lg">Buenos Aires</h4>
+              {/* Hora dinâmica (inicio e/ou fim) */}
+              {horas && (
+                <div className="flex items-center gap-2">
+                  <BiTimeFive className="text-3xl" />
+                  <h4 className="text-lg">{horas}</h4>
                 </div>
-              </div>
+              )}
+
+              {/* Local e Cidade dinâmicos */}
+              {(venueName || city) && (
+                <div className="flex items-center gap-2">
+                  <CiLocationOn className="text-3xl" />
+                  <div>
+                    {venueName && <h4 className="text-lg">{venueName}</h4>}
+                    {city && <h4 className="text-lg">{city}</h4>}
+                  </div>
+                </div>
+              )}
             </div>
 
+            {/* Botão mantém mesmo visual e mesmas chaves no query, agora dinâmicas */}
             <div className="mx-auto w-fit rounded-lg bg-primary-100 px-5 py-3 text-xl font-bold text-white lg:mx-0">
               <Link
                 href={{
                   pathname: "/buydetails/[id]",
                   query: {
-                    id: "01",
+                    id: buyId ?? "01",
                     foto: picture,
                     titulo: artist,
-                    horas: null,
+                    horas: horas || "",
                     fecha: date,
-                    precio: null,
-                    duracion: null,
-                    ubicacion: null,
-                    ciudad: null,
+                    precio: precioStr,
+                    duracion: duration ?? "",
+                    ubicacion: venueName ?? "",
+                    ciudad: city ?? "",
                   },
                 }}
-                as={`/buydetails/01`}
+                as={`/buydetails/${buyId ?? "01"}`}
               >
                 <button>Comprar Ahora</button>
               </Link>

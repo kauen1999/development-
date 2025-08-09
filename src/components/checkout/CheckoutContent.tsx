@@ -1,6 +1,7 @@
+// src/components/checkout/CheckoutContent.tsx
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Image from "next/image";
 import { trpc } from "@/utils/trpc";
 import imgTU from "../../../public/images/PayPal.svg";
@@ -14,6 +15,12 @@ interface CheckoutContentProps {
   orderId: string;
 }
 
+const currency = new Intl.NumberFormat("es-AR", {
+  style: "currency",
+  currency: "ARS",
+  minimumFractionDigits: 2,
+});
+
 const CheckoutContent: React.FC<CheckoutContentProps> = ({
   title,
   price,
@@ -22,31 +29,31 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
   picture,
   orderId,
 }) => {
-  const [loading, setLoading] = useState(false);
-  const startPago = trpc.pagotic.startPagoTICPayment.useMutation();
+  const pagoMutation = trpc.pagotic.startPagoTICPayment.useMutation();
 
   const handlePayment = async () => {
-    if (!orderId) return alert("Pedido inválido.");
-
+    if (!orderId) {
+      alert("Pedido inválido.");
+      return;
+    }
     try {
-      setLoading(true);
-      const result = await startPago.mutateAsync({ orderId });
-
-      if (result?.form_url) {
-        window.location.href = result.form_url;
+      const result = await pagoMutation.mutateAsync({ orderId });
+      // >>> usa checkoutUrl (shape retornado pelo router)
+      if (result?.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
       } else {
-        alert("Não foi possível iniciar o pagamento.");
+        alert("Não foi possível iniciar o pagamento (checkoutUrl ausente).");
       }
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        alert(err.message);
-      } else {
-        alert("Erro ao iniciar pagamento.");
-      }
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Erro ao iniciar pagamento.";
+      alert(message);
+      // eslint-disable-next-line no-console
+      console.error("[PagoTIC] startPagoTICPayment error:", err);
     }
   };
+
+  const isExternal = /^https?:\/\//i.test(picture);
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
@@ -68,14 +75,17 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
                 <strong>Quantidade:</strong> {cant}
               </p>
               <p className="mb-3 text-lg font-bold text-indigo-600">
-                Total: ${price.toFixed(2)}
+                Total: {currency.format(price)}
               </p>
+
               <Image
-                src={picture}
+                src={picture || "/banner.jpg"}
                 alt="Imagem do evento"
                 width={400}
                 height={300}
                 className="rounded-md"
+                unoptimized={isExternal}
+                priority
               />
             </div>
           </div>
@@ -97,11 +107,17 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
 
               <button
                 onClick={handlePayment}
-                disabled={loading}
+                disabled={pagoMutation.isPending}
                 className="mt-6 w-full rounded bg-indigo-600 px-4 py-2 font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
               >
-                {loading ? "Procesando..." : "PAGAR AHORA"}
+                {pagoMutation.isPending ? "Procesando..." : "PAGAR AHORA"}
               </button>
+
+              {pagoMutation.isError && (
+                <p className="mt-3 text-sm text-red-600">
+                  {pagoMutation.error?.message ?? "Falha ao iniciar o pagamento."}
+                </p>
+              )}
             </div>
           </div>
         </div>

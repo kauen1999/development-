@@ -2,17 +2,34 @@
 import Header from "../../components/principal/header/Header";
 import Footer from "../../components/principal/footer/Footer";
 import BuyHero from "../../components/buydetailsComponent/BuyHero/BuyHero";
+// SEATED (mapa de assentos)
 import BuyBody from "../../components/buydetailsComponent/BuyBody/BuyBody";
+// GENERAL (sem assentos, por categoria)
+import BuyBodyGeneral from "../../components/buydetailsComponent/BuyBodyGeneral/BuyBodyGeneral";
+
 import type { GetServerSidePropsContext, NextPage } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/modules/auth/auth-options";
 import { prisma } from "@/lib/prisma";
 
-interface ServerSideEvent {
+// ---------- Tipos específicos de cada componente ----------
+
+type SeatStatusDTO = "AVAILABLE" | "RESERVED" | "SOLD";
+
+interface SeatDTO {
+  id: string;
+  label: string;
+  row: string | null;
+  number: number | null;
+  status: SeatStatusDTO;
+}
+
+// Shape que o BuyBody (SEATED) espera
+interface EventSeated {
   id: string;
   name: string;
   image: string | null;
-  date: string;
+  date: string; // usamos a 1ª sessão como data de exibição no Hero
   city: string;
   venueName: string;
   sessions: {
@@ -24,13 +41,7 @@ interface ServerSideEvent {
     id: string;
     title: string;
     price: number;
-    seats: {
-      id: string;
-      label: string;
-      row: string | null;
-      number: number | null;
-      status: "AVAILABLE" | "RESERVED" | "SOLD";
-    }[];
+    seats: SeatDTO[]; // obrigatório para SEATED
   }[];
   category: {
     id: string;
@@ -38,27 +49,72 @@ interface ServerSideEvent {
   };
 }
 
-interface Props {
-  event: ServerSideEvent;
+// Shape que o BuyBodyGeneral espera
+interface GeneralCategory {
+  id: string;
+  title: string;
+  price: number;
+  capacity: number; // necessário no componente
+}
+interface EventGeneral {
+  id: string;
+  name: string;
+  image: string | null;
+  city: string;
+  venueName: string;
+  sessionId: string;
+  sessionDateISO?: string;
+  categories: GeneralCategory[];
 }
 
-const BuyDetails: NextPage<Props> = ({ event }) => {
+// Union discriminado para a página
+type PageProps =
+  | { kind: "SEATED"; event: EventSeated }
+  | { kind: "GENERAL"; event: EventGeneral };
+
+const BuyDetails: NextPage<PageProps> = (props) => {
+  // Campos comuns para o Hero (mantém o visual)
+  const common =
+    props.kind === "SEATED"
+      ? {
+          img: props.event.image,
+          title: props.event.name,
+          city: props.event.city,
+          venueName: props.event.venueName,
+          dateISO: props.event.date,
+        }
+      : {
+          img: props.event.image,
+          title: props.event.name,
+          city: props.event.city,
+          venueName: props.event.venueName,
+          dateISO: props.event.sessionDateISO ?? new Date().toISOString(),
+        };
+
+  const fecha = new Date(common.dateISO).toLocaleDateString();
+  const horas = new Date(common.dateISO).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
   return (
     <>
       <Header buyPage={true} home={true} />
       <section>
         <BuyHero
-          foto={event.image ?? "/banner.jpg"}
-          titulo={event.name}
-          fecha={new Date(event.date).toLocaleDateString()}
-          horas={new Date(event.date).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-          ubicacion={event.venueName}
-          ciudad={event.city}
+          foto={common.img ?? "/banner.jpg"}
+          titulo={common.title}
+          fecha={fecha}
+          horas={horas}
+          ubicacion={common.venueName}
+          ciudad={common.city}
         />
-        <BuyBody event={event} />
+
+        {props.kind === "SEATED" ? (
+          <BuyBody event={props.event} />
+        ) : (
+          <BuyBodyGeneral event={props.event} />
+        )}
       </section>
       <Footer />
     </>
@@ -71,69 +127,94 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
   const session = await getServerSession(context.req, context.res, authOptions);
   if (!session) {
     return {
-      redirect: {
-        destination: "/login",
-        permanent: false,
-      },
+      redirect: { destination: "/login", permanent: false },
     };
   }
 
   const slug = context.query.slug as string;
   if (!slug) return { notFound: true };
 
-  const event = await prisma.event.findUnique({
+  // 1) Busca base (sem seats pra ser mais leve)
+  const base = await prisma.event.findUnique({
     where: { slug },
     include: {
-      sessions: true,
-      ticketCategories: {
-        include: {
-          seats: true,
-        },
-      },
+      sessions: { orderBy: { date: "asc" } },
+      ticketCategories: true, // sem seats aqui
       category: true,
     },
   });
 
-  // Verifica se o evento, sessões e categorias estão disponíveis
-  if (!event || event.ticketCategories.length === 0 || event.sessions.length === 0) {
-    return { notFound: true };
+  if (!base || base.sessions.length === 0) return { notFound: true };
+
+  // 1.1) Pega a primeira sessão com narrowing sem non-null assertion
+  const [firstSession] = base.sessions;
+  if (!firstSession) return { notFound: true }; // guard extra para satisfazer TS/ESLint
+  const firstDateISO = firstSession.date.toISOString();
+
+  // 2) Monta os props conforme o tipo de evento
+  if (base.eventType === "SEATED") {
+    // Buscar seats somente para SEATED
+    const withSeats = await prisma.event.findUnique({
+      where: { slug },
+      include: {
+        ticketCategories: { include: { seats: true } },
+      },
+    });
+
+    const ticketCategories =
+      withSeats?.ticketCategories.map((tc) => ({
+        id: tc.id,
+        title: tc.title,
+        price: tc.price,
+        seats: tc.seats.map((s) => ({
+          id: s.id,
+          label: s.label,
+          row: s.row,
+          number: s.number,
+          status: s.status,
+        })),
+      })) ?? [];
+
+    const eventSeated: EventSeated = {
+      id: base.id,
+      name: base.name,
+      image: base.image ?? null,
+      date: firstDateISO,
+      city: base.city,
+      venueName: base.venueName,
+      sessions: base.sessions.map((s) => ({
+        id: s.id,
+        date: s.date.toISOString(),
+        venueName: s.venueName,
+      })),
+      ticketCategories,
+      category: {
+        id: base.category.id,
+        name: base.category.title,
+      },
+    };
+
+    return { props: { kind: "SEATED", event: eventSeated } as PageProps };
   }
 
-  const firstSession = event.sessions?.[0];
+  // GENERAL
+  const categories: GeneralCategory[] = base.ticketCategories.map((tc) => ({
+    id: tc.id,
+    title: tc.title,
+    price: tc.price,
+    capacity: tc.capacity, // importante: o componente precisa
+  }));
 
-  return {
-    props: {
-      event: {
-        id: event.id,
-        name: event.name,
-        image: event.image ?? null,
-        date: firstSession?.date
-          ? firstSession.date.toISOString()
-          : new Date().toISOString(),
-        city: event.city,
-        venueName: event.venueName,
-        category: {
-          id: event.category.id,
-          name: event.category.title,
-        },
-        sessions: event.sessions.map((s) => ({
-          id: s.id,
-          date: s.date.toISOString(),
-          venueName: s.venueName,
-        })),
-        ticketCategories: event.ticketCategories.map((tc) => ({
-          id: tc.id,
-          title: tc.title,
-          price: tc.price,
-          seats: tc.seats.map((s) => ({
-            id: s.id,
-            label: s.label,
-            row: s.row,
-            number: s.number,
-            status: s.status,
-          })),
-        })),
-      },
-    },
+  const eventGeneral: EventGeneral = {
+    id: base.id,
+    name: base.name,
+    image: base.image ?? null,
+    city: base.city,
+    venueName: base.venueName,
+    sessionId: firstSession.id,
+    sessionDateISO: firstDateISO,
+    categories,
   };
+
+  return { props: { kind: "GENERAL", event: eventGeneral } as PageProps };
 }

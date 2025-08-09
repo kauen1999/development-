@@ -1,133 +1,145 @@
 // src/modules/auth/trpcRouter.ts
+
 import { z } from "zod";
-import { router, publicProcedure, protectedProcedure } from "../../server/trpc/trpc";
+import { router, publicProcedure, protectedProcedure } from "@/server/trpc/trpc";
 import { registerSchema, completeProfileSchema } from "./schema";
 import { AuthService } from "./service";
 
-// ===== SCHEMAS AUXILIARES =====
+// --- Schemas auxiliares para mutações pontuais ---
+const modifyNameSchema = z.object({
+  id: z.string().cuid(),
+  name: z.string().min(3),
+});
+const modifyDniNameSchema = z.object({
+  id: z.string().cuid(),
+  dniName: z.string().min(3),
+});
+const modifyDniSchema = z.object({
+  id: z.string().cuid(),
+  dni: z.string().min(5),
+});
+const modifyPhoneSchema = z.object({
+  id: z.string().cuid(),
+  phone: z.string().min(8),
+});
+const modifyBirthdateSchema = z.object({
+  id: z.string().cuid(),
+  birthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
 
-const modifyNameSchema = z.object({ id: z.string(), name: z.string().min(3) });
-const modifydniNameSchema = z.object({ id: z.string(), dniName: z.string().min(3) });
-const modifydniSchema = z.object({ id: z.string(), dni: z.string().min(3) });
-const modifyPhoneSchema = z.object({ id: z.string(), phone: z.string().min(8) });
-const modifyBirthdateSchema = z.object({ id: z.string(), birthdate: z.string().min(8) });
-
-// ✅ Novo schema de retorno do perfil
+// --- Schema de saída padronizado para perfil ---
 const userProfileSchema = z.object({
-  id: z.string(),
+  id: z.string().cuid(),
   name: z.string().nullable(),
   dniName: z.string().nullable(),
   dni: z.string().nullable(),
   phone: z.string().nullable(),
-  birthdate: z.union([z.string(), z.date(), z.null()]),
+  birthdate: z.string().nullable(),
   email: z.string().nullable(),
   image: z.string().nullable(),
 });
 
 export const authRouter = router({
-  // REGISTRO
+  // 1) Registrar novo usuário
   register: publicProcedure
     .input(registerSchema)
     .mutation(async ({ input }) => {
-      const user = await AuthService.registerUser(input);
-      return { id: user.id, email: user.email, name: user.name };
-    }),
-
-  // COMPLETAR PERFIL
-  completeProfile: protectedProcedure
-    .input(completeProfileSchema)
-    .mutation(async ({ ctx, input }) => {
-      if (!ctx.session?.user?.id) throw new Error("Unauthorized");
-      await AuthService.completeUserProfile(ctx.session.user.id, input);
-      return { ok: true };
-    }),
-
-  // VERIFICAR PERFIL COMPLETO
-  isProfileComplete: protectedProcedure
-    .query(async ({ ctx }) => {
-      if (!ctx.session?.user?.id) throw new Error("Unauthorized");
-      return await AuthService.isProfileComplete(ctx.session.user.id);
-    }),
-
-  // ✅ GET USER BY ID (com .output)
-  getUserById: protectedProcedure
-    .input(z.string())
-    .output(userProfileSchema)
-    .query(async ({ input, ctx }) => {
-      const user = await ctx.prisma.user.findUnique({
-        where: { id: input },
-        select: {
-          id: true,
-          name: true,
-          dniName: true,
-          dni: true,
-          phone: true,
-          birthdate: true,
-          email: true,
-          image: true,
-        },
-      });
-      if (!user) throw new Error("User not found");
-
-      // (Opcional) Garante que birthdate seja string
+      const user = await AuthService.register(input);
       return {
-        ...user,
-        birthdate: user.birthdate?.toISOString() ?? null,
+        id: user.id,
+        name: user.name,
+        email: user.email,
       };
     }),
 
-  // EDITAR NOME DE USUÁRIO
+  // 2) Login preenche ctx.session (JWT)
+  login: publicProcedure
+    .input(z.object({ email: z.string().email(), password: z.string().min(8) }))
+    .mutation(async ({ input, ctx }) => {
+      await AuthService.login(input, ctx);
+      return { success: true };
+    }),
+
+  // 3) Completar perfil
+  completeProfile: protectedProcedure
+    .input(completeProfileSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      await AuthService.completeProfile(userId, input);
+      return { success: true };
+    }),
+
+  // 4) Verificar se perfil está completo
+  isProfileComplete: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
+    return AuthService.isProfileComplete(userId);
+  }),
+
+  // 5) Buscar dados de perfil
+  getUserById: protectedProcedure
+    .input(z.string().cuid())
+    .output(userProfileSchema)
+    .query(async ({ input }) => {
+      const user = await AuthService.getUserById(input);
+      // Converte Date|null em string|null (YYYY-MM-DD)
+      const bdString: string | null = user.birthdate
+        ? user.birthdate.toISOString().slice(0, 10)
+        : null;
+
+      return {
+        id: user.id,
+        name: user.name,
+        dniName: user.dniName,
+        dni: user.dni,
+        phone: user.phone,
+        birthdate: bdString,
+        email: user.email,
+        image: user.image,
+      };
+    }),
+
+  // 6) Modificações pontuais de campo
   modifyName: protectedProcedure
     .input(modifyNameSchema)
-    .mutation(async ({ input, ctx }) => {
-      const user = await ctx.prisma.user.update({
-        where: { id: input.id },
-        data: { name: input.name },
-      });
+    .mutation(async ({ input }) => {
+      const user = await AuthService.updateName(input);
       return { id: user.id, name: user.name };
     }),
 
-  // EDITAR NOME DO DOCUMENTO
-  modifydniName: protectedProcedure
-    .input(modifydniNameSchema)
-    .mutation(async ({ input, ctx }) => {
-      const user = await ctx.prisma.user.update({
-        where: { id: input.id },
-        data: { dniName: input.dniName },
-      });
+  modifyDniName: protectedProcedure
+    .input(modifyDniNameSchema)
+    .mutation(async ({ input }) => {
+      const user = await AuthService.updateDniName(input);
       return { id: user.id, dniName: user.dniName };
     }),
 
-  // EDITAR dni
-  modifydni: protectedProcedure
-    .input(modifydniSchema)
-    .mutation(async ({ input, ctx }) => {
-      const user = await ctx.prisma.user.update({
-        where: { id: input.id },
-        data: { dni: input.dni },
-      });
+  modifyDni: protectedProcedure
+    .input(modifyDniSchema)
+    .mutation(async ({ input }) => {
+      const user = await AuthService.updateDni(input);
       return { id: user.id, dni: user.dni };
     }),
 
-  // EDITAR TELEFONE
   modifyPhone: protectedProcedure
     .input(modifyPhoneSchema)
-    .mutation(async ({ input, ctx }) => {
-      const user = await ctx.prisma.user.update({
-        where: { id: input.id },
-        data: { phone: input.phone },
-      });
+    .mutation(async ({ input }) => {
+      const user = await AuthService.updatePhone(input);
       return { id: user.id, phone: user.phone };
     }),
 
-  // EDITAR DATA DE NASCIMENTO
   modifyBirthdate: protectedProcedure
     .input(modifyBirthdateSchema)
-    .mutation(async ({ input, ctx }) => {
-      const user = await ctx.prisma.user.update({
-        where: { id: input.id },
-        data: { birthdate: new Date(input.birthdate) },
-      });
-      return { id: user.id, birthdate: user.birthdate };
+    .mutation(async ({ input }) => {
+      const user = await AuthService.updateBirthdate(input);
+      const bdString: string | null = user.birthdate
+        ? user.birthdate.toISOString().slice(0, 10)
+        : null;
+      return { id: user.id, birthdate: bdString };
     }),
+
+  // 7) Logout (apenas limpa no front via signOut)
+  logout: protectedProcedure.mutation(async ({ ctx }) => {
+    await AuthService.logout(ctx);
+    return { success: true };
+  }),
 });
