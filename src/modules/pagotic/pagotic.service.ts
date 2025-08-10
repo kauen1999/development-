@@ -1,4 +1,3 @@
-// src/modules/pagotic/pagotic.service.ts
 import axios, { type AxiosError } from "axios";
 import qs from "qs";
 import { env } from "@/env";
@@ -58,33 +57,54 @@ class PagoTICService {
   }
 
   public async createPayment(raw: CreatePagoPayload): Promise<PagoTICResponse> {
+    // 🔹 Garante que payment_number está presente
+    if (!raw.payment_number) {
+      raw.payment_number = `PAY-${Date.now()}`;
+    }
+
+    // 🔹 collector_id não é obrigatório (será inferido pela API)
     const payload = createPagoSchema.parse(raw);
 
     const doRequest = async (token: string) => {
-      const { data } = await this.api.post<PagoTICResponse>("/pagos", payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-      });
-      return data;
+      try {
+        const { data } = await this.api.post<PagoTICResponse>("/pagos", payload, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        });
+        return data;
+      } catch (err) {
+        const axiosErr = err as AxiosError<{ code?: number; message?: string; extended_code?: number }>;
+        const errorData = axiosErr.response?.data;
+
+        console.error("[PagoTIC] Erro na criação de pagamento", {
+          status: axiosErr.response?.status,
+          error: errorData,
+          payloadEnviado: payload,
+        });
+
+        if (errorData?.extended_code === 4120) {
+          throw new Error("API PagoTIC: payment_number ausente ou inválido.");
+        }
+
+        throw err;
+      }
     };
 
     try {
       const token = await this.getToken();
       return await doRequest(token);
     } catch (e) {
-      const err = e as AxiosError<unknown>;
-      if (err.response?.status === 401) {
-        const { token } = await this.fetchToken(); // force refresh
+      const axiosErr = e as AxiosError;
+      if (axiosErr.response?.status === 401) {
+        const { token } = await this.fetchToken();
         this.accessToken = token;
         this.tokenExpiresAt = Date.now() + 5 * 60 * 1000;
         return await doRequest(token);
       }
-      // eslint-disable-next-line no-console
-      console.error("PagoTIC createPayment error:", err.response?.data ?? err.message);
-      throw err;
+      throw e;
     }
   }
 }

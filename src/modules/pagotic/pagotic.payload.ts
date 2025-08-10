@@ -7,7 +7,7 @@ import type { CreatePagoPayload } from "./pagotic.schema";
  * Gera payload de criação de pagamento no PagoTIC (checkout hospedado).
  * - NÃO envia `type` nem `payment_methods` → API retorna `form_url`.
  * - Inclui `payment_number` para evitar erro 4120.
- * - Adiciona `collector_id` no root e `currency_id` dentro de `details[]` (como na doc).
+ * - Adiciona `collector_id` no root (opcional) e `currency_id` dentro de `details[]` (como na doc).
  * - Usa ISO 3166-1 alpha-3 para país e tipo de documento conforme PagoTIC.
  */
 export function buildPagoPayload(
@@ -19,10 +19,9 @@ export function buildPagoPayload(
   user: User
 ): CreatePagoPayload {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  const collectorId = process.env.PAGOTIC_COLLECTOR_ID;
+  const collectorId = process.env.PAGOTIC_COLLECTOR_ID || undefined; // 🔹 Agora opcional
 
   if (!appUrl) throw new Error("Missing NEXT_PUBLIC_APP_URL");
-  if (!collectorId) throw new Error("Missing PAGOTIC_COLLECTOR_ID");
   if (!user.email) throw new Error("Usuário sem e-mail.");
   if (!user.dni) throw new Error("Usuário sem DNI.");
 
@@ -49,8 +48,8 @@ export function buildPagoPayload(
     },
   ];
 
-  return {
-    collector_id: collectorId,
+  // Monta o payload
+  const payload: CreatePagoPayload = {
     return_url: `${appUrl}/payment/success?orderId=${order.id}`,
     back_url: `${appUrl}/payment/cancel?orderId=${order.id}`,
     notification_url: `${appUrl}/api/webhooks/pagotic`,
@@ -59,7 +58,6 @@ export function buildPagoPayload(
     payment_number,
     due_date,
     last_due_date,
-
     details,
 
     payer: {
@@ -73,4 +71,11 @@ export function buildPagoPayload(
       },
     },
   };
+
+  // Só adiciona se existir
+  if (collectorId) {
+    payload.collector_id = collectorId;
+  }
+
+  return payload;
 }
