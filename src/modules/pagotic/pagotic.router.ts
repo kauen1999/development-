@@ -24,9 +24,9 @@ export const pagoticRouter = router({
       const userId = ctx.session.user.id;
 
       try {
-        // Busca pedido do usuário autenticado
-        const order = await prisma.order.findFirst({
-          where: { id: orderId, userId },
+        // 🔹 Busca o pedido por ID único
+        const order = await prisma.order.findUnique({
+          where: { id: orderId },
           include: {
             orderItems: {
               include: {
@@ -36,30 +36,30 @@ export const pagoticRouter = router({
             event: true,
           },
         });
-        if (!order) {
+
+        // 🔹 Verifica se existe e pertence ao usuário logado
+        if (!order || order.userId !== userId) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Pedido não encontrado." });
         }
 
-        // Busca usuário
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-        });
+        // 🔹 Busca usuário
+        const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado." });
         }
 
-        // Gera payload
+        // 🔹 Gera payload para PagoTIC
         const payload = buildPagoPayload(order, user);
 
-        // Garante que o payment_number exista
+        // 🔹 Garante que payment_number existe
         if (!payload.payment_number || payload.payment_number.trim() === "") {
-          payload.payment_number = `PAY-${Date.now()}`;
+          payload.payment_number = `PAY-${order.id}`;
         }
 
-        // Log do payload para debug
-        console.log("[PagoTIC] Payload enviado para criação de pagamento:", JSON.stringify(payload, null, 2));
+        // 🔹 Log para debug
+        console.log("[PagoTIC] Payload enviado:", JSON.stringify(payload, null, 2));
 
-        // Cria pagamento via serviço
+        // 🔹 Cria pagamento na API PagoTIC
         const providerRes = (await pagoticService.createPayment(payload)) as ProviderResShape;
 
         const providerId = providerRes.id ?? null;
@@ -71,7 +71,7 @@ export const pagoticRouter = router({
           });
         }
 
-        // Salva dados do pagamento no banco
+        // 🔹 Salva no banco
         await prisma.$transaction(async (tx) => {
           await tx.order.update({
             where: { id: order.id },
