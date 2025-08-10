@@ -61,14 +61,25 @@ export const pagoticRouter = router({
 
         // Busca usuário
         const user = await prisma.user.findUnique({ where: { id: userId } });
-        if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado." });
+        if (!user) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado." });
+        }
 
-        // Gera payload
-        const payload = buildPagoPayload(order, user);
+        // ✅ Gera payload aguardando o resultado
+        const payload = await buildPagoPayload(order, user);
 
-        console.log("[PagoTIC] Payload enviado:", JSON.stringify(payload, null, 2));
+        console.log("[PagoTIC] Payload (sanitized)", {
+          external_transaction_id: payload.external_transaction_id,
+          detailsCount: payload.details?.length ?? 0,
+          payerEmail: payload.payer?.email ?? null,
+          return_url: payload.return_url,
+          back_url: payload.back_url,
+          notification_url: payload.notification_url,
+          due_date: payload.due_date,
+          last_due_date: payload.last_due_date,
+        });
 
-        // Cria pagamento na API PagoTIC
+        // ✅ Cria pagamento na API PagoTIC
         const providerRes = (await pagoticService.createPayment(payload)) as ProviderResShape;
 
         const providerId = providerRes.id ?? null;
