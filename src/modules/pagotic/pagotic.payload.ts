@@ -12,10 +12,20 @@ export function buildPagoPayload(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (!appUrl) throw new Error("Missing NEXT_PUBLIC_APP_URL");
 
-  if (!order.paymentNumber) {
-  throw new Error(`Pedido ${order.id} está sem paymentNumber mesmo após fallback`);
-}
-  if (!order.externalTransactionId) throw new Error("Pedido sem externalTransactionId");
+  // 🔹 Garantir que IDs obrigatórios existem
+  if (!order.paymentNumber || order.paymentNumber.trim() === "") {
+    order.paymentNumber = `PAY-${order.id}`;
+    console.warn(`[PagoTIC] paymentNumber estava vazio. Gerado novo: ${order.paymentNumber}`);
+  }
+  if (!order.externalTransactionId || order.externalTransactionId.trim() === "") {
+    throw new Error("Pedido sem externalTransactionId — não é possível continuar.");
+  }
+  if (!user.email) {
+    throw new Error("Usuário sem email — necessário para o pagamento.");
+  }
+  if (!user.dni) {
+    throw new Error("Usuário sem DNI — necessário para o pagamento.");
+  }
 
   const now = new Date();
   const due_date = formatPagoTICDate(addMinutes(now, 30));
@@ -31,7 +41,7 @@ export function buildPagoPayload(
     },
   ];
 
-  return {
+  const payload: CreatePagoPayload = {
     return_url: `${appUrl}/payment/success?orderId=${order.id}`,
     back_url: `${appUrl}/payment/cancel?orderId=${order.id}`,
     notification_url: `${appUrl}/api/webhooks/pagotic`,
@@ -41,14 +51,19 @@ export function buildPagoPayload(
     last_due_date,
     details,
     payer: {
-      external_reference: String(user.id ?? user.email ?? "no-ref"),
+      external_reference: String(user.id ?? user.email),
       name: user.name ?? "Comprador",
-      email: user.email ?? "no-email@placeholder.com", // valor padrão se nulo
+      email: user.email,
       identification: {
         type: "DNI_ARG",
-        number: user.dni ?? "00000000", // valor padrão se nulo
+        number: user.dni,
         country: "ARG",
       },
     },
   };
+
+  // 🔹 Log completo do payload antes de enviar para a API
+  console.log("[PagoTIC] Payload final gerado:", JSON.stringify(payload, null, 2));
+
+  return payload;
 }

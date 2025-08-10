@@ -41,7 +41,7 @@ export async function createOrderService(input: CreateOrderInput, userId: string
       throw new TRPCError({ code: "CONFLICT", message: "Alguns assentos foram reservados por outra pessoa. Tente novamente." });
     }
 
-    // 🔹 Gerar IDs já no momento da criação
+    // 🔹 Gerar IDs obrigatórios no momento da criação
     const externalTransactionId = generateExternalTransactionId(userId);
     const paymentNumber = `PAY-${Date.now()}`;
 
@@ -53,7 +53,7 @@ export async function createOrderService(input: CreateOrderInput, userId: string
         total,
         status: OrderStatus.PENDING,
         externalTransactionId,
-        paymentNumber,
+        paymentNumber, // 🔹 Agora sempre salvo
         orderItems: { create: seatIds.map((id) => ({ seat: { connect: { id } } })) },
       },
     });
@@ -111,6 +111,7 @@ export async function createGeneralOrderService(input: CreateOrderGeneralInput, 
       return cat ? sum + cat.price * it.qty : sum;
     }, 0);
 
+    // 🔹 Gerar IDs obrigatórios no momento da criação
     const externalTransactionId = generateExternalTransactionId(userId);
     const paymentNumber = `PAY-${Date.now()}`;
 
