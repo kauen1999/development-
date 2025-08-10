@@ -1,12 +1,10 @@
+// src/modules/pagotic/pagotic.schema.ts
 import { z } from "zod";
 
-// Ex.: 2025-08-09T17:18:48-0300 (sem milissegundos; offset sem “:”)
+// yyyy-MM-dd'T'HH:mm:ssZ (offset sem ":")
 const dateTimePagoTIC = z
   .string()
-  .regex(
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4}$/,
-    "Use formato yyyy-MM-dd'T'HH:mm:ssZ (ex.: 2025-08-09T17:18:48-0300)"
-  );
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4}$/, "Use formato yyyy-MM-dd'T'HH:mm:ssZ");
 
 function addDays(d: Date, days: number) {
   const x = new Date(d);
@@ -16,29 +14,50 @@ function addDays(d: Date, days: number) {
 
 export const createPagoSchema = z
   .object({
-    type: z.literal("online"),
+    // For hosted checkout, 'type' can be omitted and the API returns form_url.
+    // When charging directly, set 'type' accordingly ("online", "coupon", etc).
+    type: z.enum(["debit", "online", "transfer", "debin", "coupon"]).optional(),
 
     return_url: z.string().trim().url(),
     back_url: z.string().trim().url(),
     notification_url: z.string().trim().url(),
 
-    number: z.string().trim().min(1),
+    // Unique per transaction (REQUIRED by API)
     external_transaction_id: z.string().trim().min(1),
 
-    // ✅ campos de data no padrão exigido
+    // Required per API
     due_date: dateTimePagoTIC,
     last_due_date: dateTimePagoTIC,
-
-    // ✅ moeda obrigatória (ISO-4217). Se usa só ARS, pode deixar literal.
     currency_id: z.enum(["ARS", "USD"]).default("ARS"),
 
+    // Only when charging directly. Omit for hosted checkout.
     payment_methods: z
-      .array(z.object({ method: z.enum(["credit", "debit"]).default("credit") }))
-      .min(1),
+      .array(
+        z.object({
+          amount: z.number().positive(),
+          media_payment_id: z.number().int().optional(),
+          number: z.string().trim().min(1).optional(), // card number
+          installments: z.number().int().optional(),
+          holder: z
+            .object({
+              name: z.string().min(1).optional(),
+              identification: z
+                .object({
+                  type: z.string().min(1).optional(),
+                  number: z.string().min(1).optional(),
+                  country: z.string().length(3).optional(), // ISO 3166-1 alpha-3
+                })
+                .optional(),
+            })
+            .optional(),
+        })
+      )
+      .optional(),
 
     details: z
       .array(
         z.object({
+          // Mantido conforme sua decisão anterior
           concept_id: z.literal("woocommerce"),
           concept_description: z.string().trim().min(1).max(160),
           amount: z.number().positive(),
@@ -51,16 +70,17 @@ export const createPagoSchema = z
       name: z.string().trim().min(1),
       email: z.string().trim().email(),
       identification: z.object({
-        type: z.enum(["DNI", "CUIT", "CUIL", "PAS"]).default("DNI"),
+        // A doc usa labels como "DNI_ARG", etc. Mantenha seu mapeamento se já estiver válido.
+        type: z.string().trim().min(1),
         number: z.string().trim().min(1),
         country: z.string().trim().length(2).transform((s) => s.toUpperCase()),
       }),
     }),
+
+    metadata: z.record(z.any()).optional(),
   })
   .superRefine((v, ctx) => {
-    // coerência de datas
     const parse = (s: string) => {
-      // insere “:” no offset para o Date do JS: 2025-08-09T17:18:48-0300 -> -03:00
       const withColon = s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2");
       return new Date(withColon);
     };

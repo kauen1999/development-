@@ -13,13 +13,8 @@ export type PagoTICResponse = {
   [k: string]: unknown;
 };
 
-// Provider payload: map 'number' -> 'payment_number'
-type ProviderCreatePayment = Omit<CreatePagoPayload, "number"> & {
-  payment_number: string;
-};
-
 class PagoTICService {
-  private readonly baseUrl = env.server.PAGOTIC_BASE_URL; // e.g. https://api.paypertic.com
+  private readonly baseUrl = env.server.PAGOTIC_BASE_URL;
   private readonly authUrl =
     "https://a.paypertic.com/auth/realms/entidades/protocol/openid-connect/token";
 
@@ -47,9 +42,7 @@ class PagoTICService {
       timeout: 10_000,
     });
 
-    if (!data?.access_token) {
-      throw new Error("PagoTIC: access_token missing in auth response.");
-    }
+    if (!data?.access_token) throw new Error("PagoTIC: access_token missing in auth response.");
 
     const expiresIn = Math.max(Number(data.expires_in ?? 0), 300);
     return { token: String(data.access_token), expiresIn };
@@ -57,9 +50,7 @@ class PagoTICService {
 
   private async getToken(): Promise<string> {
     const now = Date.now();
-    if (this.accessToken && now < this.tokenExpiresAt - 60_000) {
-      return this.accessToken;
-    }
+    if (this.accessToken && now < this.tokenExpiresAt - 60_000) return this.accessToken;
     const { token, expiresIn } = await this.fetchToken();
     this.accessToken = token;
     this.tokenExpiresAt = now + expiresIn * 1000;
@@ -67,27 +58,10 @@ class PagoTICService {
   }
 
   public async createPayment(raw: CreatePagoPayload): Promise<PagoTICResponse> {
-    // 1) Validate domain payload
     const payload = createPagoSchema.parse(raw);
 
-    // 2) Map to provider payload (syntax the provider expects)
-    const providerBody: ProviderCreatePayment = {
-      payment_number: payload.number, // ← critical change
-      type: payload.type,
-      return_url: payload.return_url,
-      back_url: payload.back_url,
-      notification_url: payload.notification_url,
-      external_transaction_id: payload.external_transaction_id,
-      due_date: payload.due_date,
-      last_due_date: payload.last_due_date,
-      currency_id: payload.currency_id,
-      payment_methods: payload.payment_methods,
-      details: payload.details,
-      payer: payload.payer,
-    };
-
     const doRequest = async (token: string) => {
-      const { data } = await this.api.post<PagoTICResponse>("/pagos", providerBody, {
+      const { data } = await this.api.post<PagoTICResponse>("/pagos", payload, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -103,21 +77,13 @@ class PagoTICService {
     } catch (e) {
       const err = e as AxiosError<unknown>;
       if (err.response?.status === 401) {
-        // Force re-auth then retry once
-        const { token } = await this.fetchToken();
+        const { token } = await this.fetchToken(); // force refresh
         this.accessToken = token;
         this.tokenExpiresAt = Date.now() + 5 * 60 * 1000;
         return await doRequest(token);
       }
-
-      // Minimal, non-sensitive error log
       // eslint-disable-next-line no-console
-      console.error("PagoTIC createPayment error:", {
-        status: err.response?.status,
-        data: err.response?.data,
-        body_payment_number: providerBody.payment_number,
-        body_external_tx: providerBody.external_transaction_id,
-      });
+      console.error("PagoTIC createPayment error:", err.response?.data ?? err.message);
       throw err;
     }
   }
