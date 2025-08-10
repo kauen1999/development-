@@ -17,13 +17,11 @@ const detailsItemSchema = z.object({
   concept_description: z.string().trim().min(1).max(160),
   amount: z.number().positive(),
   currency_id: CurrencyId,
-  external_reference: z.union([z.string(), z.number()]).transform(String).optional(),
-  collector_id: z.string().optional(),
+  external_reference: z.string().min(1),
 });
 
 const payerSchema = z.object({
-  id: z.string().optional(),
-  external_reference: z.union([z.string(), z.number()]).transform(String).optional(),
+  external_reference: z.string().min(1),
   name: z.string().trim().min(1),
   email: z.string().trim().email(),
   identification: z.object({
@@ -31,26 +29,16 @@ const payerSchema = z.object({
     number: z.string().trim().min(1),
     country: CountryAlpha3,
   }),
-  phones: z.array(
-    z.object({
-      description: z.string().optional(),
-      country_code: z.number().int().optional(),
-      area_code: z.number().int().optional(),
-      number: z.number().int().optional(),
-      extension: z.number().int().optional(),
-    })
-  ).optional(),
 });
 
 export const createPagoSchema = z
   .object({
-    collector_id: z.string().trim().min(1).optional(), // 🔹 agora opcional
+    collector_id: z.string().trim().optional(), // opcional
     return_url: z.string().trim().url(),
     back_url: z.string().trim().url(),
     notification_url: z.string().trim().url(),
 
-    payment_number: z.string().trim().min(1, "payment_number é obrigatório"),
-
+    payment_number: z.string().trim().min(1, "payment_number é obrigatório"), // obrigatório
     external_transaction_id: z.string().trim().min(1),
 
     due_date: dateTimePagoTIC,

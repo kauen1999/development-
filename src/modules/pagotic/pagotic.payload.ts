@@ -1,4 +1,3 @@
-// src/modules/pagotic/pagotic.payload.ts
 import type { Order, User, Seat, TicketCategory, OrderItem } from "@prisma/client";
 import { formatPagoTICDate, addMinutes, generateExternalTransactionId } from "./pagotic.utils";
 import type { CreatePagoPayload } from "./pagotic.schema";
@@ -7,7 +6,7 @@ import type { CreatePagoPayload } from "./pagotic.schema";
  * Gera payload de criação de pagamento no PagoTIC (checkout hospedado).
  * - NÃO envia `type` nem `payment_methods` → API retorna `form_url`.
  * - Inclui `payment_number` para evitar erro 4120.
- * - Adiciona `collector_id` no root (opcional) e `currency_id` dentro de `details[]` (como na doc).
+ * - Adiciona `collector_id` opcional no root e `currency_id` dentro de `details[]` (como na doc).
  * - Usa ISO 3166-1 alpha-3 para país e tipo de documento conforme PagoTIC.
  */
 export function buildPagoPayload(
@@ -19,7 +18,7 @@ export function buildPagoPayload(
   user: User
 ): CreatePagoPayload {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  const collectorId = process.env.PAGOTIC_COLLECTOR_ID || undefined; // 🔹 Agora opcional
+  const collectorId = process.env.PAGOTIC_COLLECTOR_ID || undefined; // opcional
 
   if (!appUrl) throw new Error("Missing NEXT_PUBLIC_APP_URL");
   if (!user.email) throw new Error("Usuário sem e-mail.");
@@ -27,7 +26,7 @@ export function buildPagoPayload(
 
   // IDs obrigatórios
   const external_transaction_id = generateExternalTransactionId(order.id);
-  const payment_number = `PAY-${order.id}`;
+  const payment_number = `PAY-${order.id}`; // sempre gerado
 
   // Datas no formato yyyy-MM-dd'T'HH:mm:ssZ (sem dois-pontos no offset)
   const now = new Date();
@@ -48,8 +47,8 @@ export function buildPagoPayload(
     },
   ];
 
-  // Monta o payload
-  const payload: CreatePagoPayload = {
+  return {
+    collector_id: collectorId, // opcional
     return_url: `${appUrl}/payment/success?orderId=${order.id}`,
     back_url: `${appUrl}/payment/cancel?orderId=${order.id}`,
     notification_url: `${appUrl}/api/webhooks/pagotic`,
@@ -58,6 +57,7 @@ export function buildPagoPayload(
     payment_number,
     due_date,
     last_due_date,
+
     details,
 
     payer: {
@@ -71,11 +71,4 @@ export function buildPagoPayload(
       },
     },
   };
-
-  // Só adiciona se existir
-  if (collectorId) {
-    payload.collector_id = collectorId;
-  }
-
-  return payload;
 }
