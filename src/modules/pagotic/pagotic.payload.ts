@@ -1,10 +1,17 @@
-// src/modules/pagotic/pagotic.payload.ts
 import type { Order, User, Seat, TicketCategory, OrderItem } from "@prisma/client";
 import { formatPagoTICDate, addMinutes, generateExternalTransactionId } from "./pagotic.utils";
 import type { CreatePagoPayload } from "./pagotic.schema";
 
+/**
+ * Build hosted-checkout payload.
+ * We DO NOT send 'payment_methods' nor 'type' to avoid direct card validation.
+ */
 export function buildPagoPayload(
-  order: Order & { orderItems: (OrderItem & { seat: (Seat & { ticketCategory: TicketCategory }) | null })[] },
+  order: Order & {
+    orderItems: (OrderItem & {
+      seat: (Seat & { ticketCategory: TicketCategory }) | null;
+    })[];
+  },
   user: User
 ): CreatePagoPayload {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -13,19 +20,22 @@ export function buildPagoPayload(
   if (!user.dni) throw new Error("Usuário sem DNI.");
 
   const external_transaction_id = generateExternalTransactionId(order.id);
+
+  // Dates in yyyy-MM-dd'T'HH:mm:ssZ (offset without colon)
   const due_date = formatPagoTICDate(addMinutes(new Date(), 30));
   const last_due_date = formatPagoTICDate(addMinutes(new Date(), 60));
 
-  // IMPORTANT: omit 'payment_methods' for hosted checkout (no card data here)
-  // Also omit 'type' to guarantee 'form_url' is returned by API.
   return {
     return_url: `${appUrl}/payment/success`,
     back_url: `${appUrl}/payment/cancel`,
     notification_url: `${appUrl}/api/webhooks/pagotic`,
+
     external_transaction_id,
     due_date,
     last_due_date,
+
     currency_id: "ARS",
+
     details: [
       {
         concept_id: "woocommerce",
@@ -34,6 +44,7 @@ export function buildPagoPayload(
         external_reference: order.id,
       },
     ],
+
     payer: {
       name: user.name ?? "Comprador",
       email: user.email,
