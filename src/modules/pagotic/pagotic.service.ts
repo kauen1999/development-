@@ -67,6 +67,8 @@ class PagoTICService {
 
     const doRequest = async (token: string) => {
       try {
+         // 🔹 Log para debug antes do envio
+    console.log("[DEBUG] Payload PagoTIC enviado:", JSON.stringify(payload, null, 2));
         const { data } = await this.api.post<PagoTICResponse>("/pagos", payload, {
           headers: {
             Authorization: `Bearer ${token}`,
