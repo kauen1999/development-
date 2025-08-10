@@ -2,30 +2,57 @@
 import type { Order, User, Seat, TicketCategory, OrderItem } from "@prisma/client";
 import { formatPagoTICDate, addMinutes } from "./pagotic.utils";
 import type { CreatePagoPayload } from "./pagotic.schema";
+import { getPagoTICToken } from "./pagotic.auth.service";
 
-export function buildPagoPayload(
+async function getAvailableCurrency(): Promise<"ARS" | "USD"> {
+  try {
+    const apiUrl = process.env.PAGOTIC_API_URL;
+    if (!apiUrl) throw new Error("PAGOTIC_API_URL não configurado.");
+
+    const token = await getPagoTICToken();
+
+    const res = await fetch(`${apiUrl}/currencies`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
+
+    if (!res.ok) throw new Error(`Falha ao consultar moedas disponíveis. Status: ${res.status}`);
+
+    const data = await res.json();
+    const available = (data?.currencies ?? []) as string[];
+
+    if (available.includes("ARS")) return "ARS";
+    if (available.includes("USD")) return "USD";
+
+    throw new Error("Nenhuma moeda suportada (ARS ou USD) disponível na conta PagoTIC.");
+  } catch (err) {
+    console.error("[PagoTIC] Erro ao buscar moedas disponíveis:", err);
+    return "ARS"; // fallback
+  }
+}
+
+export async function buildPagoPayload(
   order: Order & {
     orderItems: (OrderItem & { seat: (Seat & { ticketCategory: TicketCategory }) | null })[];
   },
   user: User
-): CreatePagoPayload {
+): Promise<CreatePagoPayload> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (!appUrl) throw new Error("Missing NEXT_PUBLIC_APP_URL");
 
-  // 🔹 Garantir que IDs obrigatórios existem
   if (!order.paymentNumber || order.paymentNumber.trim() === "") {
     order.paymentNumber = `PAY-${order.id}`;
-    console.warn(`[PagoTIC] paymentNumber estava vazio. Gerado novo: ${order.paymentNumber}`);
+    console.warn(`[PagoTIC] paymentNumber vazio. Gerado novo: ${order.paymentNumber}`);
   }
-  if (!order.externalTransactionId || order.externalTransactionId.trim() === "") {
-    throw new Error("Pedido sem externalTransactionId — não é possível continuar.");
+  if (!order.externalTransactionId) {
+    throw new Error("Pedido sem externalTransactionId.");
   }
-  if (!user.email) {
-    throw new Error("Usuário sem email — necessário para o pagamento.");
-  }
-  if (!user.dni) {
-    throw new Error("Usuário sem DNI — necessário para o pagamento.");
-  }
+  if (!user.email) throw new Error("Usuário sem email.");
+  if (!user.dni) throw new Error("Usuário sem DNI.");
+
+  const currency_id = await getAvailableCurrency();
 
   const now = new Date();
   const due_date = formatPagoTICDate(addMinutes(now, 30));
@@ -36,7 +63,7 @@ export function buildPagoPayload(
       concept_id: "woocommerce",
       concept_description: `Compra de ingressos - Pedido ${order.id}`,
       amount: Number(order.total.toFixed(2)),
-      currency_id: "ARS",
+      currency_id,
       external_reference: String(order.id),
     },
   ];
@@ -62,8 +89,6 @@ export function buildPagoPayload(
     },
   };
 
-  // 🔹 Log completo do payload antes de enviar para a API
   console.log("[PagoTIC] Payload final gerado:", JSON.stringify(payload, null, 2));
-
   return payload;
 }
