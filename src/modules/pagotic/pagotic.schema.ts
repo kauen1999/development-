@@ -27,6 +27,9 @@ export const createPagoSchema = z
     back_url: z.string().trim().url(),
     notification_url: z.string().trim().url(),
 
+    // 🔹 novo campo obrigatório
+    payment_number: z.string().trim().min(1, "payment_number é obrigatório"),
+
     external_transaction_id: z.string().trim().min(1),
 
     due_date: dateTimePagoTIC,
@@ -37,7 +40,8 @@ export const createPagoSchema = z
     details: z
       .array(
         z.object({
-          concept_id: z.literal("woocommerce"),
+          // troque para o concept_id aceito pela sua conta
+          concept_id: z.string().trim().min(1),
           concept_description: z.string().trim().min(1).max(160),
           amount: z.number().positive(),
           external_reference: z.string().trim().min(1),
@@ -49,13 +53,13 @@ export const createPagoSchema = z
       name: z.string().trim().min(1),
       email: z.string().trim().email(),
       identification: z.object({
-        // Use seu mapeamento de documento; manteremos "DNI" e país 2-letras para compatibilidade atual
         type: z.string().trim().min(1),
         number: z.string().trim().min(1),
         country: z.string().trim().length(2).transform((s) => s.toUpperCase()),
       }),
     }),
   })
+  
   .superRefine((v, ctx) => {
     // Date sanity checks
     const parse = (s: string) => {
