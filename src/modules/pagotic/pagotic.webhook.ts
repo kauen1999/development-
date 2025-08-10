@@ -9,6 +9,11 @@ export default async function handlePagoTICWebhook(
   res: NextApiResponse
 ) {
   try {
+    // 🔹 Log inicial da requisição
+    console.log("=== [PagoTIC Webhook] Requisição recebida ===");
+    console.log("Headers:", JSON.stringify(req.headers, null, 2));
+    console.log("Body:", JSON.stringify(req.body, null, 2));
+
     const payload = req.body;
 
     if (
@@ -16,6 +21,7 @@ export default async function handlePagoTICWebhook(
       !payload.external_transaction_id ||
       !payload.status
     ) {
+      console.error("[PagoTIC Webhook] Payload inválido:", payload);
       return res.status(400).json({ error: "Payload inválido" });
     }
 
@@ -23,21 +29,26 @@ export default async function handlePagoTICWebhook(
     const rawStatus = String(payload.status).toUpperCase();
 
     if (!Object.values(PaymentStatus).includes(rawStatus as PaymentStatus)) {
+      console.error("[PagoTIC Webhook] Status inválido:", rawStatus);
       return res.status(400).json({ error: "Status inválido no payload" });
     }
     const status = rawStatus as PaymentStatus;
 
-    // extrai orderId da string "order-<orderId>-<timestamp>"
+    // 🔹 Extrai orderId da string "order-<orderId>-<timestamp>"
     const parts = externalId.split("-");
     const orderId = parts[1];
+    console.log(`[PagoTIC Webhook] orderId extraído: ${orderId}`);
 
-    // Atualiza o registro de Payment com o payload bruto
-    await prisma.payment.updateMany({
+    // 🔹 Atualiza o registro de Payment com o payload bruto
+    const paymentUpdate = await prisma.payment.updateMany({
       where: { orderId },
       data: { status, rawResponse: payload },
     });
+    console.log(
+      `[PagoTIC Webhook] Pagamentos atualizados: ${paymentUpdate.count} registro(s) alterado(s)`
+    );
 
-    // ⬇⬇⬇ COLE/DEIXE ESTE BLOCO AQUI ⬇⬇⬇
+    // 🔹 Se aprovado, processa criação de tickets
     if (status === PaymentStatus.APPROVED) {
       const order = await prisma.order.findUnique({
         where: { id: orderId },
@@ -45,23 +56,28 @@ export default async function handlePagoTICWebhook(
           event: true,
           orderItems: {
             include: {
-              seat: { include: { ticketCategory: true } }, // seat pode ser null (GENERAL)
+              seat: { include: { ticketCategory: true } },
             },
           },
         },
       });
-      if (!order) throw new Error("Pedido não encontrado para gerar ingressos.");
 
-      // SEATED: marca assento como SOLD
+      if (!order) {
+        console.error("[PagoTIC Webhook] Pedido não encontrado para gerar ingressos");
+        throw new Error("Pedido não encontrado para gerar ingressos.");
+      }
+
+      console.log(`[PagoTIC Webhook] Pedido ${order.id} encontrado, gerando tickets...`);
+
       for (const item of order.orderItems) {
         if (item.seat) {
           await prisma.seat.update({
             where: { id: item.seat.id },
             data: { status: "SOLD" },
           });
+          console.log(`[PagoTIC Webhook] Assento ${item.seat.id} marcado como SOLD`);
         }
 
-        // Cria o ticket se ainda não existir
         const exists = await prisma.ticket.count({
           where: { orderItemId: item.id },
         });
@@ -69,27 +85,28 @@ export default async function handlePagoTICWebhook(
           const ticket = await prisma.ticket.create({
             data: {
               orderItemId: item.id,
-              seatId: item.seat?.id ?? null, // null em GENERAL
+              seatId: item.seat?.id ?? null,
               sessionId: order.sessionId,
               userId: order.userId,
               eventId: order.eventId,
               ticketCategoryId:
                 item.ticketCategoryId ?? item.seat?.ticketCategoryId ?? null,
-              qrCodeUrl: "", // preenchido pelo generateTicketAssets
+              qrCodeUrl: "",
             },
           });
+          console.log(`[PagoTIC Webhook] Ticket ${ticket.id} criado`);
 
           await generateTicketAssets(ticket.id);
+          console.log(`[PagoTIC Webhook] Assets do ticket ${ticket.id} gerados`);
         }
       }
 
-      // Atualiza status do pedido
       await prisma.order.update({
         where: { id: order.id },
         data: { status: "PAID" },
       });
+      console.log(`[PagoTIC Webhook] Pedido ${order.id} atualizado para status PAID`);
 
-      // Envia e-mail com os tickets
       const user = await prisma.user.findUnique({ where: { id: order.userId } });
       if (user) {
         const tickets = await prisma.ticket.findMany({
@@ -99,15 +116,17 @@ export default async function handlePagoTICWebhook(
         try {
           const { sendTicketEmail } = await import("@/modules/sendmail/mailer");
           await sendTicketEmail(user, order.event, tickets);
+          console.log(`[PagoTIC Webhook] E-mail com tickets enviado para ${user.email}`);
         } catch (e) {
-          console.error("Falha ao enviar e-mail de tickets:", e);
+          console.error("[PagoTIC Webhook] Falha ao enviar e-mail de tickets:", e);
         }
       }
     }
 
+    console.log("=== [PagoTIC Webhook] Processamento concluído com sucesso ===");
     return res.status(200).json({ received: true });
   } catch (error) {
-    console.error("[PagoTIC Webhook] Error:", error);
+    console.error("[PagoTIC Webhook] Erro geral:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 }

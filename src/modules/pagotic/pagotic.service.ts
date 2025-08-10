@@ -27,7 +27,20 @@ class PagoTICService {
 
   private readonly api = axios.create({ baseURL: this.baseUrl, timeout: 10_000 });
 
+  private log(section: string, message: unknown, level: "info" | "error" | "debug" = "info") {
+    const prefix = `[PagoTIC][${section}]`;
+    if (level === "error") {
+      console.error(prefix, message);
+    } else if (level === "debug") {
+      console.debug(prefix, message);
+    } else {
+      console.log(prefix, message);
+    }
+  }
+
   private async fetchToken(): Promise<{ token: string; expiresIn: number }> {
+    this.log("Auth", "Solicitando token de acesso...", "debug");
+
     const form = {
       grant_type: "password",
       client_id: this.clientId,
@@ -44,7 +57,16 @@ class PagoTICService {
     if (!data?.access_token) throw new Error("PagoTIC: access_token missing in auth response.");
 
     const expiresIn = Math.max(Number(data.expires_in ?? 0), 300);
-    return { token: String(data.access_token), expiresIn };
+    const tokenStr = String(data.access_token);
+
+    // Loga token truncado para debug
+    this.log(
+      "Auth",
+      `Token obtido: ${tokenStr.slice(0, 4)}...${tokenStr.slice(-4)} (expira em ${expiresIn}s)`,
+      "info"
+    );
+
+    return { token: tokenStr, expiresIn };
   }
 
   private async getToken(): Promise<string> {
@@ -60,15 +82,17 @@ class PagoTICService {
     // 🔹 Garante que payment_number está presente
     if (!raw.payment_number) {
       raw.payment_number = `PAY-${Date.now()}`;
+      this.log("Payload", `payment_number gerado automaticamente: ${raw.payment_number}`, "debug");
     }
 
-    // 🔹 collector_id não é obrigatório (será inferido pela API)
+    // 🔹 Valida e transforma payload
     const payload = createPagoSchema.parse(raw);
+
+    // 🔹 Log do payload final
+    this.log("Payload", JSON.stringify(payload, null, 2), "debug");
 
     const doRequest = async (token: string) => {
       try {
-         // 🔹 Log para debug antes do envio
-    console.log("[DEBUG] Payload PagoTIC enviado:", JSON.stringify(payload, null, 2));
         const { data } = await this.api.post<PagoTICResponse>("/pagos", payload, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -76,16 +100,22 @@ class PagoTICService {
             Accept: "application/json",
           },
         });
+
+        this.log("API Response", data, "info");
         return data;
       } catch (err) {
         const axiosErr = err as AxiosError<{ code?: number; message?: string; extended_code?: number }>;
         const errorData = axiosErr.response?.data;
 
-        console.error("[PagoTIC] Erro na criação de pagamento", {
-          status: axiosErr.response?.status,
-          error: errorData,
-          payloadEnviado: payload,
-        });
+        this.log(
+          "API Error",
+          {
+            status: axiosErr.response?.status,
+            error: errorData,
+            payloadEnviado: payload,
+          },
+          "error"
+        );
 
         if (errorData?.extended_code === 4120) {
           throw new Error("API PagoTIC: payment_number ausente ou inválido.");
@@ -101,6 +131,7 @@ class PagoTICService {
     } catch (e) {
       const axiosErr = e as AxiosError;
       if (axiosErr.response?.status === 401) {
+        this.log("Auth", "Token expirado, solicitando novo...", "debug");
         const { token } = await this.fetchToken();
         this.accessToken = token;
         this.tokenExpiresAt = Date.now() + 5 * 60 * 1000;
