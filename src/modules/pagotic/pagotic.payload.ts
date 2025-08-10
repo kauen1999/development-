@@ -1,3 +1,4 @@
+// src/modules/pagotic/pagotic.payload.ts
 import type { Order, User, Seat, TicketCategory, OrderItem } from "@prisma/client";
 import { formatPagoTICDate, addMinutes, generateExternalTransactionId } from "./pagotic.utils";
 import type { CreatePagoPayload } from "./pagotic.schema";
@@ -5,9 +6,10 @@ import type { CreatePagoPayload } from "./pagotic.schema";
 /**
  * Gera payload de criação de pagamento no PagoTIC (checkout hospedado).
  * - NÃO envia `type` nem `payment_methods` → API retorna `form_url`.
- * - Inclui `payment_number` para evitar erro 4120.
- * - Adiciona `collector_id` opcional no root e `currency_id` dentro de `details[]` (como na doc).
- * - Usa ISO 3166-1 alpha-3 para país e tipo de documento conforme PagoTIC.
+ * - `payment_number` garantido (evita erro 4120).
+ * - `collector_id` opcional (API infere se omitido).
+ * - `currency_id` dentro de `details[]` (como na doc).
+ * - ISO 3166-1 alpha-3 para país e tipo de documento conforme PagoTIC.
  */
 export function buildPagoPayload(
   order: Order & {
@@ -18,7 +20,7 @@ export function buildPagoPayload(
   user: User
 ): CreatePagoPayload {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  const collectorId = process.env.PAGOTIC_COLLECTOR_ID || undefined; // opcional
+  const collectorId = process.env.PAGOTIC_COLLECTOR_ID || undefined;
 
   if (!appUrl) throw new Error("Missing NEXT_PUBLIC_APP_URL");
   if (!user.email) throw new Error("Usuário sem e-mail.");
@@ -26,9 +28,11 @@ export function buildPagoPayload(
 
   // IDs obrigatórios
   const external_transaction_id = generateExternalTransactionId(order.id);
-  const payment_number = `PAY-${order.id}`; // sempre gerado
 
-  // Datas no formato yyyy-MM-dd'T'HH:mm:ssZ (sem dois-pontos no offset)
+  // Garante payment_number
+  const payment_number = `PAY-${order.id}`;
+
+  // Datas no formato yyyy-MM-dd'T'HH:mm:ssZ (offset sem “:”)
   const now = new Date();
   const due_date = formatPagoTICDate(addMinutes(now, 30));
   const last_due_date = formatPagoTICDate(addMinutes(now, 60));
@@ -36,7 +40,7 @@ export function buildPagoPayload(
   // Valor total do pedido
   const total = Number(order.total.toFixed(2));
 
-  // Um único item de cobrança (ajuste se precisar de split)
+  // Item de cobrança único (pode ser adaptado para split)
   const details: CreatePagoPayload["details"] = [
     {
       concept_id: "woocommerce",
@@ -47,8 +51,8 @@ export function buildPagoPayload(
     },
   ];
 
-  return {
-    collector_id: collectorId, // opcional
+  const payload: CreatePagoPayload = {
+    ...(collectorId ? { collector_id: collectorId } : {}), // só envia se definido
     return_url: `${appUrl}/payment/success?orderId=${order.id}`,
     back_url: `${appUrl}/payment/cancel?orderId=${order.id}`,
     notification_url: `${appUrl}/api/webhooks/pagotic`,
@@ -71,4 +75,6 @@ export function buildPagoPayload(
       },
     },
   };
+
+  return payload;
 }

@@ -9,7 +9,12 @@ import type { AxiosError } from "axios";
 import type { Prisma } from "@prisma/client";
 import { PaymentProvider, PaymentStatus } from "@prisma/client";
 
-type ProviderResShape = { id?: string; checkout_url?: string; form_url?: string; [k: string]: unknown };
+type ProviderResShape = {
+  id?: string;
+  checkout_url?: string;
+  form_url?: string;
+  [k: string]: unknown;
+};
 
 export const pagoticRouter = router({
   startPagoTICPayment: protectedProcedure
@@ -19,27 +24,54 @@ export const pagoticRouter = router({
       const userId = ctx.session.user.id;
 
       try {
+        // Busca pedido do usuário autenticado
         const order = await prisma.order.findFirst({
           where: { id: orderId, userId },
           include: {
-            orderItems: { include: { seat: { include: { ticketCategory: true } } } },
+            orderItems: {
+              include: {
+                seat: { include: { ticketCategory: true } },
+              },
+            },
             event: true,
           },
         });
-        if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "Pedido não encontrado." });
+        if (!order) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Pedido não encontrado." });
+        }
 
-        const user = await prisma.user.findUnique({ where: { id: userId } });
-        if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado." });
+        // Busca usuário
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+        });
+        if (!user) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado." });
+        }
 
+        // Gera payload
         const payload = buildPagoPayload(order, user);
+
+        // Garante que o payment_number exista
+        if (!payload.payment_number || payload.payment_number.trim() === "") {
+          payload.payment_number = `PAY-${Date.now()}`;
+        }
+
+        // Log do payload para debug
+        console.log("[PagoTIC] Payload enviado para criação de pagamento:", JSON.stringify(payload, null, 2));
+
+        // Cria pagamento via serviço
         const providerRes = (await pagoticService.createPayment(payload)) as ProviderResShape;
 
         const providerId = providerRes.id ?? null;
         const checkoutUrl = providerRes.checkout_url ?? providerRes.form_url;
         if (!checkoutUrl) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "URL de checkout não retornada pelo provedor." });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "URL de checkout não retornada pelo provedor.",
+          });
         }
 
+        // Salva dados do pagamento no banco
         await prisma.$transaction(async (tx) => {
           await tx.order.update({
             where: { id: order.id },
@@ -74,7 +106,6 @@ export const pagoticRouter = router({
         return { checkoutUrl, providerPaymentId: providerId };
       } catch (e) {
         const err = e as AxiosError;
-        // eslint-disable-next-line no-console
         console.error("[PagoTIC] startPagoTICPayment error:", err.response?.data ?? err.message);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
