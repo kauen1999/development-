@@ -44,7 +44,7 @@ type Seat = {
   price: number;
 };
 
-// Utilitário para mesclar mapa estático com preços reais do banco
+// Mescla o mapa estático com os preços reais vindos do banco
 const mergeMapWithTicketPrices = (
   mapConfig: EventMapConfig,
   ticketCategories: Props["event"]["ticketCategories"]
@@ -86,7 +86,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
         prev.filter((s) => !(s.sector === sector && s.row === row && s.seat === seat))
       );
     } else {
-      if (selectedSeats.length >= 5) return;
+      if (selectedSeats.length >= 5) return; // mantém regra de até 5 ingressos por compra
       setSelectedSeats((prev) => [...prev, { sector, row, seat, price }]);
     }
   };
@@ -105,6 +105,11 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   }
 
   const mapConfig = mergeMapWithTicketPrices(staticMap, event.ticketCategories);
+
+  // Calcula total de assentos disponíveis (status === AVAILABLE)
+  const totalAvailableSeats = event.ticketCategories.flatMap((cat) =>
+    cat.seats.filter((s) => s.status === "AVAILABLE")
+  ).length;
 
   const createOrder = trpc.order.create.useMutation({
     onSuccess: (order) => {
@@ -145,7 +150,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
           onSelect={handleSelect}
           selectedSeats={selectedSeats}
           maxReached={selectedSeats.length >= 5}
-          blockedSeats={event.ticketCategories.flatMap((cat) =>
+          soldSeats={event.ticketCategories.flatMap((cat) =>
             cat.seats
               .filter((s) => s.status === "SOLD" || s.status === "RESERVED")
               .map((s) => ({
@@ -161,6 +166,11 @@ const BuyBody: React.FC<Props> = ({ event }) => {
         <h2 className="w-fit rounded bg-gray-400 px-4 py-2 text-sm font-bold text-white">
           DOM-06/JUL
         </h2>
+
+        {/* ALTERAÇÃO: Mostra ao cliente o total real de assentos disponíveis */}
+        <p className="mt-2 text-sm text-gray-600">
+          Total de assentos disponíveis: {totalAvailableSeats}
+        </p>
 
         {selectedSeats.length > 0 ? (
           <div className="mt-4 max-h-64 space-y-4 overflow-y-auto pr-2">

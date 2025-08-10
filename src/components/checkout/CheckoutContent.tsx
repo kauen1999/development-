@@ -36,22 +36,29 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
       alert("Pedido inválido.");
       return;
     }
+
+    // Evita cliques múltiplos enquanto processa
+    if (pagoMutation.isPending) return;
+
     try {
       const result = await pagoMutation.mutateAsync({ orderId });
-      // >>> usa checkoutUrl (shape retornado pelo router)
-      if (result?.checkoutUrl) {
+
+      if (result?.checkoutUrl && /^https?:\/\//i.test(result.checkoutUrl)) {
+        console.info("[PagoTIC] Redirecionando para checkout...");
+        // Redireciona para o PagoTIC sem passar pelo router do Next.js
         window.location.href = result.checkoutUrl;
       } else {
-        alert("Não foi possível iniciar o pagamento (checkoutUrl ausente).");
+        console.error("[PagoTIC] Checkout URL ausente ou inválida:", result);
+        alert("Não foi possível iniciar o pagamento. URL inválida.");
       }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Erro ao iniciar pagamento.";
       alert(message);
-      // eslint-disable-next-line no-console
       console.error("[PagoTIC] startPagoTICPayment error:", err);
     }
   };
+
 
   const isExternal = /^https?:\/\//i.test(picture);
 

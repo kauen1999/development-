@@ -2,18 +2,15 @@
 import Header from "../../components/principal/header/Header";
 import Footer from "../../components/principal/footer/Footer";
 import BuyHero from "../../components/buydetailsComponent/BuyHero/BuyHero";
-// SEATED (mapa de assentos)
-import BuyBody from "../../components/buydetailsComponent/BuyBody/BuyBody";
-// GENERAL (sem assentos, por categoria)
-import BuyBodyGeneral from "../../components/buydetailsComponent/BuyBodyGeneral/BuyBodyGeneral";
+import BuyBody from "../../components/buydetailsComponent/BuyBody/BuyBody"; // SEATED
+import BuyBodyGeneral from "../../components/buydetailsComponent/BuyBodyGeneral/BuyBodyGeneral"; // GENERAL
 
 import type { GetServerSidePropsContext, NextPage } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/modules/auth/auth-options";
 import { prisma } from "@/lib/prisma";
 
-// ---------- Tipos específicos de cada componente ----------
-
+// ----- Types -----
 type SeatStatusDTO = "AVAILABLE" | "RESERVED" | "SOLD";
 
 interface SeatDTO {
@@ -24,38 +21,25 @@ interface SeatDTO {
   status: SeatStatusDTO;
 }
 
-// Shape que o BuyBody (SEATED) espera
 interface EventSeated {
   id: string;
   name: string;
   image: string | null;
-  date: string; // usamos a 1ª sessão como data de exibição no Hero
+  date: string;
   city: string;
   venueName: string;
-  sessions: {
-    id: string;
-    date: string;
-    venueName: string;
-  }[];
-  ticketCategories: {
-    id: string;
-    title: string;
-    price: number;
-    seats: SeatDTO[]; // obrigatório para SEATED
-  }[];
-  category: {
-    id: string;
-    name: string;
-  };
+  sessions: { id: string; date: string; venueName: string }[];
+  ticketCategories: { id: string; title: string; price: number; seats: SeatDTO[] }[];
+  category: { id: string; name: string };
 }
 
-// Shape que o BuyBodyGeneral espera
 interface GeneralCategory {
   id: string;
   title: string;
   price: number;
-  capacity: number; // necessário no componente
+  capacity: number;
 }
+
 interface EventGeneral {
   id: string;
   name: string;
@@ -67,13 +51,11 @@ interface EventGeneral {
   categories: GeneralCategory[];
 }
 
-// Union discriminado para a página
 type PageProps =
   | { kind: "SEATED"; event: EventSeated }
   | { kind: "GENERAL"; event: EventGeneral };
 
 const BuyDetails: NextPage<PageProps> = (props) => {
-  // Campos comuns para o Hero (mantém o visual)
   const common =
     props.kind === "SEATED"
       ? {
@@ -126,39 +108,32 @@ export default BuyDetails;
 export async function getServerSideProps(context: GetServerSidePropsContext) {
   const session = await getServerSession(context.req, context.res, authOptions);
   if (!session) {
-    return {
-      redirect: { destination: "/login", permanent: false },
-    };
+    return { redirect: { destination: "/login", permanent: false } };
   }
 
   const slug = context.query.slug as string;
   if (!slug) return { notFound: true };
 
-  // 1) Busca base (sem seats pra ser mais leve)
   const base = await prisma.event.findUnique({
     where: { slug },
     include: {
       sessions: { orderBy: { date: "asc" } },
-      ticketCategories: true, // sem seats aqui
+      ticketCategories: true,
       category: true,
     },
   });
 
   if (!base || base.sessions.length === 0) return { notFound: true };
 
-  // 1.1) Pega a primeira sessão com narrowing sem non-null assertion
   const [firstSession] = base.sessions;
-  if (!firstSession) return { notFound: true }; // guard extra para satisfazer TS/ESLint
+  if (!firstSession) return { notFound: true };
   const firstDateISO = firstSession.date.toISOString();
 
-  // 2) Monta os props conforme o tipo de evento
+  // SEATED event
   if (base.eventType === "SEATED") {
-    // Buscar seats somente para SEATED
     const withSeats = await prisma.event.findUnique({
       where: { slug },
-      include: {
-        ticketCategories: { include: { seats: true } },
-      },
+      include: { ticketCategories: { include: { seats: true } } },
     });
 
     const ticketCategories =
@@ -197,13 +172,32 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     return { props: { kind: "SEATED", event: eventSeated } as PageProps };
   }
 
-  // GENERAL
-  const categories: GeneralCategory[] = base.ticketCategories.map((tc) => ({
-    id: tc.id,
-    title: tc.title,
-    price: tc.price,
-    capacity: tc.capacity, // importante: o componente precisa
-  }));
+  // GENERAL event → calculate real available capacity
+  const categories: GeneralCategory[] = await Promise.all(
+    base.ticketCategories.map(async (tc) => {
+      const usedCount = await prisma.orderItem.aggregate({
+        where: {
+          ticketCategoryId: tc.id,
+          order: {
+            eventId: base.id,
+            sessionId: firstSession.id,
+            status: { in: ["PENDING", "PAID"] },
+          },
+        },
+        _sum: { qty: true },
+      });
+
+      const vendidosOuPendentes = usedCount._sum.qty ?? 0;
+      const disponivel = Math.max(0, tc.capacity - vendidosOuPendentes);
+
+      return {
+        id: tc.id,
+        title: tc.title,
+        price: tc.price,
+        capacity: disponivel,
+      };
+    })
+  );
 
   const eventGeneral: EventGeneral = {
     id: base.id,

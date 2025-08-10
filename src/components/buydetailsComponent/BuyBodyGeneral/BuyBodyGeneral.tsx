@@ -8,7 +8,7 @@ type Category = {
   id: string;
   title: string;
   price: number;
-  capacity: number; // limite por categoria
+  capacity: number; // real stock available from SSR
 };
 
 interface Props {
@@ -19,7 +19,7 @@ interface Props {
     city: string;
     venueName: string;
     sessionId: string;
-    sessionDateISO?: string; // opcional, para badge "DOM-06/JUL"
+    sessionDateISO?: string;
     categories: Category[];
   };
 }
@@ -59,7 +59,6 @@ const BuyBodyGeneral: React.FC<Props> = ({ event }) => {
     );
   }, [event.categories, quantities]);
 
-  // Mutation TRPC para criar pedido GENERAL
   const createGeneral = trpc.order.createGeneral.useMutation({
     onSuccess: (order) => {
       router.push(`/checkout/${order.id}`);
@@ -70,13 +69,12 @@ const BuyBodyGeneral: React.FC<Props> = ({ event }) => {
     },
   });
 
-  // Máximo permitido para esta categoria considerando o limite global de 5
+  // Returns max allowed for category considering global purchase limit
   const getAllowedMaxForCategory = (categoryId: string, categoryCap: number) => {
     const others = Object.entries(quantities).reduce((acc, [id, q]) => {
       if (id === categoryId) return acc;
       return acc + (q || 0);
     }, 0);
-    // mínimo entre a capacidade da categoria e o que sobra no teto global
     return Math.max(0, Math.min(categoryCap, MAX_TICKETS_PER_ORDER - others));
   };
 
@@ -104,7 +102,7 @@ const BuyBodyGeneral: React.FC<Props> = ({ event }) => {
       .map((c) => ({
         categoryId: c.id,
         qty: quantities[c.id] || 0,
-        price: c.price, // informativo no front; back usa preço do DB
+        price: c.price,
       }))
       .filter((i) => i.qty > 0);
 
@@ -120,7 +118,7 @@ const BuyBodyGeneral: React.FC<Props> = ({ event }) => {
 
   return (
     <div className="mx-auto my-4 flex max-w-[1200px] flex-col gap-8 rounded-lg border border-gray-300 bg-white p-6 shadow-lg lg:flex-row">
-      {/* Coluna izquierda: categorías */}
+      {/* Columna izquierda: categorías */}
       <div className="w-full lg:w-1/2">
         <h2 className="w-fit rounded bg-gray-400 px-4 py-2 text-sm font-bold text-white">
           {formatBadge(event.sessionDateISO)}
@@ -140,7 +138,8 @@ const BuyBodyGeneral: React.FC<Props> = ({ event }) => {
                 <div className="flex flex-col">
                   <span className="text-lg font-semibold">{c.title}</span>
                   <span className="text-sm text-gray-500">
-                    {formatterARS.format(c.price)} • Máximo disponible: {allowedMax}
+                    {formatterARS.format(c.price)} • Máximo disponible:{" "}
+                    {c.capacity}
                   </span>
                 </div>
 
@@ -150,7 +149,6 @@ const BuyBodyGeneral: React.FC<Props> = ({ event }) => {
                     onClick={() => setQty(c.id, qty - 1, c.capacity)}
                     className="rounded bg-gray-100 px-3 py-1 text-lg font-bold hover:bg-gray-200 disabled:opacity-50"
                     disabled={qty <= 0}
-                    aria-label={`Restar una entrada de ${c.title}`}
                   >
                     −
                   </button>
@@ -164,14 +162,12 @@ const BuyBodyGeneral: React.FC<Props> = ({ event }) => {
                       setQty(c.id, Number(e.target.value), c.capacity)
                     }
                     className="w-16 rounded border px-3 py-1 text-center"
-                    aria-label={`Cantidad para ${c.title}`}
                   />
                   <button
                     type="button"
                     onClick={() => setQty(c.id, qty + 1, c.capacity)}
                     className="rounded bg-gray-100 px-3 py-1 text-lg font-bold hover:bg-gray-200 disabled:opacity-50"
                     disabled={!canIncrement}
-                    aria-label={`Sumar una entrada de ${c.title}`}
                   >
                     +
                   </button>
@@ -182,7 +178,7 @@ const BuyBodyGeneral: React.FC<Props> = ({ event }) => {
         </div>
       </div>
 
-      {/* Coluna derecha: resumen y checkout */}
+      {/* Columna derecha: resumen y checkout */}
       <div className="w-full lg:w-1/2">
         {totalTickets > 0 ? (
           <>

@@ -44,6 +44,7 @@ export async function createOrderService(input: CreateOrderInput, userId: string
     // 🔹 Gerar IDs obrigatórios no momento da criação
     const externalTransactionId = generateExternalTransactionId(userId);
     const paymentNumber = `PAY-${Date.now()}`;
+    const expiresAt = new Date(Date.now() + 4 * 60 * 1000); // 4 minutos
 
     const order = await tx.order.create({
       data: {
@@ -52,6 +53,7 @@ export async function createOrderService(input: CreateOrderInput, userId: string
         sessionId,
         total,
         status: OrderStatus.PENDING,
+        expiresAt,
         externalTransactionId,
         paymentNumber, // 🔹 Agora sempre salvo
         orderItems: { create: seatIds.map((id) => ({ seat: { connect: { id } } })) },
@@ -111,9 +113,10 @@ export async function createGeneralOrderService(input: CreateOrderGeneralInput, 
       return cat ? sum + cat.price * it.qty : sum;
     }, 0);
 
-    // 🔹 Gerar IDs obrigatórios no momento da criação
+    // Gerar IDs obrigatórios no momento da criação
     const externalTransactionId = generateExternalTransactionId(userId);
     const paymentNumber = `PAY-${Date.now()}`;
+    const expiresAt = new Date(Date.now() + 4 * 60 * 1000); // 4 minutos
 
     const order = await tx.order.create({
       data: {
@@ -122,6 +125,7 @@ export async function createGeneralOrderService(input: CreateOrderGeneralInput, 
         sessionId,
         total,
         status: OrderStatus.PENDING,
+        expiresAt,
         externalTransactionId,
         paymentNumber,
         orderItems: {

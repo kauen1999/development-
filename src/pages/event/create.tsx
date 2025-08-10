@@ -105,23 +105,28 @@ export default function CreateEventPage() {
   };
 
     const uploadImage = async (): Promise<string | undefined> => {
-    if (!imageFile) return imagePreview ?? undefined;
+      if (!imageFile) return imagePreview ?? undefined;
 
-    // Create client only in the browser
-    const supabase = getBrowserSupabase();
+      const supabase = getBrowserSupabase();
+      const fileName = `${Date.now()}-${imageFile.name}`;
 
-    const fileName = `${Date.now()}-${imageFile.name}`;
-    const { error } = await supabase
-      .storage
-      .from("entrad-maestro")
-      .upload(fileName, imageFile);
+      const { data, error } = await supabase
+        .storage
+        .from("entrad-maestro")
+        .upload(fileName, imageFile, { upsert: true });
 
-    if (error) throw error;
+      if (error) {
+        console.error("Supabase upload error:", error);
+        alert(`Erro no upload: ${error.message}`);
+        throw error;
+      }
 
-    const base = getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL");
-    return `${base}/storage/v1/object/public/entrad-maestro/${fileName}`;
-  };
+      const base = getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL");
+      const publicUrl = `${base}/storage/v1/object/public/${data.fullPath}`;
+      console.log("Public URL:", publicUrl);
 
+      return publicUrl;
+    };
 
   const totalTicketCapacity = useMemo(
     () => tickets.reduce((acc, t) => acc + (Number(t.capacity) || 0), 0),

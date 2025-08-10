@@ -17,7 +17,7 @@ export default function EventosHoy() {
   const today = new Date().toISOString().split("T")[0] ?? "";
 
   const { data: eventos = [], isLoading } = trpc.event.listByDate.useQuery({
-    date: today || "", 
+    date: today || "",
   });
 
   return (
@@ -50,11 +50,27 @@ export default function EventosHoy() {
           }}
         >
           {eventos.map((event) => {
-            const fecha = new Date(event.date);
-            const hora = fecha.toLocaleTimeString("es-AR", {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
+            // Pegamos a data da primeira sessão
+            const fechaSesion = event.sessions?.[0]?.date
+              ? new Date(event.sessions[0].date)
+              : null;
+
+            // Formata a data no formato "7 ago 2025"
+            const fecha = fechaSesion
+              ? fechaSesion.toLocaleDateString("es-AR", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                }).replace(".", "")
+              : "Sin fecha";
+
+            // Formata hora no padrão 24h
+            const hora = fechaSesion
+              ? fechaSesion.toLocaleTimeString("es-AR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "—";
 
             return (
               <SwiperSlide key={event.id}>
@@ -63,7 +79,7 @@ export default function EventosHoy() {
                   image={event.image ?? null}
                   titulo={event.name}
                   horas={hora}
-                  fecha={fecha.toLocaleDateString("es-AR")}
+                  fecha={fecha}
                   precio={`$${event.ticketCategories?.[0]?.price ?? 0}`}
                   duracion={"2 horas"}
                   ubicacion={event.venueName}

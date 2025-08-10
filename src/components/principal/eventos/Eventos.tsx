@@ -70,7 +70,15 @@ const Eventos = () => {
               key={event.id}
               slug={event.slug}
               artist={event.name}
-              fecha={new Date(event.date).toLocaleDateString("es-AR")}
+              fecha={
+                event.sessions?.[0]
+                  ? new Date(event.sessions[0].date).toLocaleDateString("es-AR", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : "Sin fecha"
+              }
               foto={event.image ?? ""}
               ubicacion={event.venueName}
               ciudad={event.city}

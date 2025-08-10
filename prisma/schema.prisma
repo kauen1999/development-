@@ -291,6 +291,7 @@ model Order {
   status                OrderStatus
   total                 Float
   createdAt             DateTime    @default(now())
+  expiresAt             DateTime?
   externalTransactionId String?     @unique
   paymentNumber         String?     @unique
 
