@@ -27,7 +27,7 @@ export function buildPagoPayload(
     back_url: `${appUrl}/payment/cancel`,
     notification_url: `${appUrl}/api/webhooks/pagotic`,
 
-    number: order.id,
+    number: String(order.id), // ensure string
     external_transaction_id,
     due_date,
     last_due_date,
