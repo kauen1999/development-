@@ -292,7 +292,7 @@ model Order {
   total                 Float
   createdAt             DateTime    @default(now())
   externalTransactionId String?     @unique
-  paymentNumber         String?     @unique // <-- Adicionado para armazenar o payment_number enviado ao PagoTIC
+  paymentNumber         String?     @unique 
 
   userId    String
   sessionId String
@@ -307,6 +307,7 @@ model Order {
 
   @@index([status])
 }
+
 
 model OrderItem {
   id        String   @id @default(cuid())

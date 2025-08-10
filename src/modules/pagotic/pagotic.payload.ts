@@ -12,7 +12,9 @@ export function buildPagoPayload(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (!appUrl) throw new Error("Missing NEXT_PUBLIC_APP_URL");
 
-  if (!order.paymentNumber) throw new Error("Pedido sem paymentNumber");
+  if (!order.paymentNumber) {
+  throw new Error(`Pedido ${order.id} está sem paymentNumber mesmo após fallback`);
+}
   if (!order.externalTransactionId) throw new Error("Pedido sem externalTransactionId");
 
   const now = new Date();
