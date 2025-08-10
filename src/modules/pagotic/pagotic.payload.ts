@@ -33,7 +33,6 @@ export function buildPagoPayload(
     external_transaction_id,
     due_date,
     last_due_date,
-
     currency_id: "ARS",
 
     details: [
