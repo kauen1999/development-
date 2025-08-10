@@ -1,10 +1,11 @@
 // src/modules/order/order.router.ts
 import { router, protectedProcedure } from "@/server/trpc/trpc";
 import { createOrderSchema, createOrderGeneralSchema } from "./order.schema";
-import { createOrderService, createGeneralOrderService } from "./order.service";
+import { createOrderService, createGeneralOrderService, getOrderByIdService } from "./order.service";
+import z from "zod";
 
 export const orderRouter = router({
-  // 🪑 SEATED: cria pedido reservando assentos existentes por label (ex.: "A-3")
+  // SEATED: cria pedido reservando assentos existentes por label (ex.: "A-3")
   create: protectedProcedure
     .input(createOrderSchema)
     .mutation(async ({ input, ctx }) => {
@@ -16,7 +17,7 @@ export const orderRouter = router({
       }
     }),
 
-  // 🎟️ GENERAL: cria pedido por categorias (sem assentos), respeitando capacidade e limite de 5 ingressos
+  // GENERAL: cria pedido por categorias (sem assentos), respeitando capacidade e limite de 5 ingressos
   createGeneral: protectedProcedure
     .input(createOrderGeneralSchema)
     .mutation(async ({ input, ctx }) => {
@@ -27,4 +28,7 @@ export const orderRouter = router({
         throw err;
       }
     }),
+    getOrderById: protectedProcedure
+    .input(z.object({ orderId: z.string().cuid("Invalid order ID") }))
+    .query(({ input, ctx }) => getOrderByIdService(input.orderId, ctx.session.user.id)),
 });

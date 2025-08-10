@@ -1,89 +1,49 @@
-// src/pages/confirmation.tsx
+// src/pages/checkout/ConfirmationPage.tsx
 import React from "react";
 import { useRouter } from "next/router";
-import { FaFacebookF, FaTwitter, FaWhatsapp } from "react-icons/fa";
+import Image from "next/image";
+import { trpc } from "@/utils/trpc";
 
-const ConfirmationPage: React.FC = () => {
-    const router = useRouter();
+export default function ConfirmationPage() {
+  const router = useRouter();
+  const { orderId } = router.query as { orderId: string };
 
-    const handleDownload = () => {
-        alert("Simulação de download do ingresso.");
-    };
+  const { data: order, isLoading, error } = trpc.order.getOrderById.useQuery(
+    { orderId },
+    { enabled: !!orderId }
+  );
 
-    const share = (platform: string) => {
-        const url = encodeURIComponent("https://seusite.com/confirmation");
-        const text = encodeURIComponent("Acabei de comprar meu ingresso! 🎟️");
-        let shareUrl = "";
+  if (isLoading) return <p>Carregando pedido...</p>;
+  if (error) return <p>Erro: {error.message}</p>;
+  if (!order) return <p>Pedido não encontrado.</p>;
 
-    switch (platform) {
-        case "facebook":
-            shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
-        break;
-        case "twitter":
-        shareUrl = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;
-        break;
-        case "whatsapp":
-        shareUrl = `https://wa.me/?text=${text} ${url}`;
-        break;
-    }
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4 text-center">
+      <h1 className="mb-2 text-3xl font-bold text-[#FF5F00]">
+        Compra Concluída com Sucesso!
+      </h1>
+      <p className="mb-6 text-gray-600">
+        Obrigado por sua compra. Seu ingresso está pronto para ser usado.
+      </p>
 
-    window.open(shareUrl, "_blank");
-    };
-
-    return (
-        <div
-            className="flex min-h-screen flex-col items-center justify-center bg-white px-4 text-center"
-            style={{ fontFamily: "Poppins, sans-serif" }}
-        >
-        <h1 className="mb-2 text-3xl font-bold text-[#FF5F00]">
-            Compra Concluída com Sucesso!
-        </h1>
-        <p className="mb-6 text-gray-600">
-            Obrigado por sua compra. Seu ingresso está pronto para ser usado.
-        </p>
-
-        <div className="w-full max-w-md rounded-lg bg-gray-100 p-6 shadow-md">
-            <div className="mb-4">
-            <img
-                src="https://via.placeholder.com/150"
-                alt="QR Code Placeholder"
+      {order.orderItems.map((item, idx) => (
+        <div key={idx} className="w-full max-w-md rounded-lg bg-gray-100 p-6 shadow-md mb-4">
+          {item.ticket?.qrCodeUrl && (
+            <>
+              <Image
+                src={item.ticket.qrCodeUrl}
+                alt={`QR Code ingresso ${idx + 1}`}
+                width={200}
+                height={200}
                 className="mx-auto"
-            />
-            <p className="mt-2 text-sm text-gray-500">
+              />
+              <p className="mt-2 text-sm text-gray-500">
                 Escaneie este QR Code na entrada do evento
-            </p>
+              </p>
+            </>
+          )}
         </div>
-
-        <button
-            onClick={handleDownload}
-            className="mb-4 w-full rounded-md bg-[#FF5F00] py-2 px-4 font-semibold text-white transition hover:opacity-90"
-        >
-            📥 Baixar Ingresso
-        </button>
-
-        <div className="mt-4 flex justify-center gap-4">
-            <button
-                onClick={() => share("facebook")}
-                className="text-[#FF5F00] hover:opacity-80"
-            >
-                <FaFacebookF size={24} />
-            </button>
-            <button
-                onClick={() => share("twitter")}
-                className="text-[#FF5F00] hover:opacity-80"
-            >
-                <FaTwitter size={24} />
-            </button>
-            <button
-                onClick={() => share("whatsapp")}
-                className="text-[#FF5F00] hover:opacity-80"
-            >
-                <FaWhatsapp size={24} />
-            </button>
-        </div>
-        </div>
+      ))}
     </div>
-    );
-};
-
-export default ConfirmationPage;
+  );
+}

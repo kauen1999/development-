@@ -1,3 +1,4 @@
+// src/modules/pagotic/pagotic.service.ts
 import axios, { type AxiosError } from "axios";
 import { env } from "@/env";
 import { createPagoSchema, type CreatePagoPayload } from "./pagotic.schema";
@@ -14,7 +15,10 @@ export type PagoTICResponse = {
 
 class PagoTICService {
   private readonly baseUrl = env.server.PAGOTIC_BASE_URL;
-  private readonly api = axios.create({ baseURL: this.baseUrl, timeout: 10_000 });
+  private readonly api = axios.create({
+    baseURL: this.baseUrl,
+    timeout: 10_000,
+  });
 
   /**
    * Cria um pagamento no PagoTIC
@@ -23,22 +27,31 @@ class PagoTICService {
   public async createPayment(
     rawOrPromise: CreatePagoPayload | Promise<CreatePagoPayload>
   ): Promise<PagoTICResponse> {
-    // ✅ Normaliza: transforma Promise em objeto real
+    //  Normaliza entrada
     const raw = await rawOrPromise;
 
     if (!raw || typeof raw !== "object") {
       throw new Error("PagoTIC: payload inválido (vazio ou não é um objeto).");
     }
 
-    // ✅ Garante que payment_number está definido
+    //  Garante que payment_number está definido
     if (!raw.payment_number || raw.payment_number.trim() === "") {
       raw.payment_number = `PAY-${Date.now()}`;
     }
 
-    // ✅ Valida o payload com Zod
+    //  Define URLs de retorno (success e back) caso não venham do payload
+    if (!raw.return_url) {
+      raw.return_url = `https://entradamaster.vercel.app/checkout/confirmation?orderId=${raw.orderId ?? ""}`;
+
+    }
+    if (!raw.back_url) {
+      raw.return_url = `https://entradamaster.vercel.app/checkout/confirmation?orderId=${raw.orderId ?? ""}`;
+    }
+
+    // Valida o payload com Zod
     const payload = createPagoSchema.parse(raw);
 
-    // 🔹 Log sanitizado
+    // Log seguro para debug
     console.info("[PagoTIC] Payload (sanitized)", {
       external_transaction_id: payload.external_transaction_id,
       detailsCount: payload.details?.length ?? 0,

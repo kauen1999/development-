@@ -10,7 +10,6 @@ import { EventStatus, EventType } from "@prisma/client";
 import { trpc } from "@/utils/trpc";
 import { getBrowserSupabase } from "@/lib/supabaseClient";
 import type { CreateEventInput } from "@/modules/event/event.schema";
-import { getRequiredEnv } from "@/lib/env";
 
 const FIXED_TICKET_TYPES = ["Platea A", "Platea B", "Platea C", "Pullman"] as const;
 type FixedType = (typeof FIXED_TICKET_TYPES)[number];
@@ -107,26 +106,45 @@ export default function CreateEventPage() {
     const uploadImage = async (): Promise<string | undefined> => {
       if (!imageFile) return imagePreview ?? undefined;
 
+      console.log("[Upload] Iniciando upload para Supabase...");
+
       const supabase = getBrowserSupabase();
+      const bucket = "entrad-maestro";
       const fileName = `${Date.now()}-${imageFile.name}`;
 
+      console.log("[Upload] Bucket:", bucket);
+      console.log("[Upload] Arquivo:", fileName);
+
+      // Faz upload do arquivo
       const { data, error } = await supabase
         .storage
-        .from("entrad-maestro")
+        .from(bucket)
         .upload(fileName, imageFile, { upsert: true });
 
       if (error) {
-        console.error("Supabase upload error:", error);
+        console.error("[Upload] Erro no upload:", error);
         alert(`Erro no upload: ${error.message}`);
         throw error;
       }
 
-      const base = getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL");
-      const publicUrl = `${base}/storage/v1/object/public/${data.fullPath}`;
-      console.log("Public URL:", publicUrl);
+      console.log("[Upload] Upload concluído:", data);
 
-      return publicUrl;
+      // Gera URL pública oficial
+      const { data: publicData } = supabase
+        .storage
+        .from(bucket)
+        .getPublicUrl(fileName);
+
+      if (!publicData?.publicUrl) {
+        console.error("[Upload] Falha ao gerar URL pública");
+        alert("Falha ao gerar URL pública da imagem");
+        throw new Error("Public URL not generated");
+      }
+
+      console.log("[Upload] Public URL gerada:", publicData.publicUrl);
+      return publicData.publicUrl;
     };
+
 
   const totalTicketCapacity = useMemo(
     () => tickets.reduce((acc, t) => acc + (Number(t.capacity) || 0), 0),

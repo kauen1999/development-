@@ -142,3 +142,30 @@ export async function createGeneralOrderService(input: CreateOrderGeneralInput, 
 
   return { id: orderId };
 }
+
+
+export async function getOrderByIdService(orderId: string, userId: string) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId, userId },
+    include: {
+      event: true,
+      orderItems: {
+        include: {
+          seat: {
+            include: {
+              ticketCategory: true,
+            },
+          },
+          ticketCategory: true,
+          ticket: true,
+        },
+      },
+    },
+  });
+
+  if (!order) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Pedido não encontrado" });
+  }
+
+  return order;
+}

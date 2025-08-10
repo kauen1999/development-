@@ -50,23 +50,29 @@ export default function EventosHoy() {
           }}
         >
           {eventos.map((event) => {
-            // Pegamos a data da primeira sessão
-            const fechaSesion = event.sessions?.[0]?.date
+            // Garantir que seja Date e extrair sem erro de timezone
+            const rawDate = event.sessions?.[0]?.date
               ? new Date(event.sessions[0].date)
               : null;
 
-            // Formata a data no formato "7 ago 2025"
-            const fecha = fechaSesion
-              ? fechaSesion.toLocaleDateString("es-AR", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                }).replace(".", "")
+            // Formatar data no padrão "7 ago 2025"
+            const fecha = rawDate
+              ? new Date(
+                  rawDate.getFullYear(),
+                  rawDate.getMonth(),
+                  rawDate.getDate()
+                )
+                  .toLocaleDateString("es-AR", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })
+                  .replace(".", "")
               : "Sin fecha";
 
-            // Formata hora no padrão 24h
-            const hora = fechaSesion
-              ? fechaSesion.toLocaleTimeString("es-AR", {
+            // Formatar hora em 24h
+            const hora = rawDate
+              ? rawDate.toLocaleTimeString("es-AR", {
                   hour: "2-digit",
                   minute: "2-digit",
                 })

@@ -33,12 +33,12 @@ const payerSchema = z.object({
 
 export const createPagoSchema = z
   .object({
-    collector_id: z.string().trim().optional(), // opcional
+    collector_id: z.string().trim().optional(),
     return_url: z.string().trim().url(),
     back_url: z.string().trim().url(),
     notification_url: z.string().trim().url(),
 
-    payment_number: z.string().trim().min(1, "payment_number é obrigatório"), // obrigatório
+    payment_number: z.string().trim().min(1, "payment_number is required"),
     external_transaction_id: z.string().trim().min(1),
 
     due_date: dateTimePagoTIC,
@@ -50,6 +50,8 @@ export const createPagoSchema = z
     metadata: z.record(z.any()).optional(),
     carrier: z.string().optional(),
     presets: z.any().optional(),
+
+    orderId: z.string().cuid().optional(),
   })
   .superRefine((v, ctx) => {
     const parse = (s: string) => new Date(s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
@@ -63,6 +65,7 @@ export const createPagoSchema = z
     if (last.getTime() < due.getTime()) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["last_due_date"], message: "last_due_date deve ser >= due_date" });
     }
+
   });
 
 export type CreatePagoPayload = z.infer<typeof createPagoSchema>;

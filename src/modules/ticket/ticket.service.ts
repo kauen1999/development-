@@ -1,12 +1,8 @@
-// src/modules/ticket/ticket.service.ts
 import { prisma } from "@/lib/prisma";
 import { TRPCError } from "@trpc/server";
 import { generateTicketAssets } from "./ticketGeneration.service";
 
-// Gera e salva um ingresso individual com assets (QR, PDF)
-export async function generateAndSaveTicket(
-  orderItemId: string
-) {
+export async function generateAndSaveTicket(orderItemId: string) {
   const orderItem = await prisma.orderItem.findUnique({
     where: { id: orderItemId },
     include: {
@@ -35,7 +31,8 @@ export async function generateAndSaveTicket(
       orderItemId: orderItem.id,
       userId: orderItem.order.userId,
       eventId: orderItem.order.eventId,
-      qrCodeUrl: "", // será atualizado depois
+      qrCodeUrl: "",
+      pdfUrl: "",
     },
   });
 
@@ -50,7 +47,6 @@ export async function generateAndSaveTicket(
   });
 }
 
-// Gera múltiplos ingressos a partir de um pedido (1 por assento = 1 por orderItem)
 export async function generateTicketsFromOrder(orderId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -62,23 +58,19 @@ export async function generateTicketsFromOrder(orderId: string) {
   if (!order) throw new Error("Order not found");
 
   const tickets = [];
-
   for (const item of order.orderItems) {
     const ticket = await generateAndSaveTicket(item.id);
     tickets.push(ticket);
   }
-
   return tickets;
 }
 
-// Busca todos os ingressos vinculados a um orderItem
 export async function getTicketsByOrderItemService(orderItemId: string) {
   return prisma.ticket.findMany({
     where: { orderItemId },
   });
 }
 
-// Marca ingresso como usado (para controle de entrada)
 export async function markTicketAsUsedService(ticketId: string) {
   return prisma.ticket.update({
     where: { id: ticketId },
@@ -86,7 +78,6 @@ export async function markTicketAsUsedService(ticketId: string) {
   });
 }
 
-// Validação pública via QR Code (entrada do evento)
 export async function validateTicketByQrService(qrCodeId: string) {
   const ticket = await prisma.ticket.findFirst({
     where: {

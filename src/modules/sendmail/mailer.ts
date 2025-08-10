@@ -14,11 +14,11 @@ const SMTP_PORT = Number(process.env.SMTP_PORT ?? 587);
 const SMTP_USER = requireEnv("SMTP_USER");
 const SMTP_PASS = requireEnv("SMTP_PASS");
 
-// porta 465 costuma exigir TLS/SSL
+// Configuração do transporte SMTP Brevo
 const transporter = nodemailer.createTransport({
   host: SMTP_HOST,
   port: SMTP_PORT,
-  secure: SMTP_PORT === 465,
+  secure: SMTP_PORT === 465, // TLS se porta 465
   auth: {
     user: SMTP_USER,
     pass: SMTP_PASS,
@@ -36,14 +36,16 @@ export async function sendTicketEmail(user: User, event: Event, tickets: Ticket[
     )
     .join("");
 
-  // pega a URL pública validada via Zod; fallback só por segurança em dev
-  const appUrl = env.client.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const appUrl =
+    env.client.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
   const fromHost = new URL(appUrl).host;
 
   await transporter.sendMail({
     from: `"${event.name}" <no-reply@${fromHost}>`,
     to: user.email,
-    subject: `Seus ingressos - ${event.name}`,
+    subject: `🎟 Seus ingressos - ${event.name}`,
     html: `
       <h2>Compra confirmada</h2>
       <p>Olá, ${user.name ?? "cliente"}! Seus ingressos estão prontos.</p>
