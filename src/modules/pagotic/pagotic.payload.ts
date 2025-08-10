@@ -4,7 +4,11 @@ import { formatPagoTICDate, addMinutes, generateExternalTransactionId } from "./
 import type { CreatePagoPayload } from "./pagotic.schema";
 
 /**
- * Gera payload de criação de pagamento no PagoTIC.
+ * Gera payload de criação de pagamento no PagoTIC (checkout hospedado).
+ * - NÃO envia `type` nem `payment_methods` → API retorna `form_url`.
+ * - Inclui `payment_number` para evitar erro 4120.
+ * - Adiciona `collector_id` no root e `currency_id` dentro de `details[]` (como na doc).
+ * - Usa ISO 3166-1 alpha-3 para país e tipo de documento conforme PagoTIC.
  */
 export function buildPagoPayload(
   order: Order & {
@@ -15,45 +19,57 @@ export function buildPagoPayload(
   user: User
 ): CreatePagoPayload {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const collectorId = process.env.PAGOTIC_COLLECTOR_ID;
+
   if (!appUrl) throw new Error("Missing NEXT_PUBLIC_APP_URL");
+  if (!collectorId) throw new Error("Missing PAGOTIC_COLLECTOR_ID");
   if (!user.email) throw new Error("Usuário sem e-mail.");
   if (!user.dni) throw new Error("Usuário sem DNI.");
 
-  // 🔹 Gerar IDs obrigatórios
+  // IDs obrigatórios
   const external_transaction_id = generateExternalTransactionId(order.id);
-  const payment_number = `PAY-${order.id}`; // pode ser só order.id, mas prefixar ajuda
+  const payment_number = `PAY-${order.id}`;
 
   // Datas no formato yyyy-MM-dd'T'HH:mm:ssZ (sem dois-pontos no offset)
-  const due_date = formatPagoTICDate(addMinutes(new Date(), 30));
-  const last_due_date = formatPagoTICDate(addMinutes(new Date(), 60));
+  const now = new Date();
+  const due_date = formatPagoTICDate(addMinutes(now, 30));
+  const last_due_date = formatPagoTICDate(addMinutes(now, 60));
+
+  // Valor total do pedido
+  const total = Number(order.total.toFixed(2));
+
+  // Um único item de cobrança (ajuste se precisar de split)
+  const details: CreatePagoPayload["details"] = [
+    {
+      concept_id: "woocommerce",
+      concept_description: `Compra de ingressos - Pedido ${order.id}`,
+      amount: total,
+      currency_id: "ARS",
+      external_reference: String(order.id),
+    },
+  ];
 
   return {
-    return_url: `${appUrl}/payment/success`,
-    back_url: `${appUrl}/payment/cancel`,
+    collector_id: collectorId,
+    return_url: `${appUrl}/payment/success?orderId=${order.id}`,
+    back_url: `${appUrl}/payment/cancel?orderId=${order.id}`,
     notification_url: `${appUrl}/api/webhooks/pagotic`,
 
-    payment_number,               // Campo exigido pelo PagoTIC
-    external_transaction_id,     
+    external_transaction_id,
+    payment_number,
     due_date,
     last_due_date,
-    currency_id: "ARS",
 
-    details: [
-      {
-        concept_id: "woocommerce", // use um ID real registrado no PagoTIC
-        concept_description: `Compra de ingressos - Pedido ${order.id}`,
-        amount: Number(order.total.toFixed(2)),
-        external_reference: order.id,
-      },
-    ],
+    details,
 
     payer: {
+      external_reference: String(user.id ?? user.email),
       name: user.name ?? "Comprador",
       email: user.email,
       identification: {
-        type: "DNI",
+        type: "DNI_ARG",
         number: user.dni,
-        country: "AR",
+        country: "ARG",
       },
     },
   };
