@@ -1,9 +1,8 @@
-// src/components/principal/login/LoginSection.tsx
 import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import concierto from "../../../../public/images/concierto.jpg";
 import logo from "../../../../public/images/logo_white.png";
 import { FcGoogle } from "react-icons/fc";
@@ -24,18 +23,18 @@ const LoginSection: React.FC = () => {
 
   const handleRedirectAfterLogin = async () => {
     try {
-      const sessionRes = await fetch("/api/auth/session");
-      const session = await sessionRes.json();
+      const session = await getSession();
+      console.log("🧭 [front] session após login:", session);
 
-      if (session?.user?.role === "ADMIN") {
-        router.push("/dashboard");
-      } else if (session?.user?.profileCompleted) {
-        router.push("/");
+      if (session?.user?.profileCompleted) {
+        console.log("🧭 [front] perfil completo → /#");
+        router.push("/#");
       } else {
+        console.log("🧭 [front] perfil incompleto → /auth");
         router.push("/auth");
       }
     } catch (err) {
-      console.error("Erro ao obter sessão:", err);
+      console.error("🧭 [front] erro ao obter sessão:", err);
       router.push("/auth");
     }
   };
@@ -45,24 +44,29 @@ const LoginSection: React.FC = () => {
     setError(null);
     setIsSubmitting(true);
 
+    console.log("🧭 [front] signIn(credentials) chamado:", form.email);
     const res = await signIn("credentials", {
       email: form.email,
       password: form.password,
       redirect: false,
     });
+    console.log("🧭 [front] resultado do signIn:", res);
 
     setIsSubmitting(false);
 
     if (res?.ok) {
       await handleRedirectAfterLogin();
     } else {
+      console.warn("🧭 [front] login inválido:", res);
       setError("Login inválido.");
     }
   };
 
   const handleGoogleLogin = async () => {
     setIsSubmitting(true);
+    console.log("🧭 [front] signIn(google) chamado");
     const res = await signIn("google", { redirect: false });
+    console.log("🧭 [front] resultado do signIn(google):", res);
     setIsSubmitting(false);
 
     if (res?.ok) {
@@ -78,10 +82,11 @@ const LoginSection: React.FC = () => {
         <Image
           src={concierto}
           alt="biza"
-          layout="fill"
-          objectFit="cover"
+          fill
           quality={100}
-          className="-z-10 brightness-50 "
+          priority
+          sizes="(min-width: 1024px) 50vw, 100vw"
+          className="-z-10 brightness-50 object-cover"
         />
         <Link href={"/"}>
           <div className="absolute top-6 left-6 w-[5rem]">
@@ -109,7 +114,7 @@ const LoginSection: React.FC = () => {
                 className="rounded-lg border-b"
                 type="email"
                 id="email"
-                placeholder="Tu correo aquí"
+                placeholder="Tu correo aqui"
                 value={form.email}
                 onChange={handleChange}
                 disabled={isSubmitting}
@@ -124,7 +129,7 @@ const LoginSection: React.FC = () => {
                 className="rounded-lg border-b"
                 type="password"
                 id="password"
-                placeholder="Tu contraseña aquí"
+                placeholder="Tu contraseña aqui"
                 value={form.password}
                 onChange={handleChange}
                 disabled={isSubmitting}
@@ -160,7 +165,7 @@ const LoginSection: React.FC = () => {
             <button
               className="btn-warning btn btn my-2 bg-[#3b5998] text-white"
               onClick={() => {
-                signIn("facebook", { callbackUrl: "/" });
+                console.log("🧭 [front] facebook login (não implementado)");
               }}
               disabled={isSubmitting}
             >

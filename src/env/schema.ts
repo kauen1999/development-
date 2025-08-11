@@ -8,7 +8,6 @@ const postgresUrlWithSsl = z
   .refine((raw) => {
     try {
       const u = new URL(raw);
-      // Accept both postgres:// and postgresql://
       const isPg = u.protocol === "postgres:" || u.protocol === "postgresql:";
       const ssl = u.searchParams.get("sslmode")?.toLowerCase() === "require";
       return isPg && ssl;
@@ -17,19 +16,32 @@ const postgresUrlWithSsl = z
     }
   }, "DATABASE_URL must be a valid Postgres URL and include sslmode=require");
 
-// Compute a safe default for NEXTAUTH_URL without workarounds/hacks
+/**
+ * Normalize any raw string into a valid origin (protocol + host + optional port)
+ * Returns undefined if invalid.
+ */
+function normalizeUrl(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const u = new URL(url);
+    return u.origin; // only protocol + host + port
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Compute a safe default for NEXTAUTH_URL without workarounds/hacks.
+ * - In dev, defaults to http://localhost:3000
+ * - In prod, tries NEXT_PUBLIC_APP_URL or VERCEL_URL, normalized
+ */
 const computeDefaultNextAuthUrl = () => {
-  // In development, default to localhost
   if (process.env.NODE_ENV !== "production") {
     return "http://localhost:3000";
   }
-  // On Vercel, VERCEL_URL is set without protocol (e.g. my-app.vercel.app)
-  const raw =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.VERCEL_URL ||
-    undefined;
-  if (!raw) return undefined;
-  return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  const raw = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || undefined;
+  return normalizeUrl(raw);
 };
 
 /** Server-side (Node.js only) environment */
@@ -37,22 +49,29 @@ export const serverSchema = z
   .object({
     NODE_ENV: z
       .enum(["development", "test", "production"])
-      .default((process.env.NODE_ENV as "development" | "test" | "production") ?? "development"),
+      .default(
+        (process.env.NODE_ENV as "development" | "test" | "production") ??
+          "development",
+      ),
 
     DATABASE_URL: postgresUrlWithSsl,
 
-    // Kept for compatibility; Prisma + Supabase should use ssl required in serverless.
     PGSSLMODE: z.enum(["disable", "allow", "prefer", "require"]).default("require"),
 
-    // Required only in production (enforced in superRefine below)
     NEXTAUTH_SECRET: z.string().min(1).optional(),
 
-    // Robust default:
-    // - dev: http://localhost:3000
-    // - prod: from NEXT_PUBLIC_APP_URL or VERCEL_URL
     NEXTAUTH_URL: z.preprocess(
-      (val) => (typeof val === "string" && val.length > 0 ? val : computeDefaultNextAuthUrl()),
-      z.string().url("NEXTAUTH_URL must be a valid URL"),
+      (val) =>
+        typeof val === "string" && val.length > 0
+          ? normalizeUrl(val)
+          : computeDefaultNextAuthUrl(),
+      z
+        .string()
+        .url("NEXTAUTH_URL must be a valid URL")
+        .refine(
+          (url) => normalizeUrl(url) !== undefined,
+          "NEXTAUTH_URL must be a valid and normalized URL",
+        ),
     ),
 
     // ► PagoTIC
@@ -65,12 +84,11 @@ export const serverSchema = z
     PAGOTIC_BACK_URL: z.string().url().optional(),
     PAGOTIC_NOTIFICATION_URL: z.string().url().optional(),
 
-    // ► Supabase (server-side). Optional here; require only if you actually use server uploads.
+    // ► Supabase (server-side)
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
     SUPABASE_URL: z.string().url().optional(),
   })
   .superRefine((env, ctx) => {
-    // Enforce NEXTAUTH_SECRET in production only
     if (env.NODE_ENV === "production" && !env.NEXTAUTH_SECRET) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

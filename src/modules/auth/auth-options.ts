@@ -1,145 +1,145 @@
-import type { NextAuthOptions, DefaultUser } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
+// src/modules/auth/auth-options.ts
+import type { NextAuthOptions, User } from "next-auth";
+import type { Provider } from "next-auth/providers";
+import Credentials from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
-import type { GoogleProfile } from "next-auth/providers/google";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "@/server/db/client";
+import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import type { UserRole } from "@/types/next-auth";
+import type { User as PrismaUser } from "@prisma/client";
 
-interface ExtendedUser extends DefaultUser {
-  id: string;
-  role?: UserRole;
-  profileCompleted?: boolean;
+type Role = "ADMIN" | "USER";
+
+/**
+ * Calcula se o perfil está completo com base nos campos obrigatórios.
+ */
+function calculateProfileCompleted(userData: Pick<PrismaUser, "name" | "email" | "dni" | "phone" | "birthdate">): boolean {
+  return Boolean(
+    userData.name &&
+      userData.email &&
+      userData.dni &&
+      userData.phone &&
+      userData.birthdate
+  );
 }
 
-function requireEnv(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`Variável de ambiente ${name} não está definida`);
-  return v;
+async function verifyPasswordAndGetUser(
+  email: string,
+  password: string
+): Promise<User | null> {
+  console.info("[auth] verify:start", { email });
+
+  const dbUser = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+      role: true,
+      password: true,
+      dniName: true,
+      dni: true,
+      phone: true,
+      birthdate: true,
+    },
+  });
+
+  if (!dbUser || !dbUser.password) {
+    console.warn("[auth] verify:not_found_or_no_password");
+    return null;
+  }
+
+  const ok = await bcrypt.compare(password, dbUser.password);
+  if (!ok) {
+    console.warn("[auth] verify:invalid_password");
+    return null;
+  }
+
+  const user: User = {
+    id: dbUser.id,
+    name: dbUser.name ?? null,
+    email: dbUser.email ?? null,
+    image: dbUser.image ?? null,
+    role: (dbUser.role as Role) ?? "USER",
+    profileCompleted: calculateProfileCompleted(dbUser),
+  };
+
+  console.info("[auth] verify:success", { id: user.id, role: user.role });
+  return user;
 }
 
-const googleClientId = requireEnv("GOOGLE_CLIENT_ID");
-const googleClientSecret = requireEnv("GOOGLE_CLIENT_SECRET");
-const nextAuthSecret = requireEnv("NEXTAUTH_SECRET");
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+function getProviders(): Provider[] {
+  const list: Provider[] = [
+    Credentials({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(
+        credentials?: Record<"email" | "password", string>
+      ): Promise<User | null> {
+        if (!credentials?.email || !credentials?.password) {
+          console.warn("[auth] authorize:missing_fields");
+          return null;
+        }
+        return verifyPasswordAndGetUser(credentials.email, credentials.password);
+      },
+    }),
+  ];
+
+  if (googleClientId && googleClientSecret) {
+    list.push(
+      GoogleProvider({
+        clientId: googleClientId,
+        clientSecret: googleClientSecret,
+      })
+    );
+  }
+
+  return list;
+}
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-
-  providers: [
-    GoogleProvider({
-      clientId: googleClientId,
-      clientSecret: googleClientSecret,
-      profile(profile: GoogleProfile) {
-        return {
-          id: profile.sub,
-          name: profile.name,
-          email: profile.email,
-          image: profile.picture ?? null,
-          role: "USER", // Valor padrão
-          profileCompleted: false, // Valor inicial; será atualizado no jwt()
-        };
-      },
-    }),
-
-    CredentialsProvider({
-      name: "Credentials",
-      credentials: {
-        email: { label: "E-mail", type: "text" },
-        password: { label: "Senha", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
-        if (!user?.password) return null;
-
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) return null;
-
-        const profileCompleted =
-          user.role === "ADMIN"
-            ? true
-            : Boolean(user.dniName && user.dni && user.phone && user.birthdate);
-
-        return {
-          id: user.id,
-          name: user.name ?? undefined,
-          email: user.email ?? undefined,
-          role: user.role as UserRole,
-          profileCompleted,
-          image:
-            user.image ??
-            "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png",
-        };
-      },
-    }),
-  ],
-
-  session: { strategy: "jwt" },
-
+  providers: getProviders(),
+  pages: {
+    signIn: "/login",
+  },
+  session: {
+    strategy: "jwt",
+  },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = (user as ExtendedUser).id;
-        token.role = (user as ExtendedUser).role ?? "USER";
-        token.profileCompleted = (user as ExtendedUser).profileCompleted ?? false;
-        token.image = user.image ?? token.image;
+        token.id = user.id;
+        token.role = (user.role as Role) ?? "USER";
+        token.profileCompleted = (user as User & { profileCompleted?: boolean }).profileCompleted ?? false;
       }
-
-      if (token.id) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.id as string },
-          select: {
-            id: true,
-            role: true,
-            image: true,
-            dni: true,
-            dniName: true,
-            phone: true,
-            birthdate: true,
-          },
-        });
-
-        if (dbUser) {
-          token.role = (dbUser.role as UserRole) || "USER";
-          token.image =
-            dbUser.image ||
-            "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png";
-          token.profileCompleted =
-            dbUser.role === "ADMIN"
-              ? true
-              : Boolean(dbUser.dni && dbUser.dniName && dbUser.phone && dbUser.birthdate);
-        }
-      }
-
       return token;
     },
-
     async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string;
-        session.user.role = (token.role as UserRole) || "USER";
-        session.user.profileCompleted = Boolean(token.profileCompleted);
-        session.user.image =
-          (token.image as string) ||
-          session.user.image ||
-          "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png";
-      }
+      const id = typeof token.id === "string" ? token.id : "";
+      const role = (token.role as Role | undefined) ?? undefined;
+      const profileCompleted = Boolean(token.profileCompleted);
+
+      session.user = {
+        ...session.user,
+        id,
+        role,
+        profileCompleted,
+      };
       return session;
     },
-
-    async redirect({ baseUrl, url }) {
-      return url.startsWith(baseUrl) ? url : baseUrl;
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
     },
   },
-
-  pages: {
-    signIn: "/login",
-    error: "/login",
-  },
-
-  secret: nextAuthSecret,
+  debug: process.env.NODE_ENV === "development",
 };

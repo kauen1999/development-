@@ -14,7 +14,7 @@ if (!clientParse.success) {
   const msgs = clientParse.error.issues.map(
     (i) => `${i.path.join(".")}: ${i.message}`
   );
-  console.error("❌ Invalid public env vars:", ...msgs);
+  console.error(" Invalid public env vars:", ...msgs);
   throw new Error("Invalid public environment variables");
 }
 
