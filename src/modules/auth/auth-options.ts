@@ -70,8 +70,41 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
   callbacks: {
+    async signIn({ account, profile }) {
+      if (account?.provider === "google" && profile?.email) {
+        // Verifica se já existe usuário com este email
+        const existingUser = await prisma.user.findUnique({
+          where: { email: profile.email },
+        });
+
+        if (existingUser) {
+          // Verifica se já tem vínculo com Google
+          const existingAccount = await prisma.account.findUnique({
+            where: {
+              provider_providerAccountId: {
+                provider: "google",
+                providerAccountId: account.providerAccountId,
+              },
+            },
+          });
+
+          if (!existingAccount) {
+            // Cria vínculo para evitar duplicação
+            await prisma.account.create({
+              data: {
+                userId: existingUser.id,
+                provider: "google",
+                providerAccountId: account.providerAccountId,
+                type: "oauth",
+              },
+            });
+          }
+        }
+      }
+      return true;
+    },
+
     async jwt({ token, user }) {
-      // No primeiro login, adiciona dados do usuário ao token
       if (user) {
         token.id = (user as ExtendedUser).id;
         token.role = (user as ExtendedUser).role ?? "USER";
@@ -79,7 +112,6 @@ export const authOptions: NextAuthOptions = {
         token.image = user.image ?? token.image;
       }
 
-      // Atualiza token com dados do banco
       if (token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
@@ -122,7 +154,7 @@ export const authOptions: NextAuthOptions = {
     },
 
     async redirect({ baseUrl }) {
-      return baseUrl; // Sempre volta para home, depois você trata no front
+      return baseUrl;
     },
   },
 

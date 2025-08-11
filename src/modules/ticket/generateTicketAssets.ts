@@ -10,8 +10,8 @@ export async function generateTicketAssets(ticketId: string): Promise<void> {
   const ticket = await prisma.ticket.findUnique({
     where: { id: ticketId },
     include: {
-      session: true,
-      seat: true, // <- pode ser null em GENERAL
+      eventSession: true, // atualizado: nome do relacionamento correto
+      seat: true, // pode ser null em GENERAL
       orderItem: {
         include: {
           order: { include: { event: true } },
@@ -28,14 +28,13 @@ export async function generateTicketAssets(ticketId: string): Promise<void> {
   const qrFilename = `qr-${ticket.id}.png`;
   const pdfFilename = `ticket-${ticket.id}.pdf`;
 
-  const qrPath = path.join(process.cwd(), "public", "tickets", qrFilename);
-  const pdfPath = path.join(process.cwd(), "public", "tickets", pdfFilename);
-
-  // Ensure folder exists
-  const ticketsFolder = path.dirname(qrPath);
-  if (!fs.existsSync(ticketsFolder)) {
-    fs.mkdirSync(ticketsFolder, { recursive: true });
+  const ticketsDir = path.join(process.cwd(), "public", "tickets");
+  if (!fs.existsSync(ticketsDir)) {
+    fs.mkdirSync(ticketsDir, { recursive: true });
   }
+
+  const qrPath = path.join(ticketsDir, qrFilename);
+  const pdfPath = path.join(ticketsDir, pdfFilename);
 
   // Generate QR code image
   await QRCode.toFile(qrPath, qrValue);
@@ -48,9 +47,11 @@ export async function generateTicketAssets(ticketId: string): Promise<void> {
   doc.fontSize(20).text(`Event: ${event.name}`);
   doc.moveDown();
   doc.fontSize(14).text(`Location: ${event.venueName}, ${event.city}`);
-  doc.text(`Date: ${ticket.session.date.toLocaleString()}`);
+  doc.text(
+    `Date: ${ticket.eventSession?.date.toLocaleString() ?? "No date"}`
+  );
 
-  // 🔧 seat pode ser null → usa opcional + fallback
+  // seat pode ser null → usa fallback
   const seatLabel = ticket.seat?.label ?? "General";
   doc.text(`Seat: ${seatLabel}`);
 
@@ -65,7 +66,7 @@ export async function generateTicketAssets(ticketId: string): Promise<void> {
     stream.on("error", reject);
   });
 
-  // Update ticket with file paths (relativos; em produção prefira URL absoluta)
+  // Update ticket with relative file paths
   await prisma.ticket.update({
     where: { id: ticket.id },
     data: {

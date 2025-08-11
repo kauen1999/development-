@@ -4,7 +4,7 @@ import PDFDocument from "pdfkit";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@supabase/supabase-js";
 
-// Valida variáveis de ambiente
+// ✅ Valida variáveis de ambiente
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -20,8 +20,8 @@ export async function generateTicketAssets(
   const ticket = await prisma.ticket.findUnique({
     where: { id: ticketId },
     include: {
-      session: true,
-      seat: true,
+      eventSession: true, // ✅ nome correto no schema
+      seat: true,         // pode ser null
       orderItem: {
         include: {
           order: {
@@ -34,7 +34,8 @@ export async function generateTicketAssets(
 
   if (!ticket) throw new Error("Ticket not found");
 
-  const event = ticket.orderItem.order.event;
+  const event = ticket.orderItem?.order?.event;
+  if (!event) throw new Error("Event not found for ticket");
 
   // Gera QR em buffer
   const qrBuffer = await QRCode.toBuffer(`ticket:${ticket.id}`);
@@ -49,7 +50,11 @@ export async function generateTicketAssets(
     doc.fontSize(20).text(`Evento: ${event.name}`);
     doc.moveDown();
     doc.fontSize(12).text(`Local: ${event.venueName}, ${event.city}`);
-    doc.text(`Data: ${ticket.session.date.toLocaleString()}`);
+
+    // Usa eventSession.date
+    if (ticket.eventSession?.date) {
+      doc.text(`Data: ${ticket.eventSession.date.toLocaleString()}`);
+    }
 
     const seatLabel = ticket.seat?.label ?? "General";
     doc.text(`Assento: ${seatLabel}`);
@@ -63,23 +68,22 @@ export async function generateTicketAssets(
   const qrFilename = `tickets/qr-${ticket.id}.png`;
   const pdfFilename = `tickets/ticket-${ticket.id}.pdf`;
 
-  // Upload para Supabase Storage
+  // Upload QR para Supabase Storage
   const { error: qrError } = await supabase.storage
     .from("tickets")
     .upload(qrFilename, qrBuffer, {
       contentType: "image/png",
       upsert: true,
     });
-
   if (qrError) throw new Error(`Erro ao enviar QR para Supabase: ${qrError.message}`);
 
+  // Upload PDF para Supabase Storage
   const { error: pdfError } = await supabase.storage
     .from("tickets")
     .upload(pdfFilename, pdfBuffer, {
       contentType: "application/pdf",
       upsert: true,
     });
-
   if (pdfError) throw new Error(`Erro ao enviar PDF para Supabase: ${pdfError.message}`);
 
   // URLs públicas

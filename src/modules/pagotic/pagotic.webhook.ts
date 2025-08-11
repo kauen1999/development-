@@ -86,7 +86,7 @@ export default async function handlePagoTICWebhook(
             data: {
               orderItemId: item.id,
               seatId: item.seat?.id ?? null,
-              sessionId: order.sessionId,
+              eventSessionId: order.eventSessionId,
               userId: order.userId,
               eventId: order.eventId,
               ticketCategoryId:

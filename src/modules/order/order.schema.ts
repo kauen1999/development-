@@ -4,14 +4,14 @@ import { z } from "zod";
 // SEATED (assentos)
 export const createOrderSchema = z.object({
   eventId: z.string().cuid("Invalid event ID"),
-  sessionId: z.string().cuid("Invalid session ID"),
+  eventSessionId: z.string().cuid("Invalid session ID"),
   selectedLabels: z.array(z.string().min(2)).min(1).max(5),
 });
 
 // GENERAL (sem assentos) — até 5 ingressos no total
 export const createOrderGeneralSchema = z.object({
   eventId: z.string().cuid("Invalid event ID"),
-  sessionId: z.string().cuid("Invalid session ID"),
+  eventSessionId: z.string().cuid("Invalid session ID"),
   items: z.array(
     z.object({
       categoryId: z.string().cuid("Invalid category ID"),

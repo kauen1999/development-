@@ -18,7 +18,7 @@ export async function generateAndSaveTicket(orderItemId: string) {
     include: {
       order: {
         include: {
-          session: true,
+          eventSession: true, // ✅ relacionamento correto
           user: true,
           event: true,
         },
@@ -38,7 +38,7 @@ export async function generateAndSaveTicket(orderItemId: string) {
   const ticket = await prisma.ticket.create({
     data: {
       seatId: orderItem.seatId,
-      sessionId: orderItem.order.sessionId,
+      eventSessionId: orderItem.order.eventSessionId, // ✅ campo correto
       orderItemId: orderItem.id,
       userId: orderItem.order.userId,
       eventId: orderItem.order.eventId,
@@ -47,7 +47,7 @@ export async function generateAndSaveTicket(orderItemId: string) {
     },
   });
 
-  // Gera e atualiza assets no Supabase
+  // Gera e atualiza assets
   await generateTicketAssets(ticket.id);
 
   // Retorna ticket atualizado com URLs
