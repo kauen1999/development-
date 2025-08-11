@@ -50,9 +50,9 @@ export default function EventosHoy() {
           }}
         >
           {eventos.map((event) => {
-            // Garantir que seja Date e extrair sem erro de timezone
-            const rawDate = event.sessions?.[0]?.date
-              ? new Date(event.sessions[0].date)
+            // Pegando a primeira session de eventSessions
+            const rawDate = event.eventSessions?.[0]?.date
+              ? new Date(event.eventSessions[0].date)
               : null;
 
             // Formatar data no padrão "7 ago 2025"

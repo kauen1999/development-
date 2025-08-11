@@ -49,14 +49,16 @@ export const authOptions: NextAuthOptions = {
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) return null;
 
+        const profileCompleted = Boolean(
+          user.dniName && user.dni && user.phone && user.birthdate
+        );
+
         return {
           id: user.id,
           name: user.name ?? undefined,
           email: user.email ?? undefined,
           role: user.role as UserRole,
-          profileCompleted: Boolean(
-            user.dniName && user.dni && user.phone && user.birthdate
-          ),
+          profileCompleted,
           image:
             user.image ??
             "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png",
@@ -68,61 +70,41 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
   callbacks: {
-    async signIn({ account, profile }) {
-      if (account?.provider === "google") {
-        const email = (profile as { email?: string })?.email;
-        const emailVerified =
-          (profile as { email_verified?: boolean })?.email_verified ?? false;
+    async jwt({ token, user }) {
+      // No primeiro login, adiciona dados do usuário ao token
+      if (user) {
+        token.id = (user as ExtendedUser).id;
+        token.role = (user as ExtendedUser).role ?? "USER";
+        token.profileCompleted = (user as ExtendedUser).profileCompleted ?? false;
+        token.image = user.image ?? token.image;
+      }
 
-        if (!email || !emailVerified) return false;
+      // Atualiza token com dados do banco
+      if (token.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: {
+            id: true,
+            role: true,
+            image: true,
+            dni: true,
+            dniName: true,
+            phone: true,
+            birthdate: true,
+          },
+        });
 
-        const existingUser = await prisma.user.findUnique({ where: { email } });
-
-        if (!existingUser) {
-          await prisma.user.create({
-            data: {
-              email,
-              name: (profile as { name?: string })?.name ?? "",
-              image:
-                (profile as { picture?: string })?.picture ??
-                "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png",
-              role: "USER",
-              provider: "GOOGLE",
-            },
-          });
+        if (dbUser) {
+          token.role = (dbUser.role as UserRole) || "USER";
+          token.image =
+            dbUser.image ||
+            "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png";
+          token.profileCompleted = Boolean(
+            dbUser.dni && dbUser.dniName && dbUser.phone && dbUser.birthdate
+          );
         }
       }
-      return true;
-    },
 
-    async jwt({ token, user }) {
-      const userId = (user as ExtendedUser)?.id || (token.id as string);
-
-      if (!userId) return token;
-
-      const dbUser = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          role: true,
-          image: true,
-          dni: true,
-          dniName: true,
-          phone: true,
-          birthdate: true,
-        },
-      });
-
-      if (dbUser) {
-        token.id = dbUser.id;
-        token.role = (dbUser.role as UserRole) || "USER";
-        token.image =
-          dbUser.image ??
-          "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png";
-        token.profileCompleted = Boolean(
-          dbUser.dni && dbUser.dniName && dbUser.phone && dbUser.birthdate
-        );
-      }
       return token;
     },
 
@@ -132,10 +114,15 @@ export const authOptions: NextAuthOptions = {
         session.user.role = (token.role as UserRole) || "USER";
         session.user.profileCompleted = Boolean(token.profileCompleted);
         session.user.image =
-          (token.image as string) ??
+          (token.image as string) ||
+          session.user.image ||
           "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png";
       }
       return session;
+    },
+
+    async redirect({ baseUrl }) {
+      return baseUrl; // Sempre volta para home, depois você trata no front
     },
   },
 

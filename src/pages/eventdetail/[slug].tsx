@@ -7,7 +7,7 @@ import Details from "@/components/details/details/Details";
 
 interface SessionDTO {
   id: string;
-  date: string;       // ISO
+  date: string;
   venueName: string;
   city: string;
 }
@@ -22,38 +22,32 @@ interface PageProps {
     city: string;
     venueName: string;
 
-    // sessão “ativa” (próxima futura; senão a primeira)
     dateISO: string | null;
     nextSessionId: string | null;
     nextVenueName: string | null;
     nextCity: string | null;
 
-    // preço mínimo para CTA (opcional)
     minPrice: number | null;
-
-    // lista completa para o bloco de sessões
     sessions: SessionDTO[];
   };
 }
 
 const EventDetailPage: NextPage<PageProps> = ({ event }) => {
-  const heroDate =
-    event.dateISO
-      ? new Date(event.dateISO).toLocaleDateString("es-AR", {
-          weekday: "long",
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        })
-      : "";
+  const heroDate = event.dateISO
+    ? new Date(event.dateISO).toLocaleDateString("es-AR", {
+        weekday: "long",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : "";
 
-  const timeStart =
-    event.dateISO
-      ? new Date(event.dateISO).toLocaleTimeString("es-AR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : undefined;
+  const timeStart = event.dateISO
+    ? new Date(event.dateISO).toLocaleTimeString("es-AR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : undefined;
 
   return (
     <>
@@ -61,10 +55,8 @@ const EventDetailPage: NextPage<PageProps> = ({ event }) => {
         picture={event.image ?? "/banner.jpg"}
         artist={event.name}
         date={heroDate}
-        // ► dinâmicos para o Hero
         description={event.description}
         timeStart={timeStart}
-        // timeEnd pode ser passado se você tiver no schema
         venueName={event.nextVenueName ?? event.venueName}
         city={event.nextCity ?? event.city}
         price={event.minPrice ?? undefined}
@@ -91,20 +83,21 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   const event = await prisma.event.findUnique({
     where: { slug },
     include: {
-      sessions: { orderBy: { date: "asc" } },
-      ticketCategories: true, // para calcular preço mínimo (opcional)
+      eventSessions: { orderBy: { date: "asc" } },
+      ticketCategories: true,
     },
   });
 
   if (!event) return { notFound: true };
 
-  // escolhe a sessão “ativa”: próxima futura; se não houver, a primeira
   const now = new Date();
   const nextSession =
-    event.sessions.find((s) => s.date >= now) ?? event.sessions[0] ?? null;
+    event.eventSessions.find((s) => s.date >= now) ??
+    event.eventSessions[0] ??
+    null;
 
   const minPrice =
-    event.ticketCategories.length
+    event.ticketCategories.length > 0
       ? Math.min(...event.ticketCategories.map((c) => Number(c.price)))
       : null;
 
@@ -126,7 +119,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
         minPrice,
 
-        sessions: event.sessions.map((s) => ({
+        sessions: event.eventSessions.map((s) => ({
           id: s.id,
           date: s.date.toISOString(),
           venueName: s.venueName,

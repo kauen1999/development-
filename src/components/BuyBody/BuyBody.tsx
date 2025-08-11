@@ -47,15 +47,6 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   const disabled = selectedSeats.length === 0;
 
   const mapConfig = eventMaps["belgrano"];
-  const blockedSeats = event.ticketCategories.flatMap((cat) =>
-    cat.seats
-      .filter((s) => s.status !== "AVAILABLE" || cat.price === 0)
-      .map((s) => ({
-        sector: cat.title,
-        row: s.row ?? "",
-        seat: s.number ?? 0,
-      }))
-  ); 
 
   const handleSelect = (sector: string, row: string, seat: number, price: number) => {
     if (price === 0) return;
@@ -126,7 +117,6 @@ const BuyBody: React.FC<Props> = ({ event }) => {
           onSelect={handleSelect}
           selectedSeats={selectedSeats}
           maxReached={selectedSeats.length >= 5}
-          blockedSeats={blockedSeats}
         />
       </div>
       <div className="w-full lg:w-1/2">

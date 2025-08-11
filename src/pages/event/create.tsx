@@ -213,7 +213,7 @@ export default function CreateEventPage() {
 
     const ticketCategories: CreateEventInput["ticketCategories"] = tickets.map((t) => ({
       title: t.title,
-      price: Number(t.price) || 0,        // valor numérico (sem máscara)
+      price: Number(t.price) || 0,
       capacity: Number(t.capacity) || 0,
     }));
 
@@ -222,7 +222,7 @@ export default function CreateEventPage() {
       image,
       categoryId,
       eventType,
-      sessions: sessions.map((s) => ({
+      eventSessions: sessions.map((s) => ({
         date: new Date(s.date),
         city: s.city,
         venueName: s.venueName,
@@ -236,7 +236,7 @@ export default function CreateEventPage() {
 
     mutation.mutate(payload);
   };
-
+  
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
       <h1 className="mb-8 text-3xl font-bold text-gray-800">Crear evento</h1>

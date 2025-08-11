@@ -1,7 +1,7 @@
 // src/pages/buydetails/[slug].tsx
 import Header from "../../components/principal/header/Header";
 import Footer from "../../components/principal/footer/Footer";
-import BuyHero from "../../components/buydetailsComponent/BuyHero/BuyHero";
+import BuyHero from "../../components/buydetailsComponent/BuyHero/BuyHero"; // HERO
 import BuyBody from "../../components/buydetailsComponent/BuyBody/BuyBody"; // SEATED
 import BuyBodyGeneral from "../../components/buydetailsComponent/BuyBodyGeneral/BuyBodyGeneral"; // GENERAL
 
@@ -117,15 +117,15 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
   const base = await prisma.event.findUnique({
     where: { slug },
     include: {
-      sessions: { orderBy: { date: "asc" } },
+      eventSessions: { orderBy: { date: "asc" } },
       ticketCategories: true,
       category: true,
     },
   });
 
-  if (!base || base.sessions.length === 0) return { notFound: true };
+  if (!base || base.eventSessions.length === 0) return { notFound: true };
 
-  const [firstSession] = base.sessions;
+  const [firstSession] = base.eventSessions;
   if (!firstSession) return { notFound: true };
   const firstDateISO = firstSession.date.toISOString();
 
@@ -157,7 +157,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
       date: firstDateISO,
       city: base.city,
       venueName: base.venueName,
-      sessions: base.sessions.map((s) => ({
+      sessions: base.eventSessions.map((s) => ({
         id: s.id,
         date: s.date.toISOString(),
         venueName: s.venueName,
@@ -172,7 +172,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     return { props: { kind: "SEATED", event: eventSeated } as PageProps };
   }
 
-  // GENERAL event → calculate real available capacity
+  // GENERAL event
   const categories: GeneralCategory[] = await Promise.all(
     base.ticketCategories.map(async (tc) => {
       const usedCount = await prisma.orderItem.aggregate({
@@ -180,14 +180,14 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
           ticketCategoryId: tc.id,
           order: {
             eventId: base.id,
-            sessionId: firstSession.id,
+            eventSessionId: firstSession.id,
             status: { in: ["PENDING", "PAID"] },
           },
         },
         _sum: { qty: true },
       });
 
-      const vendidosOuPendentes = usedCount._sum.qty ?? 0;
+      const vendidosOuPendentes = usedCount._sum?.qty ?? 0;
       const disponivel = Math.max(0, tc.capacity - vendidosOuPendentes);
 
       return {

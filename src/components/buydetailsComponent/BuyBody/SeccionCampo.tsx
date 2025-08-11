@@ -1,5 +1,5 @@
 // src/components/buydetailsComponent/BuyBody/SeccionCampo.tsx
-import React, { SetStateAction } from "react";
+import React from "react";
 
 interface Props {
   seccion: string;

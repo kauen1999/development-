@@ -9,6 +9,7 @@ import NewFunctions from "./components/NewFunctions";
 import Visitors from "./components/Visitors";
 import UserSignUp from "./components/UserSignUp";
 import Link from "next/link";
+import MyActiveEvents from "./components/MyActiveEvents";
 
 const DashboardContent = () => {
   return (
@@ -37,6 +38,7 @@ const DashboardContent = () => {
                   <NewFunctions />
                   <Visitors />
                   <UserSignUp />
+                  <MyActiveEvents />
                 </div>
                 <div className="my-4 grid grid-cols-1 xl:gap-4 2xl:grid-cols-2">
                   <LatestCostumers />

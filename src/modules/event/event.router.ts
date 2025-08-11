@@ -20,6 +20,7 @@ import {
   getEventById,
   listEvents,
   listEventsByDate,
+  listActiveEventsWithStats,
 } from "./event.service";
 
 // Centraliza a verificação de ADMIN
@@ -58,4 +59,8 @@ export const eventRouter = router({
   listByDate: publicProcedure
     .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
     .query(({ input }) => listEventsByDate(input.date)),
+
+    listActiveEventsWithStats: protectedProcedure.query(({ ctx }) =>
+    listActiveEventsWithStats(ctx.session.user.id)
+  ),
 });
