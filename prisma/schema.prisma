@@ -9,7 +9,6 @@ datasource db {
 }
 
 // ───────── Enums ─────────
-
 enum Role {
   USER
   ADMIN
@@ -54,7 +53,6 @@ enum SeatStatus {
 }
 
 // ───────── Models ─────────
-
 model User {
   id            String    @id @default(cuid())
   createdAt     DateTime  @default(now())
@@ -70,23 +68,19 @@ model User {
   role          Role      @default(USER)
   provider      String?
 
-  accounts     Account[]
-  sessionsAuth AccountSession[]
+  accounts        Account[]
+  sessions        Session[] // sessões do NextAuth
+  organizedEvents Event[]   @relation("OrganizerEvents")
 
-  organizedEvents Event[] @relation("OrganizerEvents")
-
-  enrollments Enrollment[]
-
+  enrollments   Enrollment[]
   notifications Notification[] @relation("UserNotifications")
 
   orders           Order[]
   tickets          Ticket[]
   validatedTickets Ticket[] @relation("UserValidatedTickets")
 
-  cartItems CartItem[]
-
-  seats Seat[]
-
+  cartItems      CartItem[]
+  seats          Seat[]
   validationLogs ValidationLog[] @relation("UserValidatedTickets")
 }
 
@@ -104,16 +98,16 @@ model Account {
   id_token          String? @db.Text
   session_state     String?
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model AccountSession {
+model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
   userId       String
   expires      DateTime
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
@@ -188,7 +182,7 @@ model Event {
 
   enrollments      Enrollment[]
   ticketCategories TicketCategory[]
-  sessions         Session[]
+  eventSessions    EventSession[]
   orders           Order[]
   seats            Seat[]
   tickets          Ticket[]
@@ -207,7 +201,7 @@ model Enrollment {
   @@id([userId, eventId])
 }
 
-model Session {
+model EventSession {
   id        String   @id @default(cuid())
   date      DateTime
   venueName String
@@ -235,11 +229,8 @@ model TicketCategory {
   eventId String
   event   Event  @relation(fields: [eventId], references: [id])
 
-  // SEATED: assentos atrelados à categoria
   seats      Seat[]
-  // GENERAL: itens de pedido por categoria
   orderItems OrderItem[]
-  // GENERAL: tickets emitidos por categoria
   tickets    Ticket[]
 }
 
@@ -251,12 +242,12 @@ model Seat {
   status    SeatStatus @default(AVAILABLE)
   createdAt DateTime   @default(now())
 
-  sessionId        String
+  eventSessionId   String
   ticketCategoryId String
   userId           String?
   eventId          String
 
-  session        Session        @relation(fields: [sessionId], references: [id])
+  eventSession   EventSession   @relation(fields: [eventSessionId], references: [id])
   ticketCategory TicketCategory @relation(fields: [ticketCategoryId], references: [id])
   user           User?          @relation(fields: [userId], references: [id])
   event          Event          @relation(fields: [eventId], references: [id])
@@ -264,24 +255,22 @@ model Seat {
   orderItems OrderItem[]
   ticket     Ticket?
   cartItems  CartItem[]
-  // (opcional, mas recomendado) garante label único por sessão:
-  // @@unique([sessionId, label])
 
   @@index([eventId])
-  @@index([sessionId, status])
+  @@index([eventSessionId, status])
 }
 
 model CartItem {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
-  userId    String
-  sessionId String
-  seatId    String
+  userId         String
+  eventSessionId String
+  seatId         String
 
-  user    User    @relation(fields: [userId], references: [id])
-  session Session @relation(fields: [sessionId], references: [id])
-  seat    Seat    @relation(fields: [seatId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  eventSession EventSession @relation(fields: [eventSessionId], references: [id])
+  seat         Seat         @relation(fields: [seatId], references: [id])
 
   @@unique([userId, seatId])
 }
@@ -295,13 +284,13 @@ model Order {
   externalTransactionId String?     @unique
   paymentNumber         String?     @unique
 
-  userId    String
-  sessionId String
-  eventId   String
+  userId         String
+  eventSessionId String
+  eventId        String
 
-  user    User    @relation(fields: [userId], references: [id])
-  session Session @relation(fields: [sessionId], references: [id])
-  event   Event   @relation(fields: [eventId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  eventSession EventSession @relation(fields: [eventSessionId], references: [id])
+  event        Event        @relation(fields: [eventId], references: [id])
 
   orderItems OrderItem[]
   payment    Payment?
@@ -314,8 +303,8 @@ model OrderItem {
   createdAt DateTime @default(now())
 
   orderId          String
-  seatId           String? // SEATED: amarra por assento; GENERAL: null
-  ticketCategoryId String? // GENERAL: amarra por categoria; SEATED: null
+  seatId           String?
+  ticketCategoryId String?
   qty              Int     @default(1)
 
   order          Order           @relation(fields: [orderId], references: [id])
@@ -323,9 +312,7 @@ model OrderItem {
   ticket         Ticket?
   ticketCategory TicketCategory? @relation(fields: [ticketCategoryId], references: [id])
 
-  // SEATED: impede repetir o mesmo assento no mesmo pedido
   @@unique([orderId, seatId])
-  // GENERAL: impede duplicar a mesma categoria no mesmo pedido (usa qty)
   @@unique([orderId, ticketCategoryId])
 }
 
@@ -337,15 +324,15 @@ model Ticket {
   device    String?
   createdAt DateTime  @default(now())
 
-  sessionId        String
-  seatId           String? @unique // opcional p/ GENERAL
+  eventSessionId   String
+  seatId           String? @unique
   orderItemId      String  @unique
   userId           String
   eventId          String
   validatorId      String?
-  ticketCategoryId String? // opcional p/ GENERAL
+  ticketCategoryId String?
 
-  session        Session         @relation(fields: [sessionId], references: [id])
+  eventSession   EventSession    @relation(fields: [eventSessionId], references: [id])
   seat           Seat?           @relation(fields: [seatId], references: [id])
   orderItem      OrderItem       @relation(fields: [orderItemId], references: [id])
   user           User            @relation(fields: [userId], references: [id])

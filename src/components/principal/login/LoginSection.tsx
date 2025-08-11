@@ -22,6 +22,24 @@ const LoginSection: React.FC = () => {
     }));
   };
 
+  const handleRedirectAfterLogin = async () => {
+    try {
+      const sessionRes = await fetch("/api/auth/session");
+      const session = await sessionRes.json();
+
+      if (session?.user?.role === "ADMIN") {
+        router.push("/dashboard");
+      } else if (session?.user?.profileCompleted) {
+        router.push("/");
+      } else {
+        router.push("/auth");
+      }
+    } catch (err) {
+      console.error("Erro ao obter sessão:", err);
+      router.push("/auth");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -36,23 +54,21 @@ const LoginSection: React.FC = () => {
     setIsSubmitting(false);
 
     if (res?.ok) {
-      try {
-        const sessionRes = await fetch("/api/auth/session");
-        const session = await sessionRes.json();
-
-        if (session?.user?.role === "ADMIN") {
-          router.push("/dashboard");
-        } else if (session?.user?.profileCompleted) {
-          router.push("/");
-        } else {
-          router.push("/auth");
-        }
-      } catch (err) {
-        console.error("Erro ao obter sessão:", err);
-        router.push("/auth");
-      }
+      await handleRedirectAfterLogin();
     } else {
       setError("Login inválido.");
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsSubmitting(true);
+    const res = await signIn("google", { redirect: false });
+    setIsSubmitting(false);
+
+    if (res?.ok) {
+      await handleRedirectAfterLogin();
+    } else {
+      setError("Falha ao entrar com Google.");
     }
   };
 
@@ -84,15 +100,9 @@ const LoginSection: React.FC = () => {
           <h2 className="text-center text-3xl font-bold lg:text-4xl">
             Iniciar sesión
           </h2>
-          <form
-            className="mt-10 flex flex-col gap-5"
-            onSubmit={handleSubmit}
-          >
+          <form className="mt-10 flex flex-col gap-5" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-2">
-              <label
-                className="text-xl font-bold text-primary-100"
-                htmlFor="email"
-              >
+              <label className="text-xl font-bold text-primary-100" htmlFor="email">
                 Correo Electrónico
               </label>
               <input
@@ -107,10 +117,7 @@ const LoginSection: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-2">
-              <label
-                className="text-xl font-bold text-primary-100"
-                htmlFor="password"
-              >
+              <label className="text-xl font-bold text-primary-100" htmlFor="password">
                 Contraseña
               </label>
               <input
@@ -140,9 +147,7 @@ const LoginSection: React.FC = () => {
           <div className="flex flex-col p-9">
             <button
               className="btn-warning btn my-2 flex bg-white"
-              onClick={() => {
-                signIn("google", { callbackUrl: "/" });
-              }}
+              onClick={handleGoogleLogin}
               disabled={isSubmitting}
             >
               <div className="flex items-center justify-center">

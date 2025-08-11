@@ -1,8 +1,18 @@
+// src/modules/ticket/ticketGeneration.service.ts
 import QRCode from "qrcode";
 import PDFDocument from "pdfkit";
-import fs from "fs";
-import path from "path";
 import { prisma } from "@/lib/prisma";
+import { createClient } from "@supabase/supabase-js";
+
+// Valida variáveis de ambiente
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error("Supabase environment variables are not set");
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export async function generateTicketAssets(
   ticketId: string
@@ -15,7 +25,7 @@ export async function generateTicketAssets(
       orderItem: {
         include: {
           order: {
-            include: { event: true },
+            include: { event: true, user: true },
           },
         },
       },
@@ -26,60 +36,64 @@ export async function generateTicketAssets(
 
   const event = ticket.orderItem.order.event;
 
-  const qrValue = `ticket:${ticket.id}`;
-  const qrFilename = `qr-${ticket.id}.png`;
-  const pdfFilename = `ticket-${ticket.id}.pdf`;
+  // Gera QR em buffer
+  const qrBuffer = await QRCode.toBuffer(`ticket:${ticket.id}`);
 
-  const baseDir = path.join(process.cwd(), "public", "tickets");
-  const qrPath = path.join(baseDir, qrFilename);
-  const pdfPath = path.join(baseDir, pdfFilename);
+  // Gera PDF em buffer
+  const pdfBuffer = await new Promise<Buffer>((resolve) => {
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    const chunks: Buffer[] = [];
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
 
-  if (!fs.existsSync(baseDir)) {
-    fs.mkdirSync(baseDir, { recursive: true });
-  }
+    doc.fontSize(20).text(`Evento: ${event.name}`);
+    doc.moveDown();
+    doc.fontSize(12).text(`Local: ${event.venueName}, ${event.city}`);
+    doc.text(`Data: ${ticket.session.date.toLocaleString()}`);
 
-  // Gera QR
-  await QRCode.toFile(qrPath, qrValue);
+    const seatLabel = ticket.seat?.label ?? "General";
+    doc.text(`Assento: ${seatLabel}`);
+    doc.text(`Ticket ID: ${ticket.id}`);
+    doc.moveDown();
 
-  // Gera PDF
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
-  const stream = fs.createWriteStream(pdfPath);
-  doc.pipe(stream);
-
-  doc.fontSize(20).text(`Evento: ${event.name}`);
-  doc.moveDown();
-  doc.fontSize(12).text(`Local: ${event.venueName}, ${event.city}`);
-  doc.text(`Data: ${ticket.session.date.toLocaleString()}`);
-
-  const seatLabel = ticket.seat?.label ?? "General";
-  doc.text(`Assento: ${seatLabel}`);
-  doc.text(`Ticket ID: ${ticket.id}`);
-  doc.moveDown();
-
-  doc.image(qrPath, {
-    width: 180,
-    align: "center",
+    doc.image(qrBuffer, { width: 180, align: "center" });
+    doc.end();
   });
 
-  doc.end();
-  await new Promise<void>((resolve, reject) => {
-    stream.on("finish", () => resolve());
-    stream.on("error", reject);
-  });
+  const qrFilename = `tickets/qr-${ticket.id}.png`;
+  const pdfFilename = `tickets/ticket-${ticket.id}.pdf`;
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "");
-  const relativeQr = `/tickets/${qrFilename}`;
-  const relativePdf = `/tickets/${pdfFilename}`;
-  const qrUrl = appUrl ? `${appUrl}${relativeQr}` : relativeQr;
-  const pdfUrl = appUrl ? `${appUrl}${relativePdf}` : relativePdf;
+  // Upload para Supabase Storage
+  const { error: qrError } = await supabase.storage
+    .from("tickets")
+    .upload(qrFilename, qrBuffer, {
+      contentType: "image/png",
+      upsert: true,
+    });
 
+  if (qrError) throw new Error(`Erro ao enviar QR para Supabase: ${qrError.message}`);
+
+  const { error: pdfError } = await supabase.storage
+    .from("tickets")
+    .upload(pdfFilename, pdfBuffer, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+
+  if (pdfError) throw new Error(`Erro ao enviar PDF para Supabase: ${pdfError.message}`);
+
+  // URLs públicas
+  const { data: qrData } = supabase.storage.from("tickets").getPublicUrl(qrFilename);
+  const { data: pdfData } = supabase.storage.from("tickets").getPublicUrl(pdfFilename);
+
+  const qrCodeUrl = qrData.publicUrl;
+  const pdfUrl = pdfData.publicUrl;
+
+  // Atualiza ticket no banco
   await prisma.ticket.update({
     where: { id: ticket.id },
-    data: {
-      qrCodeUrl: qrUrl,
-      pdfUrl: pdfUrl,
-    },
+    data: { qrCodeUrl, pdfUrl },
   });
 
-  return { qrCodeUrl: qrUrl, pdfUrl: pdfUrl };
+  return { qrCodeUrl, pdfUrl };
 }

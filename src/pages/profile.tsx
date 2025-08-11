@@ -73,10 +73,10 @@ const Profile: NextPage = () => {
   const completeDataName = trpc.auth.modifyName.useMutation({
     onSuccess: () => { void refetch(); },
   });
-  const completeDataDniName = trpc.auth.modifydniName.useMutation({
+  const completeDataDniName = trpc.auth.modifyDniName.useMutation({
     onSuccess: () => { void refetch(); },
   });
-  const completeDataDni = trpc.auth.modifydni.useMutation({
+  const completeDataDni = trpc.auth.modifyDni.useMutation({
     onSuccess: () => { void refetch(); },
   });
   const completeDataPhone = trpc.auth.modifyPhone.useMutation({

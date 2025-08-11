@@ -1,8 +1,18 @@
+// src/modules/ticket/ticket.service.ts
 import { prisma } from "@/lib/prisma";
 import { TRPCError } from "@trpc/server";
 import { generateTicketAssets } from "./ticketGeneration.service";
 
 export async function generateAndSaveTicket(orderItemId: string) {
+  // Evita duplicado: verifica se já existe ticket para este orderItem
+  const existing = await prisma.ticket.findUnique({
+    where: { orderItemId },
+  });
+
+  if (existing) {
+    return existing; // já existe, retorna direto
+  }
+
   const orderItem = await prisma.orderItem.findUnique({
     where: { id: orderItemId },
     include: {
@@ -24,6 +34,7 @@ export async function generateAndSaveTicket(orderItemId: string) {
     });
   }
 
+  // Cria ticket sem URLs
   const ticket = await prisma.ticket.create({
     data: {
       seatId: orderItem.seatId,
@@ -36,15 +47,11 @@ export async function generateAndSaveTicket(orderItemId: string) {
     },
   });
 
-  const assets = await generateTicketAssets(ticket.id);
+  // Gera e atualiza assets no Supabase
+  await generateTicketAssets(ticket.id);
 
-  return prisma.ticket.update({
-    where: { id: ticket.id },
-    data: {
-      qrCodeUrl: assets.qrCodeUrl,
-      pdfUrl: assets.pdfUrl,
-    },
-  });
+  // Retorna ticket atualizado com URLs
+  return prisma.ticket.findUnique({ where: { id: ticket.id } });
 }
 
 export async function generateTicketsFromOrder(orderId: string) {

@@ -3,13 +3,36 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { sendTicketEmail } from "@/modules/sendmail/mailer";
 import type { User, Event, Ticket } from "@prisma/client";
 import { EventStatus, EventType, Role } from "@prisma/client";
+import QRCode from "qrcode";
+import PDFDocument from "pdfkit";
+
+// Função auxiliar para gerar PDF em memória e retornar URL fake
+async function generateFakePdf(ticketId: string): Promise<string> {
+  const doc = new PDFDocument();
+  const chunks: Buffer[] = [];
+
+  doc.text(`Ticket ID: ${ticketId}`);
+  doc.text("Evento Teste");
+  doc.text("Este é um PDF de teste para envio por e-mail.");
+  doc.end();
+
+  return new Promise((resolve) => {
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => {
+      const buffer = Buffer.concat(chunks);
+      // Aqui poderíamos salvar no Supabase Storage, mas para teste usamos Data URI
+      const base64 = buffer.toString("base64");
+      resolve(`data:application/pdf;base64,${base64}`);
+    });
+  });
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    // Fake user conforme seu schema
+    // Fake user
     const fakeUser: User = {
       id: "user_test",
-      email: "jocean.dev@gmail.com", // Coloque seu e-mail real para teste
+      email: "kauen212@gmail.com",
       name: "Usuário Teste",
       emailVerified: null,
       image: null,
@@ -23,32 +46,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       createdAt: new Date(),
     };
 
-    // Fake event conforme seu schema
+    // Fake event
     const fakeEvent: Event = {
-        id: "event_test",
-        number: "0001", // campo único
-        name: "Evento Teste",
-        slug: "evento-teste",
-        description: null,
-        image: null,
-        city: "Cidade Teste",
-        state: "SP",
-        venueName: "Local Teste",
-        zipCode: "00000-000",
-        neighborhood: "Centro",
-        street: "Rua Teste",
-        capacity: 100,
-        status: EventStatus.OPEN,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        categoryId: "cat_test",
-        organizerId: "user_test",
-        publishedAt: new Date(),
-        eventType: EventType.GENERAL,
-        };
+      id: "event_test",
+      number: "0001",
+      name: "Evento Teste",
+      slug: "evento-teste",
+      description: null,
+      image: null,
+      city: "Cidade Teste",
+      state: "SP",
+      venueName: "Local Teste",
+      zipCode: "00000-000",
+      neighborhood: "Centro",
+      street: "Rua Teste",
+      capacity: 100,
+      status: EventStatus.OPEN,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      categoryId: "cat_test",
+      organizerId: "user_test",
+      publishedAt: new Date(),
+      eventType: EventType.GENERAL,
+    };
 
+    // Gera QR Code fake
+    const qrCodeUrl = await QRCode.toDataURL(`TicketID:${"ticket_test"}`);
 
-    // Fake tickets conforme seu schema
+    // Gera PDF fake
+    const pdfUrl = await generateFakePdf("ticket_test");
+
+    // Fake ticket com links reais
     const fakeTickets: Ticket[] = [
       {
         id: "ticket_test",
@@ -58,8 +86,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         eventId: fakeEvent.id,
         seatId: null,
         orderItemId: "order_item_test",
-        qrCodeUrl: "https://via.placeholder.com/300x300.png?text=QR+Code",
-        pdfUrl: "https://via.placeholder.com/300x300.png?text=Ticket+PDF",
+        qrCodeUrl,
+        pdfUrl,
         usedAt: null,
         device: null,
         validatorId: null,
@@ -67,9 +95,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     ];
 
+    // Envia o e-mail real
     await sendTicketEmail(fakeUser, fakeEvent, fakeTickets);
 
-    res.status(200).json({ success: true, message: "E-mail enviado com sucesso" });
+    res.status(200).json({ success: true, message: "E-mail enviado com QR Code e PDF fake" });
   } catch (err) {
     console.error("Erro ao enviar e-mail de teste:", err);
     res.status(500).json({ error: (err as Error).message });
