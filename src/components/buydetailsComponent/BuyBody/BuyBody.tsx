@@ -7,17 +7,17 @@ import type { EventMapConfig } from "@/data/maps";
 
 interface Props {
   event: {
+    eventSessions: {
+      id: string;
+      date: string;
+      venueName: string;
+    }[];
     id: string;
     name: string;
     date: string;
     image: string | null;
     city: string;
     venueName: string;
-    sessions: {
-      id: string;
-      date: string;
-      venueName: string;
-    }[];
     ticketCategories: {
       id: string;
       title: string;
@@ -127,8 +127,8 @@ const BuyBody: React.FC<Props> = ({ event }) => {
       return;
     }
 
-    const sessionId = event.sessions?.[0]?.id;
-    if (!sessionId) {
+    const eventSessionId = event.eventSessions?.[0]?.id;
+    if (!eventSessionId) {
       alert("Sessão do evento não encontrada.");
       return;
     }
@@ -137,7 +137,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
 
     createOrder.mutate({
       eventId: event.id,
-      sessionId,
+      eventSessionId,
       selectedLabels,
     });
   };

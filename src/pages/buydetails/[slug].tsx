@@ -1,7 +1,7 @@
 // src/pages/buydetails/[slug].tsx
 import Header from "../../components/principal/header/Header";
 import Footer from "../../components/principal/footer/Footer";
-import BuyHero from "../../components/buydetailsComponent/BuyHero/BuyHero"; // HERO
+import BuyHero from "../../components/buydetailsComponent/BuyHero/BuyHero";
 import BuyBody from "../../components/buydetailsComponent/BuyBody/BuyBody"; // SEATED
 import BuyBodyGeneral from "../../components/buydetailsComponent/BuyBodyGeneral/BuyBodyGeneral"; // GENERAL
 
@@ -28,7 +28,7 @@ interface EventSeated {
   date: string;
   city: string;
   venueName: string;
-  sessions: { id: string; date: string; venueName: string }[];
+  eventSessions: { id: string; date: string; venueName: string }[];
   ticketCategories: { id: string; title: string; price: number; seats: SeatDTO[] }[];
   category: { id: string; name: string };
 }
@@ -46,7 +46,7 @@ interface EventGeneral {
   image: string | null;
   city: string;
   venueName: string;
-  sessionId: string;
+  eventSessionId: string; // ✅ alterado
   sessionDateISO?: string;
   categories: GeneralCategory[];
 }
@@ -117,7 +117,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
   const base = await prisma.event.findUnique({
     where: { slug },
     include: {
-      eventSessions: { orderBy: { date: "asc" } },
+      eventSessions: { orderBy: { date: "asc" } }, // ✅ trocado de sessions para eventSessions
       ticketCategories: true,
       category: true,
     },
@@ -125,9 +125,9 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
 
   if (!base || base.eventSessions.length === 0) return { notFound: true };
 
-  const [firstSession] = base.eventSessions;
-  if (!firstSession) return { notFound: true };
-  const firstDateISO = firstSession.date.toISOString();
+  const [firstEventSession] = base.eventSessions;
+  if (!firstEventSession) return { notFound: true };
+  const firstDateISO = firstEventSession.date.toISOString();
 
   // SEATED event
   if (base.eventType === "SEATED") {
@@ -157,7 +157,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
       date: firstDateISO,
       city: base.city,
       venueName: base.venueName,
-      sessions: base.eventSessions.map((s) => ({
+      eventSessions: base.eventSessions.map((s) => ({
         id: s.id,
         date: s.date.toISOString(),
         venueName: s.venueName,
@@ -172,7 +172,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     return { props: { kind: "SEATED", event: eventSeated } as PageProps };
   }
 
-  // GENERAL event
+  // GENERAL event → calculate real available capacity
   const categories: GeneralCategory[] = await Promise.all(
     base.ticketCategories.map(async (tc) => {
       const usedCount = await prisma.orderItem.aggregate({
@@ -180,14 +180,14 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
           ticketCategoryId: tc.id,
           order: {
             eventId: base.id,
-            eventSessionId: firstSession.id,
+            eventSessionId: firstEventSession.id, // ✅ trocado
             status: { in: ["PENDING", "PAID"] },
           },
         },
         _sum: { qty: true },
       });
 
-      const vendidosOuPendentes = usedCount._sum?.qty ?? 0;
+      const vendidosOuPendentes = usedCount._sum.qty ?? 0;
       const disponivel = Math.max(0, tc.capacity - vendidosOuPendentes);
 
       return {
@@ -205,7 +205,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     image: base.image ?? null,
     city: base.city,
     venueName: base.venueName,
-    sessionId: firstSession.id,
+    eventSessionId: firstEventSession.id, // ✅ trocado
     sessionDateISO: firstDateISO,
     categories,
   };

@@ -1,7 +1,14 @@
 // src/modules/order/order.router.ts
 import { router, protectedProcedure } from "@/server/trpc/trpc";
-import { createOrderSchema, createOrderGeneralSchema } from "./order.schema";
-import { createOrderService, createGeneralOrderService, getOrderByIdService } from "./order.service";
+import {
+  createOrderSchema,
+  createOrderGeneralSchema,
+} from "./order.schema";
+import {
+  createOrderService,
+  createGeneralOrderService,
+  getOrderByIdService,
+} from "./order.service";
 import z from "zod";
 
 export const orderRouter = router({
@@ -28,7 +35,10 @@ export const orderRouter = router({
         throw err;
       }
     }),
-    getOrderById: protectedProcedure
+
+  getOrderById: protectedProcedure
     .input(z.object({ orderId: z.string().cuid("Invalid order ID") }))
-    .query(({ input, ctx }) => getOrderByIdService(input.orderId, ctx.session.user.id)),
+    .query(({ input, ctx }) =>
+      getOrderByIdService(input.orderId, ctx.session.user.id)
+    ),
 });

@@ -18,7 +18,7 @@ interface Props {
     image: string | null;
     city: string;
     venueName: string;
-    sessionId: string;
+    eventSessionId: string; // ✅ alterado para novo nome
     sessionDateISO?: string;
     categories: Category[];
   };
@@ -69,7 +69,6 @@ const BuyBodyGeneral: React.FC<Props> = ({ event }) => {
     },
   });
 
-  // Returns max allowed for category considering global purchase limit
   const getAllowedMaxForCategory = (categoryId: string, categoryCap: number) => {
     const others = Object.entries(quantities).reduce((acc, [id, q]) => {
       if (id === categoryId) return acc;
@@ -108,7 +107,7 @@ const BuyBodyGeneral: React.FC<Props> = ({ event }) => {
 
     createGeneral.mutate({
       eventId: event.id,
-      sessionId: event.sessionId,
+      eventSessionId: event.eventSessionId, // ✅ nome atualizado
       items,
     });
   };
@@ -118,7 +117,6 @@ const BuyBodyGeneral: React.FC<Props> = ({ event }) => {
 
   return (
     <div className="mx-auto my-4 flex max-w-[1200px] flex-col gap-8 rounded-lg border border-gray-300 bg-white p-6 shadow-lg lg:flex-row">
-      {/* Columna izquierda: categorías */}
       <div className="w-full lg:w-1/2">
         <h2 className="w-fit rounded bg-gray-400 px-4 py-2 text-sm font-bold text-white">
           {formatBadge(event.sessionDateISO)}
@@ -178,7 +176,6 @@ const BuyBodyGeneral: React.FC<Props> = ({ event }) => {
         </div>
       </div>
 
-      {/* Columna derecha: resumen y checkout */}
       <div className="w-full lg:w-1/2">
         {totalTickets > 0 ? (
           <>

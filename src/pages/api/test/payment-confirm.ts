@@ -32,7 +32,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Gera ingressos (QR Code + PDF)
-    const tickets = await generateTicketsFromOrder(order.id);
+    const ticketsRaw = await generateTicketsFromOrder(order.id);
+
+    // Filtra tickets nulos
+    const tickets = ticketsRaw.filter((t): t is NonNullable<typeof t> => t !== null);
 
     // Envia os ingressos por e-mail
     await sendTicketEmail(order.user, order.event, tickets);
@@ -48,7 +51,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })),
     });
   } catch (err) {
-    console.error(" Erro no teste de confirmação de pagamento:", err);
+    console.error("💥 Erro no teste de confirmação de pagamento:", err);
     return res.status(500).json({ error: "Erro interno", details: (err as Error).message });
   }
 }

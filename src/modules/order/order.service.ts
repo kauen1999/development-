@@ -9,12 +9,12 @@ import { generateExternalTransactionId } from "@/modules/pagotic/pagotic.utils";
  * SEATED (com assentos)
  */
 export async function createOrderService(input: CreateOrderInput, userId: string) {
-  const { eventId, eventSessionId, selectedLabels } = input; // 🔹 Alterado para eventSessionId
+  const { eventId, eventSessionId, selectedLabels } = input;
   const normalizedLabels = selectedLabels.map((l) => l.replace(/-/g, ""));
 
   return prisma.$transaction(async (tx) => {
     const seats = await tx.seat.findMany({
-      where: { eventId, eventSessionId, label: { in: normalizedLabels } }, // 🔹 Alterado para eventSessionId
+      where: { eventId, eventSessionId, label: { in: normalizedLabels } },
       include: { ticketCategory: true },
     });
 
@@ -41,21 +41,21 @@ export async function createOrderService(input: CreateOrderInput, userId: string
       throw new TRPCError({ code: "CONFLICT", message: "Alguns assentos foram reservados por outra pessoa. Tente novamente." });
     }
 
-    // IDs obrigatórios
+    // 🔹 Gerar IDs obrigatórios no momento da criação
     const externalTransactionId = generateExternalTransactionId(userId);
     const paymentNumber = `PAY-${Date.now()}`;
-    const expiresAt = new Date(Date.now() + 4 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 4 * 60 * 1000); // 4 minutos
 
     const order = await tx.order.create({
       data: {
         userId,
         eventId,
-        eventSessionId, // 🔹 Alterado para eventSessionId
+        eventSessionId,
         total,
         status: OrderStatus.PENDING,
         expiresAt,
         externalTransactionId,
-        paymentNumber,
+        paymentNumber, // 🔹 Agora sempre salvo
         orderItems: { create: seatIds.map((id) => ({ seat: { connect: { id } } })) },
       },
     });
@@ -68,7 +68,7 @@ export async function createOrderService(input: CreateOrderInput, userId: string
  * GENERAL (sem assentos)
  */
 export async function createGeneralOrderService(input: CreateOrderGeneralInput, userId: string) {
-  const { eventId, eventSessionId, items } = input; // 🔹 Alterado para eventSessionId
+  const { eventId, eventSessionId, items } = input;
 
   const totalRequested = items.reduce((s, it) => s + it.qty, 0);
   if (totalRequested <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Nenhuma entrada selecionada." });
@@ -76,13 +76,12 @@ export async function createGeneralOrderService(input: CreateOrderGeneralInput, 
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    include: { eventSessions: true }, // 🔹 Alterado para eventSessions
+    include: { eventSessions: true },
   });
   if (!event) throw new TRPCError({ code: "NOT_FOUND", message: "Evento não encontrado." });
   if (event.status !== EventStatus.OPEN) throw new TRPCError({ code: "BAD_REQUEST", message: "Evento não está aberto." });
   if (event.eventType !== EventType.GENERAL) throw new TRPCError({ code: "BAD_REQUEST", message: "Este endpoint é apenas para eventos do tipo GENERAL." });
-
-  const session = event.eventSessions.find((s) => s.id === eventSessionId); // 🔹 Alterado para eventSessions
+  const session = event.eventSessions.find((s) => s.id === eventSessionId);
   if (!session) throw new TRPCError({ code: "BAD_REQUEST", message: "Sessão inválida." });
 
   const orderId = await prisma.$transaction(async (tx) => {
@@ -98,12 +97,11 @@ export async function createGeneralOrderService(input: CreateOrderGeneralInput, 
       const agg = await tx.orderItem.aggregate({
         where: {
           ticketCategoryId: cat.id,
-          order: { eventId, eventSessionId, status: { in: [OrderStatus.PENDING, OrderStatus.PAID] } }, // 🔹 Alterado
+          order: { eventId, eventSessionId, status: { in: [OrderStatus.PENDING, OrderStatus.PAID] } },
         },
         _sum: { qty: true },
       });
-
-      const alreadyReserved = agg._sum?.qty ?? 0; // 🔹 optional chaining
+      const alreadyReserved = agg._sum.qty ?? 0;
       if (alreadyReserved + it.qty > cat.capacity) {
         const disponivel = Math.max(0, cat.capacity - alreadyReserved);
         throw new TRPCError({ code: "BAD_REQUEST", message: `Capacidade excedida para '${cat.title}'. Disponível: ${disponivel}` });
@@ -115,16 +113,16 @@ export async function createGeneralOrderService(input: CreateOrderGeneralInput, 
       return cat ? sum + cat.price * it.qty : sum;
     }, 0);
 
-    // IDs obrigatórios
+    // Gerar IDs obrigatórios no momento da criação
     const externalTransactionId = generateExternalTransactionId(userId);
     const paymentNumber = `PAY-${Date.now()}`;
-    const expiresAt = new Date(Date.now() + 4 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 4 * 60 * 1000); // 4 minutos
 
     const order = await tx.order.create({
       data: {
         userId,
         eventId,
-        eventSessionId, // 🔹 Alterado
+        eventSessionId,
         total,
         status: OrderStatus.PENDING,
         expiresAt,

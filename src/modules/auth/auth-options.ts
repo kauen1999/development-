@@ -1,7 +1,7 @@
-// src/modules/auth/auth-options.ts
 import type { NextAuthOptions, DefaultUser } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
+import type { GoogleProfile } from "next-auth/providers/google";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/server/db/client";
 import bcrypt from "bcryptjs";
@@ -30,6 +30,16 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: googleClientId,
       clientSecret: googleClientSecret,
+      profile(profile: GoogleProfile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email,
+          image: profile.picture ?? null,
+          role: "USER", // Valor padrão
+          profileCompleted: false, // Valor inicial; será atualizado no jwt()
+        };
+      },
     }),
 
     CredentialsProvider({
@@ -49,9 +59,10 @@ export const authOptions: NextAuthOptions = {
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) return null;
 
-        const profileCompleted = Boolean(
-          user.dniName && user.dni && user.phone && user.birthdate
-        );
+        const profileCompleted =
+          user.role === "ADMIN"
+            ? true
+            : Boolean(user.dniName && user.dni && user.phone && user.birthdate);
 
         return {
           id: user.id,
@@ -70,40 +81,6 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
   callbacks: {
-    async signIn({ account, profile }) {
-      if (account?.provider === "google" && profile?.email) {
-        // Verifica se já existe usuário com este email
-        const existingUser = await prisma.user.findUnique({
-          where: { email: profile.email },
-        });
-
-        if (existingUser) {
-          // Verifica se já tem vínculo com Google
-          const existingAccount = await prisma.account.findUnique({
-            where: {
-              provider_providerAccountId: {
-                provider: "google",
-                providerAccountId: account.providerAccountId,
-              },
-            },
-          });
-
-          if (!existingAccount) {
-            // Cria vínculo para evitar duplicação
-            await prisma.account.create({
-              data: {
-                userId: existingUser.id,
-                provider: "google",
-                providerAccountId: account.providerAccountId,
-                type: "oauth",
-              },
-            });
-          }
-        }
-      }
-      return true;
-    },
-
     async jwt({ token, user }) {
       if (user) {
         token.id = (user as ExtendedUser).id;
@@ -131,9 +108,10 @@ export const authOptions: NextAuthOptions = {
           token.image =
             dbUser.image ||
             "https://definicion.de/wp-content/uploads/2019/07/perfil-de-usuario.png";
-          token.profileCompleted = Boolean(
-            dbUser.dni && dbUser.dniName && dbUser.phone && dbUser.birthdate
-          );
+          token.profileCompleted =
+            dbUser.role === "ADMIN"
+              ? true
+              : Boolean(dbUser.dni && dbUser.dniName && dbUser.phone && dbUser.birthdate);
         }
       }
 
@@ -153,8 +131,8 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
 
-    async redirect({ baseUrl }) {
-      return baseUrl;
+    async redirect({ baseUrl, url }) {
+      return url.startsWith(baseUrl) ? url : baseUrl;
     },
   },
 

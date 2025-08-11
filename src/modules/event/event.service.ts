@@ -304,48 +304,51 @@ export const listEventsByDate = async (dateString: string) => {
   return Array.from(unique.values());
 };
 
-export const listActiveEventsWithStats = async (userId: string) => {
+export async function listActiveEventsWithStats(userId: string) {
   const events = await prisma.event.findMany({
     where: {
-      status: EventStatus.OPEN,
       organizerId: userId,
+      status: "OPEN",
+      publishedAt: { lte: new Date() },
     },
     include: {
-      ticketCategories: {
-        include: {
-          tickets: true,
-          seats: true,
-        },
+      ticketCategories: true,
+      orders: {
+        where: { status: "PAID" },
+        include: { orderItems: true },
       },
     },
   });
 
-  return events.map((ev) => {
-    const totalCapacity = ev.ticketCategories.reduce(
-      (sum, cat) => sum + (cat.capacity ?? 0),
-      0
-    );
-    const totalSold = ev.ticketCategories.reduce(
-      (sum, cat) => sum + cat.tickets.length,
-      0
-    );
+  return events.map((event) => {
+    const categories = event.ticketCategories.map((cat) => {
+      const sold = event.orders.reduce((acc, order) => {
+        return (
+          acc +
+          order.orderItems.filter((oi) => oi.ticketCategoryId === cat.id)
+            .reduce((sum, oi) => sum + oi.qty, 0)
+        );
+      }, 0);
 
-    const categories = ev.ticketCategories.map((cat) => {
-      const sold = cat.tickets.length;
-      const remaining = (cat.capacity ?? 0) - sold;
       return {
         title: cat.title,
         sold,
-        remaining,
+        remaining: cat.capacity - sold,
       };
     });
 
+    const totalSold = categories.reduce((acc, c) => acc + c.sold, 0);
+    const totalCapacity = categories.reduce(
+      (acc, c) => acc + c.remaining + c.sold,
+      0
+    );
+
     return {
-      id: ev.id,
-      name: ev.name,
-      totalCapacity,
+      id: event.id,
+      name: event.name,
       totalSold,
+      totalCapacity,
       categories,
     };
   });
-};
+}
