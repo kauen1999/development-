@@ -17,41 +17,31 @@ class PagoTICService {
   private readonly baseUrl = env.server.PAGOTIC_BASE_URL;
   private readonly api = axios.create({
     baseURL: this.baseUrl,
-    timeout: 10_000,
+    timeout: 20_000, // ↑
   });
 
-  /**
-   * Cria um pagamento no PagoTIC
-   * Aceita tanto um objeto direto quanto um Promise de objeto
-   */
   public async createPayment(
     rawOrPromise: CreatePagoPayload | Promise<CreatePagoPayload>
   ): Promise<PagoTICResponse> {
-    //  Normaliza entrada
     const raw = await rawOrPromise;
-
     if (!raw || typeof raw !== "object") {
       throw new Error("PagoTIC: payload inválido (vazio ou não é um objeto).");
     }
 
-    //  Garante que payment_number está definido
     if (!raw.payment_number || raw.payment_number.trim() === "") {
       raw.payment_number = `PAY-${Date.now()}`;
     }
 
-    //  Define URLs de retorno (success e back) caso não venham do payload
+    // 👇 correção de fallback (você setava return_url duas vezes)
     if (!raw.return_url) {
       raw.return_url = `https://entradamaster.vercel.app/checkout/confirmation?orderId=${raw.orderId ?? ""}`;
-
     }
     if (!raw.back_url) {
-      raw.return_url = `https://entradamaster.vercel.app/checkout/confirmation?orderId=${raw.orderId ?? ""}`;
+      raw.back_url = `https://entradamaster.vercel.app/checkout/confirmation?orderId=${raw.orderId ?? ""}`;
     }
 
-    // Valida o payload com Zod
     const payload = createPagoSchema.parse(raw);
 
-    // Log seguro para debug
     console.info("[PagoTIC] Payload (sanitized)", {
       external_transaction_id: payload.external_transaction_id,
       detailsCount: payload.details?.length ?? 0,
@@ -64,7 +54,7 @@ class PagoTICService {
     });
 
     try {
-      const token = await getPagoTICToken();
+      const token = await getPagoTICToken(); // agora com retry
       const { data } = await this.api.post<PagoTICResponse>("/pagos", payload, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -72,21 +62,20 @@ class PagoTICService {
           Accept: "application/json",
         },
       });
-
       return data;
     } catch (err) {
       const axiosErr = err as AxiosError<{ code?: number; message?: string; extended_code?: number }>;
+      const status = axiosErr.response?.status;
       const errorData = axiosErr.response?.data;
 
-      console.error("[PagoTIC] Erro na criação de pagamento", {
-        status: axiosErr.response?.status,
-        error: errorData,
-      });
+      console.error("[PagoTIC] Erro na criação de pagamento", { status, error: errorData });
 
       if (errorData?.extended_code === 4120) {
         throw new Error("API PagoTIC: payment_number ausente ou inválido.");
       }
-
+      if (status === 504) {
+        throw new Error("A PagoTIC está fora do ar no momento (504). Tente novamente em instantes.");
+      }
       throw err;
     }
   }

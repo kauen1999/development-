@@ -1,4 +1,3 @@
-// src/pages/index.tsx
 import { type NextPage } from "next";
 import Head from "next/head";
 import { useSession } from "next-auth/react";
@@ -18,11 +17,18 @@ const Home: NextPage = () => {
   const router = useRouter();
 
   useEffect(() => {
-    if (status === "authenticated" && session?.user?.role === "ADMIN") {
-      router.replace("/dashboard");
-    }
-  }, [status, session, router]);
+    if (status !== "authenticated") return;
+    if (session?.user?.profileCompleted === undefined) return;
 
+    if (session.user.role === "ADMIN") {
+      router.replace("/dashboard");
+      return;
+    }
+
+    if (!session.user.profileCompleted) {
+      router.replace("/auth?redirect=/");
+    }
+  }, [status, session?.user?.profileCompleted, session?.user?.role, router]);
 
   if (status === "loading") {
     return (
@@ -40,6 +46,7 @@ const Home: NextPage = () => {
         <meta name="description" content="EntradaMaster" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
+
       <Header home={true} buyPage={undefined} />
 
       <main>

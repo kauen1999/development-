@@ -3,12 +3,16 @@ import React, { useState } from "react";
 import { type NextPage } from "next";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
-import { trpc } from "@/utils/trpc"; // ajuste o path conforme seu projeto
+import { trpc } from "@/utils/trpc";
 
 const Auth: NextPage = () => {
   const { data: session } = useSession();
   const completeProfile = trpc.auth.completeProfile.useMutation();
   const router = useRouter();
+  const { update } = useSession();
+  
+  // Captura o "redirect" que veio no query params
+  const redirectPath = typeof router.query.redirect === "string" ? router.query.redirect : "/";
 
   // Estados do formulário
   const [form, setForm] = useState({
@@ -21,7 +25,7 @@ const Auth: NextPage = () => {
   const [validationErrorAlert, setValidationErrorAlert] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Se não autenticado, mostre aviso
+  // Se não autenticado
   if (!session) return <p>Você precisa estar logado.</p>;
 
   // Atualiza estado do form
@@ -32,22 +36,31 @@ const Auth: NextPage = () => {
     }));
   };
 
-  // Validação simples dos campos
+  // Validação simples
   const validateForm = () => {
     return form.dniName && form.dni && form.phone && form.birthdate;
   };
 
-  // Handler do submit
+  // Submit
+  
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setValidationErrorAlert(false);
     setError(null);
+
     if (!validateForm()) {
       setValidationErrorAlert(true);
       return;
     }
+
     completeProfile.mutate(form, {
-      onSuccess: () => router.push("/"),
+      onSuccess: async () => {
+        // 🔄 Atualiza a sessão para refletir profileCompleted = true
+        await update();
+        
+        // Redireciona para rota original após completar o perfil
+        router.push(redirectPath || "/");
+      },
       onError: (err) => setError(err.message || "Erro ao completar perfil"),
     });
   };

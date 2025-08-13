@@ -15,27 +15,15 @@ const LoginSection: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm((prev) => ({
-      ...prev,
-      [e.target.id]: e.target.value,
-    }));
+    setForm((prev) => ({ ...prev, [e.target.id]: e.target.value }));
   };
 
-  const handleRedirectAfterLogin = async () => {
-    try {
-      const session = await getSession();
-      console.log("🧭 [front] session após login:", session);
-
-      if (session?.user?.profileCompleted) {
-        console.log("🧭 [front] perfil completo → /#");
-        router.push("/#");
-      } else {
-        console.log("🧭 [front] perfil incompleto → /auth");
-        router.push("/auth");
-      }
-    } catch (err) {
-      console.error("🧭 [front] erro ao obter sessão:", err);
-      router.push("/auth");
+  const redirectAfterLogin = async (defaultPath = "/") => {
+    const session = await getSession();
+    if (session?.user?.profileCompleted) {
+      router.push(defaultPath);
+    } else {
+      router.push(`/auth?redirect=${encodeURIComponent(defaultPath)}`);
     }
   };
 
@@ -44,36 +32,25 @@ const LoginSection: React.FC = () => {
     setError(null);
     setIsSubmitting(true);
 
-    console.log("🧭 [front] signIn(credentials) chamado:", form.email);
     const res = await signIn("credentials", {
       email: form.email,
       password: form.password,
       redirect: false,
     });
-    console.log("🧭 [front] resultado do signIn:", res);
 
     setIsSubmitting(false);
-
     if (res?.ok) {
-      await handleRedirectAfterLogin();
+      await redirectAfterLogin();
     } else {
-      console.warn("🧭 [front] login inválido:", res);
       setError("Login inválido.");
     }
   };
 
   const handleGoogleLogin = async () => {
     setIsSubmitting(true);
-    console.log("🧭 [front] signIn(google) chamado");
-    const res = await signIn("google", { redirect: false });
-    console.log("🧭 [front] resultado do signIn(google):", res);
+    const callbackUrl = (router.query.callbackUrl as string) || "/";
+    await signIn("google", { callbackUrl });
     setIsSubmitting(false);
-
-    if (res?.ok) {
-      await handleRedirectAfterLogin();
-    } else {
-      setError("Falha ao entrar com Google.");
-    }
   };
 
   return (
@@ -136,9 +113,7 @@ const LoginSection: React.FC = () => {
               />
             </div>
 
-            {error && (
-              <span className="-my-2 text-red-500 text-center">{error}</span>
-            )}
+            {error && <span className="-my-2 text-red-500 text-center">{error}</span>}
 
             <button
               type="submit"
@@ -164,9 +139,7 @@ const LoginSection: React.FC = () => {
             </button>
             <button
               className="btn-warning btn btn my-2 bg-[#3b5998] text-white"
-              onClick={() => {
-                console.log("🧭 [front] facebook login (não implementado)");
-              }}
+              onClick={() => console.log("🧭 [front] facebook login (não implementado)")}
               disabled={isSubmitting}
             >
               <div className="flex items-center justify-center">

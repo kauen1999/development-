@@ -1,4 +1,3 @@
-// src/pages/eventdetail/[slug].tsx
 import type { GetServerSideProps, NextPage } from "next";
 import { prisma } from "@/lib/prisma";
 import Footer from "@/components/principal/footer/Footer";
@@ -23,7 +22,7 @@ interface PageProps {
     venueName: string;
 
     dateISO: string | null;
-    nextSessionId: string | null;
+    nextSessionId: string;
     nextVenueName: string | null;
     nextCity: string | null;
 
@@ -60,8 +59,8 @@ const EventDetailPage: NextPage<PageProps> = ({ event }) => {
         venueName={event.nextVenueName ?? event.venueName}
         city={event.nextCity ?? event.city}
         price={event.minPrice ?? undefined}
-        buyId={event.nextSessionId ?? undefined}
-      />
+        buyId={event.nextSessionId} // sempre vem preenchido agora
+        />
       <Details
         artist={event.name}
         slug={event.slug}
@@ -92,9 +91,11 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   const now = new Date();
   const nextSession =
-    event.eventSessions.find((s) => s.date >= now) ??
-    event.eventSessions[0] ??
-    null;
+    event.eventSessions.find((s) => s.date >= now) ?? event.eventSessions[0];
+
+  if (!nextSession) {
+    return { notFound: true };
+  }
 
   const minPrice =
     event.ticketCategories.length > 0
@@ -111,14 +112,11 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         description: event.description ?? "",
         city: event.city,
         venueName: event.venueName,
-
-        dateISO: nextSession ? nextSession.date.toISOString() : null,
-        nextSessionId: nextSession ? nextSession.id : null,
-        nextVenueName: nextSession ? nextSession.venueName : null,
-        nextCity: nextSession ? nextSession.city : null,
-
+        dateISO: nextSession.date.toISOString(),
+        nextSessionId: nextSession.id, // sempre válido
+        nextVenueName: nextSession.venueName,
+        nextCity: nextSession.city,
         minPrice,
-
         sessions: event.eventSessions.map((s) => ({
           id: s.id,
           date: s.date.toISOString(),

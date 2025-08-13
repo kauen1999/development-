@@ -3,74 +3,47 @@ import type { NextAuthOptions, User } from "next-auth";
 import type { Provider } from "next-auth/providers";
 import Credentials from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import type { User as PrismaUser } from "@prisma/client";
+import type { Role } from "@prisma/client";
+import type { JWT } from "next-auth/jwt";
 
-type Role = "ADMIN" | "USER";
-
-/**
- * Calcula se o perfil está completo com base nos campos obrigatórios.
- */
-function calculateProfileCompleted(userData: Pick<PrismaUser, "name" | "email" | "dni" | "phone" | "birthdate">): boolean {
+// Check if user profile is complete
+function isProfileComplete(user: {
+  name?: string | null;
+  email?: string | null;
+  dniName?: string | null;
+  dni?: string | null;
+  phone?: string | null;
+  birthdate?: Date | string | null;
+}): boolean {
   return Boolean(
-    userData.name &&
-      userData.email &&
-      userData.dni &&
-      userData.phone &&
-      userData.birthdate
+    user?.name &&
+      user?.email &&
+      user?.dniName &&
+      user?.dni &&
+      user?.phone &&
+      user?.birthdate
   );
 }
 
-async function verifyPasswordAndGetUser(
-  email: string,
-  password: string
-): Promise<User | null> {
-  console.info("[auth] verify:start", { email });
-
-  const dbUser = await prisma.user.findUnique({
+// Get minimal user data from DB for JWT/Session
+async function getUserData(email: string) {
+  return prisma.user.findUnique({
     where: { email },
     select: {
       id: true,
+      role: true,
       name: true,
       email: true,
-      image: true,
-      role: true,
-      password: true,
       dniName: true,
       dni: true,
       phone: true,
       birthdate: true,
+      image: true
     },
   });
-
-  if (!dbUser || !dbUser.password) {
-    console.warn("[auth] verify:not_found_or_no_password");
-    return null;
-  }
-
-  const ok = await bcrypt.compare(password, dbUser.password);
-  if (!ok) {
-    console.warn("[auth] verify:invalid_password");
-    return null;
-  }
-
-  const user: User = {
-    id: dbUser.id,
-    name: dbUser.name ?? null,
-    email: dbUser.email ?? null,
-    image: dbUser.image ?? null,
-    role: (dbUser.role as Role) ?? "USER",
-    profileCompleted: calculateProfileCompleted(dbUser),
-  };
-
-  console.info("[auth] verify:success", { id: user.id, role: user.role });
-  return user;
 }
-
-const googleClientId = process.env.GOOGLE_CLIENT_ID;
-const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
 function getProviders(): Provider[] {
   const list: Provider[] = [
@@ -80,23 +53,37 @@ function getProviders(): Provider[] {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(
-        credentials?: Record<"email" | "password", string>
-      ): Promise<User | null> {
-        if (!credentials?.email || !credentials?.password) {
-          console.warn("[auth] authorize:missing_fields");
-          return null;
-        }
-        return verifyPasswordAndGetUser(credentials.email, credentials.password);
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
+
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+        });
+
+        if (!user || !user.password) return null;
+
+        const valid = await bcrypt.compare(credentials.password, user.password);
+        if (!valid) return null;
+
+        const result: User = {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image,
+          role: user.role as Role,
+          profileCompleted: isProfileComplete(user),
+        };
+
+        return result;
       },
     }),
   ];
 
-  if (googleClientId && googleClientSecret) {
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     list.push(
       GoogleProvider({
-        clientId: googleClientId,
-        clientSecret: googleClientSecret,
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       })
     );
   }
@@ -105,41 +92,73 @@ function getProviders(): Provider[] {
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
   providers: getProviders(),
-  pages: {
-    signIn: "/login",
-  },
-  session: {
-    strategy: "jwt",
-  },
+  session: { strategy: "jwt" },
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.role = (user.role as Role) ?? "USER";
-        token.profileCompleted = (user as User & { profileCompleted?: boolean }).profileCompleted ?? false;
+    async signIn({ user, account }) {
+      // Google login flow
+      if (account?.provider === "google" && user?.email) {
+        let dbUser = await prisma.user.findUnique({
+          where: { email: user.email },
+        });
+
+        if (!dbUser) {
+          dbUser = await prisma.user.create({
+            data: {
+              email: user.email,
+              name: user.name ?? "",
+              image: user.image ?? null,
+              provider: "google",
+              role: "USER",
+            },
+          });
+        } else {
+          const needsUpdate =
+            (user.name && user.name !== dbUser.name) ||
+            (user.image && user.image !== dbUser.image) ||
+            dbUser.provider !== "google";
+
+          if (needsUpdate) {
+            await prisma.user.update({
+              where: { id: dbUser.id },
+              data: {
+                name: user.name ?? dbUser.name,
+                image: user.image ?? dbUser.image,
+                provider: "google",
+              },
+            });
+          }
+        }
+      }
+      return true;
+    },
+
+    async jwt({ token, user }): Promise<JWT> {
+      const email = user?.email ?? token.email ?? null;
+      if (!email) return token;
+
+      const dbUser = await getUserData(email);
+      if (dbUser) {
+        token.id = dbUser.id;
+        token.role = dbUser.role;
+        token.email = dbUser.email;
+        token.name = dbUser.name;
+        token.profileCompleted = isProfileComplete(dbUser);
       }
       return token;
     },
-    async session({ session, token }) {
-      const id = typeof token.id === "string" ? token.id : "";
-      const role = (token.role as Role | undefined) ?? undefined;
-      const profileCompleted = Boolean(token.profileCompleted);
 
+    async session({ session, token }) {
       session.user = {
         ...session.user,
-        id,
-        role,
-        profileCompleted,
+        id: token.id,
+        role: token.role,
+        profileCompleted: token.profileCompleted,
       };
       return session;
     },
-    async redirect({ url, baseUrl }) {
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
-      if (new URL(url).origin === baseUrl) return url;
-      return baseUrl;
-    },
   },
+  pages: { signIn: "/login" },
+  secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
 };
