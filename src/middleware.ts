@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
+// ✅ Rotas públicas (não exigem autenticação)
 const PUBLIC_PATHS = [
   "/login",
   "/register",
@@ -10,17 +11,29 @@ const PUBLIC_PATHS = [
   "/_next",
   "/.well-known",
   "/auth",
-  "/api/trpc/auth.register"
+  "/api/trpc/auth.register",
+  "/api/trpc/event.list",         // Listar todos os eventos
+  "/api/trpc/event.listByDate",   // Listar eventos por data (ex: eventos de hoje)
+  "/api/trpc/event.getById",      // Detalhes públicos do evento
 ];
 
-const PROTECTED_PATHS = ["/checkout", "/pagamento", "/buydetails"];
+// ✅ Rotas protegidas (exigem login + perfil completo)
+const PROTECTED_PATHS = [
+  "/checkout",
+  "/pagamento",
+  "/buydetails",
+];
 
 function isPublic(pathname: string) {
-  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p));
+  return PUBLIC_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(p)
+  );
 }
 
 function isProtected(pathname: string) {
-  return PROTECTED_PATHS.some((p) => pathname.startsWith(p));
+  return PROTECTED_PATHS.some(
+    (p) => pathname.startsWith(p)
+  );
 }
 
 export async function middleware(req: NextRequest) {

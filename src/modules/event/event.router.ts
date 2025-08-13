@@ -1,4 +1,3 @@
-// src/modules/event/event.router.ts
 import {
   router,
   publicProcedure,
@@ -22,6 +21,7 @@ import {
   listEventsByDate,
   listActiveEventsWithStats,
 } from "./event.service";
+import { EventStatus } from "@prisma/client"; // Import enum do Prisma
 
 // Centraliza a verificação de ADMIN
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -53,14 +53,19 @@ export const eventRouter = router({
     .query(({ input }) => getEventById(input)),
 
   // ✅ PÚBLICO: Listar todos eventos OPEN
-  list: publicProcedure.query(() => listEvents()),
+  list: publicProcedure.query(() =>
+    listEvents({
+      status: EventStatus.OPEN, // Garante apenas eventos abertos na home
+    })
+  ),
 
   // ✅ PÚBLICO: Listar eventos por data de sessão (YYYY-MM-DD)
   listByDate: publicProcedure
     .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
     .query(({ input }) => listEventsByDate(input.date)),
 
-    listActiveEventsWithStats: protectedProcedure.query(({ ctx }) =>
+  // ✅ ADMIN: Estatísticas
+  listActiveEventsWithStats: protectedProcedure.query(({ ctx }) =>
     listActiveEventsWithStats(ctx.session.user.id)
   ),
 });

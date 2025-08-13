@@ -71,8 +71,8 @@ const Eventos = () => {
               slug={event.slug}
               artist={event.name}
               fecha={
-                event.sessions?.[0]
-                  ? new Date(event.sessions[0].date).toLocaleDateString("es-AR", {
+                event.eventSessions?.[0]
+                  ? new Date(event.eventSessions[0].date).toLocaleDateString("es-AR", {
                       day: "2-digit",
                       month: "short",
                       year: "numeric",

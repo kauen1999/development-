@@ -267,9 +267,12 @@ export const getEventById = (input: GetEventByIdInput) =>
     },
   });
 
-export const listEvents = () =>
+export const listEvents = (filter?: { status?: EventStatus }) =>
   prisma.event.findMany({
-    where: { status: EventStatus.OPEN },
+    where: { 
+      ...(filter?.status ? { status: filter.status } : {}),
+      publishedAt: { lte: new Date() },
+    },
     orderBy: { createdAt: "asc" },
     include: {
       category: true,
