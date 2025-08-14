@@ -76,14 +76,21 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   const [selectedSeats, setSelectedSeats] = useState<Seat[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
-  const handleSelect = (sector: string, row: string, seat: number, price: number) => {
+  const handleSelect = (
+    sector: string,
+    row: string,
+    seat: number,
+    price: number
+  ) => {
     const isAlreadySelected = selectedSeats.some(
       (s) => s.sector === sector && s.row === row && s.seat === seat
     );
 
     if (isAlreadySelected) {
       setSelectedSeats((prev) =>
-        prev.filter((s) => !(s.sector === sector && s.row === row && s.seat === seat))
+        prev.filter(
+          (s) => !(s.sector === sector && s.row === row && s.seat === seat)
+        )
       );
     } else {
       if (selectedSeats.length >= 5) return; // mantém regra de até 5 ingressos por compra
@@ -99,7 +106,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   if (!staticMap) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <span className="text-gray-500">Mapa do evento não encontrado.</span>
+        <span className="text-gray-500">Mapa del evento no encontrado.</span>
       </div>
     );
   }
@@ -117,19 +124,19 @@ const BuyBody: React.FC<Props> = ({ event }) => {
     },
     onError: (error) => {
       console.error("💥 Erro ao criar pedido:", error);
-      alert("Um ou mais assentos não estão mais disponíveis.");
+      alert("Uno o más asientos ya no están disponibles.");
     },
   });
 
   const handleBuy = () => {
     if (!termsAccepted || selectedSeats.length === 0) {
-      alert("Você precisa aceitar os termos e selecionar pelo menos um ingresso.");
+      alert("Debe aceptar los términos y seleccionar al menos una entrada.");
       return;
     }
 
     const eventSessionId = event.eventSessions?.[0]?.id;
     if (!eventSessionId) {
-      alert("Sessão do evento não encontrada.");
+      alert("No se pudo encontrar la sesión del evento.");
       return;
     }
 
@@ -169,7 +176,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
 
         {/* ALTERAÇÃO: Mostra ao cliente o total real de assentos disponíveis */}
         <p className="mt-2 text-sm text-gray-600">
-          Total de assentos disponíveis: {totalAvailableSeats}
+          Total de asientos disponibles: {totalAvailableSeats}
         </p>
 
         {selectedSeats.length > 0 ? (
@@ -177,15 +184,19 @@ const BuyBody: React.FC<Props> = ({ event }) => {
             {selectedSeats.map((s, i) => (
               <div key={i} className="border-b pb-2">
                 <div className="flex items-center justify-between">
-                  <p>Setor: {s.sector}</p>
-                  <p>Assento: {s.row}-{s.seat}</p>
+                  <p>Sector: {s.sector}</p>
+                  <p>
+                    Asiento: {s.row}-{s.seat}
+                  </p>
                 </div>
-                <p>Preço: ${s.price.toFixed(2)}</p>
+                <p>Precio: ${s.price.toFixed(2)}</p>
               </div>
             ))}
           </div>
         ) : (
-          <p className="mt-4 text-sm text-gray-500">Nenhum assento selecionado.</p>
+          <p className="mt-4 text-sm text-gray-500">
+            No has seleccionado ningún asiento aún.
+          </p>
         )}
 
         <div className="mt-6 flex flex-col gap-3">
@@ -195,18 +206,19 @@ const BuyBody: React.FC<Props> = ({ event }) => {
               type="checkbox"
               checked={termsAccepted}
               onChange={(e) => setTermsAccepted(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              className="text-primary-600 focus:ring-primary-500 h-4 w-4 rounded border-gray-300"
             />
             <label htmlFor="terms" className="text-sm text-gray-600">
-              Aceito os termos e condições
+              Acepto los términos y condiciones
             </label>
           </div>
           <button
             disabled={disabled || !termsAccepted}
             onClick={handleBuy}
-            className="w-full rounded bg-primary-100 py-2 font-bold text-white hover:bg-primary-200 disabled:cursor-not-allowed disabled:bg-gray-400"
+            className="hover:bg-primary-200 w-full rounded bg-primary-100 py-2 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-400"
           >
-            Comprar ahora ({totalTickets} ingresso{totalTickets > 1 ? "s" : ""}) - ${totalPrice.toFixed(2)}
+            Comprar ahora ({totalTickets} ingresso{totalTickets > 1 ? "s" : ""})
+            - ${totalPrice.toFixed(2)}
           </button>
         </div>
       </div>

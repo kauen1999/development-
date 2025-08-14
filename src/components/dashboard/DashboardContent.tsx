@@ -29,7 +29,7 @@ const DashboardContent = () => {
                     href="/event/create"
                     className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white transition duration-200 hover:bg-blue-700"
                   >
-                    Criar Evento
+                    Crear evento
                   </Link>
                 </div>
 

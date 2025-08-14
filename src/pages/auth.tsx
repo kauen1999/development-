@@ -151,7 +151,7 @@ const Auth: NextPage = () => {
                       type="submit"
                       disabled={completeProfile.isLoading}
                     >
-                      {completeProfile.isLoading ? "Salvando..." : "Finalizar registro"}
+                      {completeProfile.isLoading ? "Guardando..." : "Finalizar registro"}
                     </button>
                   </div>
                 </form>

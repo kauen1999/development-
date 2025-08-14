@@ -12,7 +12,7 @@ export default function MyActiveEvents() {
   return (
     <div className="rounded-lg bg-white p-6 shadow-md">
       <h2 className="mb-4 text-xl font-semibold text-gray-700">
-        Meus eventos ativos
+        Mis eventos activos
       </h2>
       {events.map((ev) => (
         <div

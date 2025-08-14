@@ -10,7 +10,7 @@ const UserSignUp = () => {
             150
           </span>
           <h3 className="text-base font-normal text-gray-500">
-            Registro de usuarios esta semana
+            Registros de usuarios esta semana
           </h3>
         </div>
         <div className="ml-5 flex w-0 flex-1 items-center justify-end text-base font-bold text-green-500">

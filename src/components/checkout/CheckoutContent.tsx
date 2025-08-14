@@ -33,7 +33,7 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
 
   const handlePayment = async () => {
     if (!orderId) {
-      alert("Pedido inválido.");
+      alert("Pedido no válido.");
       return;
     }
 
@@ -44,16 +44,16 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
       const result = await pagoMutation.mutateAsync({ orderId });
 
       if (result?.checkoutUrl && /^https?:\/\//i.test(result.checkoutUrl)) {
-        console.info("[PagoTIC] Redirecionando para checkout...");
+        console.info("[PagoTIC] Redirigiendo al checkout...");
         // Redireciona para o PagoTIC sem passar pelo router do Next.js
         window.location.href = result.checkoutUrl;
       } else {
         console.error("[PagoTIC] Checkout URL ausente ou inválida:", result);
-        alert("Não foi possível iniciar o pagamento. URL inválida.");
+        alert("No fue posible iniciar el pago. URL inválida.");
       }
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Erro ao iniciar pagamento.";
+        err instanceof Error ? err.message : "Error al iniciar el pago.";
       alert(message);
       console.error("[PagoTIC] startPagoTICPayment error:", err);
     }
@@ -65,21 +65,21 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="mx-auto max-w-4xl rounded-lg bg-white p-6 shadow">
-        <h1 className="mb-6 text-3xl font-bold text-gray-800">Finalizar Compra</h1>
+        <h1 className="mb-6 text-3xl font-bold text-gray-800">Finalizar compra</h1>
 
         <div className="flex flex-col gap-6 md:flex-row">
           {/* RESUMO */}
           <div className="w-full md:w-1/2">
-            <h2 className="mb-2 text-xl font-semibold text-gray-700">Resumo</h2>
+            <h2 className="mb-2 text-xl font-semibold text-gray-700">Resumen</h2>
             <div className="rounded border border-gray-200 bg-gray-50 p-4">
               <p className="mb-1 text-gray-700">
                 <strong>Evento:</strong> {title}
               </p>
               <p className="mb-1 text-gray-700">
-                <strong>Setor:</strong> {sector}
+                <strong>Sector:</strong> {sector}
               </p>
               <p className="mb-1 text-gray-700">
-                <strong>Quantidade:</strong> {cant}
+                <strong>Cantidad:</strong> {cant}
               </p>
               <p className="mb-3 text-lg font-bold text-indigo-600">
                 Total: {currency.format(price)}
@@ -87,7 +87,7 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
 
               <Image
                 src={picture || "/banner.jpg"}
-                alt="Imagem do evento"
+                alt="Imagen del evento"
                 width={400}
                 height={300}
                 className="rounded-md"
@@ -99,7 +99,7 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
 
           {/* PAGAMENTO */}
           <div className="w-full md:w-1/2">
-            <h2 className="mb-2 text-xl font-semibold text-gray-700">Pagamento</h2>
+            <h2 className="mb-2 text-xl font-semibold text-gray-700">Pago</h2>
             <div className="rounded border border-gray-200 bg-gray-50 p-4">
               <label htmlFor="pagoTIC" className="flex items-center gap-4">
                 <input
@@ -122,7 +122,7 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
 
               {pagoMutation.isError && (
                 <p className="mt-3 text-sm text-red-600">
-                  {pagoMutation.error?.message ?? "Falha ao iniciar o pagamento."}
+                  {pagoMutation.error?.message ?? "Fallo al iniciar el pago."}
                 </p>
               )}
             </div>
