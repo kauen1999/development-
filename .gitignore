@@ -35,7 +35,6 @@ yarn-error.log*
 .env
 .env*.local
 /pages/api/test/
-/pages/api/seed.ts
 # vercel
 .vercel
 

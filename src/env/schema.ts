@@ -83,6 +83,7 @@ export const serverSchema = z
     PAGOTIC_RETURN_URL: z.string().url().optional(),
     PAGOTIC_BACK_URL: z.string().url().optional(),
     PAGOTIC_NOTIFICATION_URL: z.string().url().optional(),
+    PAGOTIC_AUTH_URL: z.string().url(),
 
     // ► Supabase (server-side)
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),

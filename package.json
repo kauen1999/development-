@@ -29,6 +29,7 @@
     "bcryptjs": "2.4.3",
     "daisyui": "^2.52.0",
     "date-fns": "3.6.0",
+    "dayjs": "^1.11.13",
     "dotenv": "16.4.5",
     "flatpickr": "^4.6.13",
     "formik": "2.4.5",
@@ -58,6 +59,7 @@
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.10",
+    "@types/bcrypt": "^6.0.0",
     "@types/bcryptjs": "2.4.2",
     "@types/node": "^24.1.0",
     "@types/nodemailer": "^6.4.17",
