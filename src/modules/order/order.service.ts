@@ -1,9 +1,12 @@
-// src/modules/order/order.service.ts
 import { prisma } from "@/lib/prisma";
 import type { CreateOrderInput, CreateOrderGeneralInput } from "./order.schema";
 import { EventStatus, EventType, OrderStatus, SeatStatus } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
-import { generateExternalTransactionId } from "@/modules/pagotic/pagotic.utils";
+import { buildExternalTransactionId } from "@/modules/pagotic/pagotic.utils"; // ✅ nome correto
+
+// Defaults coerentes com a integração PagoTIC
+const CURRENCY = (process.env.PAGOTIC_CURRENCY_ID ?? "ARS").toUpperCase();
+const CONCEPT = process.env.PAGOTIC_CONCEPT_ID_DEFAULT ?? "woocommerce";
 
 /**
  * SEATED (com assentos)
@@ -21,13 +24,19 @@ export async function createOrderService(input: CreateOrderInput, userId: string
     if (seats.length !== normalizedLabels.length) {
       const found = new Set(seats.map((s) => s.label));
       const missing = normalizedLabels.filter((l) => !found.has(l));
-      throw new TRPCError({ code: "BAD_REQUEST", message: `Assentos inválidos: ${missing.join(", ")}` });
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Assentos inválidos: ${missing.join(", ")}`,
+      });
     }
 
     const notAvailable = seats.filter((s) => s.status !== SeatStatus.AVAILABLE);
     if (notAvailable.length) {
       const labels = notAvailable.map((s) => s.label).join(", ");
-      throw new TRPCError({ code: "CONFLICT", message: `Assentos já reservados ou vendidos: ${labels}` });
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: `Assentos já reservados ou vendidos: ${labels}`,
+      });
     }
 
     const total = seats.reduce((sum, s) => sum + (s.ticketCategory?.price ?? 0), 0);
@@ -38,11 +47,14 @@ export async function createOrderService(input: CreateOrderInput, userId: string
       data: { status: SeatStatus.RESERVED, userId },
     });
     if (count !== seatIds.length) {
-      throw new TRPCError({ code: "CONFLICT", message: "Alguns assentos foram reservados por outra pessoa. Tente novamente." });
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: "Alguns assentos foram reservados por outra pessoa. Tente novamente.",
+      });
     }
 
-    // 🔹 Gerar IDs obrigatórios no momento da criação
-    const externalTransactionId = generateExternalTransactionId(userId);
+    // IDs obrigatórios p/ conciliação e expiração
+    const externalTransactionId = buildExternalTransactionId(userId); // ✅ nome corrigido
     const paymentNumber = `PAY-${Date.now()}`;
     const expiresAt = new Date(Date.now() + 4 * 60 * 1000); // 4 minutos
 
@@ -55,8 +67,27 @@ export async function createOrderService(input: CreateOrderInput, userId: string
         status: OrderStatus.PENDING,
         expiresAt,
         externalTransactionId,
-        paymentNumber, // 🔹 Agora sempre salvo
-        orderItems: { create: seatIds.map((id) => ({ seat: { connect: { id } } })) },
+        paymentNumber,
+        orderItems: {
+          create: seats.map((s) => {
+            const unit = s.ticketCategory?.price ?? 0;
+            const title = s.ticketCategory?.title ?? "Ingresso";
+            const seatLabel = s.label ? ` – Assento ${s.label}` : "";
+            const description = `${title}${seatLabel}`;
+
+            return {
+              seat: { connect: { id: s.id } },
+              qty: 1,
+              // 🔽 campos comerciais que o router/pagotic usam
+              title,
+              description,
+              amount: unit * 1,
+              currency: CURRENCY,
+              conceptId: CONCEPT,
+              externalReference: s.id,
+            };
+          }),
+        },
       },
     });
 
@@ -86,13 +117,20 @@ export async function createGeneralOrderService(input: CreateOrderGeneralInput, 
 
   const orderId = await prisma.$transaction(async (tx) => {
     const categoryIds = [...new Set(items.map((i) => i.categoryId))];
-    const categories = await tx.ticketCategory.findMany({ where: { id: { in: categoryIds }, eventId } });
-    if (categories.length !== categoryIds.length) throw new TRPCError({ code: "BAD_REQUEST", message: "Alguma categoria informada não pertence ao evento." });
+    const categories = await tx.ticketCategory.findMany({
+      where: { id: { in: categoryIds }, eventId },
+    });
+    if (categories.length !== categoryIds.length) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Alguma categoria informada não pertence ao evento." });
+    }
     const catMap = new Map(categories.map((c) => [c.id, c]));
 
+    // capacidade por categoria
     for (const it of items) {
       const cat = catMap.get(it.categoryId);
-      if (!cat) throw new TRPCError({ code: "BAD_REQUEST", message: "Categoria inválida." });
+      if (!cat) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Categoria inválida." });
+      }
 
       const agg = await tx.orderItem.aggregate({
         where: {
@@ -104,7 +142,10 @@ export async function createGeneralOrderService(input: CreateOrderGeneralInput, 
       const alreadyReserved = agg._sum.qty ?? 0;
       if (alreadyReserved + it.qty > cat.capacity) {
         const disponivel = Math.max(0, cat.capacity - alreadyReserved);
-        throw new TRPCError({ code: "BAD_REQUEST", message: `Capacidade excedida para '${cat.title}'. Disponível: ${disponivel}` });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Capacidade excedida para '${cat.title}'. Disponível: ${disponivel}`,
+        });
       }
     }
 
@@ -113,8 +154,8 @@ export async function createGeneralOrderService(input: CreateOrderGeneralInput, 
       return cat ? sum + cat.price * it.qty : sum;
     }, 0);
 
-    // Gerar IDs obrigatórios no momento da criação
-    const externalTransactionId = generateExternalTransactionId(userId);
+    // IDs obrigatórios
+    const externalTransactionId = buildExternalTransactionId(userId); // ✅ nome corrigido
     const paymentNumber = `PAY-${Date.now()}`;
     const expiresAt = new Date(Date.now() + 4 * 60 * 1000); // 4 minutos
 
@@ -129,10 +170,29 @@ export async function createGeneralOrderService(input: CreateOrderGeneralInput, 
         externalTransactionId,
         paymentNumber,
         orderItems: {
-          create: items.map((it) => ({
-            ticketCategoryId: it.categoryId,
-            qty: it.qty,
-          })),
+          create: items.map((it) => {
+            const cat = catMap.get(it.categoryId);
+            if (!cat) {
+              // ✅ sem non-null assertion
+              throw new TRPCError({ code: "BAD_REQUEST", message: "Categoria inválida." });
+            }
+
+            const title = cat.title ?? "Ingresso";
+            const description = `${title} – Quantidade ${it.qty}`;
+            const amount = (cat.price ?? 0) * it.qty;
+
+            return {
+              ticketCategoryId: it.categoryId,
+              qty: it.qty,
+              // 🔽 campos comerciais para o PagoTIC
+              title,
+              description,
+              amount,
+              currency: CURRENCY,
+              conceptId: CONCEPT,
+              externalReference: it.categoryId,
+            };
+          }),
         },
       },
     });
@@ -150,11 +210,7 @@ export async function getOrderByIdService(orderId: string, userId: string) {
       event: true,
       orderItems: {
         include: {
-          seat: {
-            include: {
-              ticketCategory: true,
-            },
-          },
+          seat: { include: { ticketCategory: true } },
           ticketCategory: true,
           ticket: true,
         },

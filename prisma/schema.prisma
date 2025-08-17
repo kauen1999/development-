@@ -309,6 +309,13 @@ model OrderItem {
   ticketCategoryId String?
   qty              Int     @default(1)
 
+  title             String
+  description       String
+  amount            Float // total do item (unitPrice * qty)
+  currency          String  @default("ARS")
+  conceptId         String  @default("woocommerce")
+  externalReference String?
+
   order          Order           @relation(fields: [orderId], references: [id])
   seat           Seat?           @relation(fields: [seatId], references: [id])
   ticket         Ticket?

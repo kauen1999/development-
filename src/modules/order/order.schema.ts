@@ -1,4 +1,3 @@
-// src/modules/order/order.schema.ts
 import { z } from "zod";
 
 // SEATED (assentos)
