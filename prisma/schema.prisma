@@ -69,7 +69,7 @@ model User {
   provider      String?
 
   accounts        Account[]
-  sessions        Session[] // sessões do NextAuth
+  sessions        Session[]
   organizedEvents Event[]   @relation("OrganizerEvents")
 
   enrollments   Enrollment[]
@@ -285,6 +285,7 @@ model Order {
   expiresAt             DateTime?
   externalTransactionId String?     @unique
   paymentNumber         String?     @unique
+  formUrl               String?     // URL de checkout do PayPerTIC
 
   userId         String
   eventSessionId String
@@ -311,7 +312,7 @@ model OrderItem {
 
   title             String
   description       String
-  amount            Float // total do item (unitPrice * qty)
+  amount            Float   // total do item (unitPrice * qty)
   currency          String  @default("ARS")
   conceptId         String  @default("woocommerce")
   externalReference String?

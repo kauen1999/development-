@@ -1,405 +1,158 @@
 import { z } from "zod";
 
-// Basic URL validator that enforces https
-const httpsUrl = z
-  .string()
-  .url()
-  .refine((u) => u.startsWith("https://"), "URL must start with https://");
-
-// ISO3 country validator (ARG, BRA, etc.)
-export const iso3 = z
-  .string()
-  .regex(/^[A-Z]{3}$/, "Must be an ISO3 country code (e.g., ARG)");
-
-// ISO 4217 currency validator (3 uppercase letters, e.g., ARS)
-export const iso4217 = z
-  .string()
-  .regex(/^[A-Z]{3}$/, "Must be an ISO 4217 currency (e.g., ARS)");
-
-// Env schema (server)
-// ✅ MUDANÇA: PAGOTIC_COLLECTOR_ID agora é opcional e aceita string vazia.
-export const PagoticEnvSchema = z.object({
-  // OAuth2 (password grant)
-  PAGOTIC_AUTH_URL: httpsUrl,
-  PAGOTIC_CLIENT_ID: z.string().min(1),
-  PAGOTIC_CLIENT_SECRET: z.string().min(1),
-  PAGOTIC_USERNAME: z.string().min(1),
-  PAGOTIC_PASSWORD: z.string().min(1),
-
-  // API base + collector
-  PAGOTIC_API_URL: httpsUrl,
-  PAGOTIC_COLLECTOR_ID: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-    z.string().min(1).optional()
-  ),
-
-  // Public redirect + webhook URLs
-  PAGOTIC_RETURN_URL: httpsUrl,
-  PAGOTIC_BACK_URL: httpsUrl,
-  PAGOTIC_NOTIFICATION_URL: httpsUrl,
-
-  // Business defaults
-  PAGOTIC_CURRENCY_ID: iso4217.default("ARS"),
-  PAGOTIC_CONCEPT_ID_DEFAULT: z.string().min(1).default("woocommerce"),
-});
-export type PagoticEnv = z.infer<typeof PagoticEnvSchema>;
-
-/* ---------------------------------- */
-/* Helpers / base                     */
-/* ---------------------------------- */
-
-// RFC 822-like datetime with timezone e.g. 2025-10-15T23:59:59-0300
-export const rfc822TZ = z
-  .string()
-  .regex(
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4}$/,
-    "Expected format: yyyy-MM-dd'T'HH:mm:ssZ (e.g., 2025-10-15T23:59:59-0300)"
-  );
-
-// Natural positive money amount
-const money = z
-  .number({ invalid_type_error: "amount must be a number" })
-  .finite()
-  .nonnegative();
-
-/** Coerce number from number | string | shallow/deep objects */
-function coerceNumber(input: unknown): number | undefined {
-  if (typeof input === "number" && Number.isFinite(input)) return input;
-  if (typeof input === "string") {
-    const n = Number(input);
-    if (Number.isFinite(n)) return n;
-  }
-  if (typeof input === "object" && input !== null) {
-    const keys = [
-      "final_amount",
-      "amount",
-      "total",
-      "value",
-      "val",
-      "amount_total",
-      "gross",
-      "net",
-    ];
-    for (const k of keys) {
-      const v = (input as Record<string, unknown>)[k];
-      const n = coerceNumber(v);
-      if (typeof n === "number") return n;
-    }
-    for (const v of Object.values(input as Record<string, unknown>)) {
-      if (v && typeof v === "object") {
-        const n = coerceNumber(v);
-        if (typeof n === "number") return n;
-      }
-    }
-  }
-  return undefined;
-}
-
-/* ---------------------------------- */
-/* 3) Payment payload (POST /pagos)   */
-/* ---------------------------------- */
-
-export const PagoticPaymentType = z.enum([
-  "debit",
-  "online",
-  "transfer",
-  "debin",
-  "coupon",
-]);
-
-export const IdentificationSchema = z.object({
+export const payerIdSchema = z.object({
   type: z.string().min(1),
   number: z.string().min(1),
-  country: iso3.optional(),
+  country: z.string().length(3),
 });
 
-export const HolderSchema = z.object({
-  name: z.string().min(1),
-  identification: IdentificationSchema,
-});
-
-export const PhoneSchema = z.object({
-  description: z.string().min(1).optional(),
-  country_code: z.number().int().nonnegative(),
-  area_code: z.number().int().nonnegative(),
-  number: z.number().int().nonnegative(),
-  extension: z.number().int().nonnegative().optional(),
-});
-
-export const PayerSchema = z.object({
-  id: z.string().min(1).optional(),
-  external_reference: z.string().min(1).optional(),
-  name: z.string().min(1),
-  email: z.string().email(),
-  identification: IdentificationSchema,
-  phones: z.array(PhoneSchema).optional(),
-});
-
-export const PaymentMethodSchema = z.object({
-  authorization_transaction_id: z.string().min(1).optional(),
-  amount: money.optional(),
-  media_payment_id: z.number().int().optional(),
-  number: z.string().min(4).optional(),
-  installments: z.number().int().positive().optional(),
-  promotion_id: z.string().min(1).optional(),
-  expiration_year: z.number().int().optional(),
-  expiration_month: z.number().int().optional(),
-  security_code: z.string().min(3).optional(),
-  holder: HolderSchema.optional(),
-});
-
-export const DetailItemSchema = z.object({
-  payment_id: z.string().min(1).optional(),
-  external_reference: z.string().min(1).optional(),
-  concept_id: z.string().min(1),
-  concept_description: z.string().min(1),
-  amount: money,
-  collector_id: z.string().min(1).optional(),
-  rate: money.optional(),
-  charge_delay: money.optional(),
-  currency_id: iso4217,
-});
-
-export const PresetsSchema = z.object({
-  media_payment_ids: z.array(z.number().int()).optional(),
-  type: PagoticPaymentType.optional(),
-  promotion_ids: z.string().min(1).optional(),
-  installments: z.number().int().positive().optional(),
-  actions: z.array(z.object({ retry: z.boolean().optional() })).optional(),
-});
-
-export const CreatePaymentPayloadSchema = z.object({
-  type: PagoticPaymentType.optional(),
-  collector_id: z.string().min(1).optional(),
-  return_url: httpsUrl.optional(),
-  back_url: httpsUrl.optional(),
-  notification_url: httpsUrl.optional(),
-  external_transaction_id: z.string().min(1),
-  details: z.array(DetailItemSchema).min(1, "At least one detail item is required"),
-  payment_methods: z.array(PaymentMethodSchema).optional(),
-  payer: PayerSchema,
-  due_date: rfc822TZ.optional(),
-  last_due_date: rfc822TZ.optional(),
-  metadata: z.record(z.unknown()).optional(),
-  carrier: z.string().min(1).optional(),
-  presets: PresetsSchema.optional(),
-});
-export type CreatePaymentPayload = z.infer<typeof CreatePaymentPayloadSchema>;
-
-/* ---------------------------------- */
-/* 4) OAuth2 token schemas            */
-/* ---------------------------------- */
-
-export const TokenResponseSchema = z.object({
-  access_token: z.string().min(1),
-  token_type: z.string().min(1),
-  expires_in: z.number().int().positive(),
-  refresh_token: z.string().min(1).optional(),
-  scope: z.string().optional(),
-});
-export type TokenResponse = z.infer<typeof TokenResponseSchema>;
-
-export const RefreshTokenFormSchema = z.object({
-  grant_type: z.literal("refresh_token"),
-  client_id: z.string().min(1),
-  client_secret: z.string().min(1),
-  refresh_token: z.string().min(1),
-});
-export type RefreshTokenForm = z.infer<typeof RefreshTokenFormSchema>;
-
-/* ---------------------------------- */
-/* 5) Payment GET response (essentials)*/
-/* ---------------------------------- */
-
-export const FeeDetailSchema = z.object({
-  type: z.enum([
-    "fee",
-    "carrier_fee",
-    "media_payment_cost",
-    "carrier_cost",
-    "refund_cost",
-    "deferred_cost",
-    "discount",
-    "rebilling_cost",
-    "tariff",
-    "financial_cost",
-    "overdue_payment",
-    "others",
-  ]),
-  fee_payer: z.enum(["collector", "payer"]),
-  description: z.string().optional(),
-  amount: money,
-});
-
-export const GatewaySchema = z.object({
-  establishment_number: z.string().optional(),
-  merchant_id: z.string().optional(),
-  transaction_id: z.string().optional(),
-  batch_number: z.string().optional(),
-  ticket_number: z.string().optional(),
-});
-
-export const PaymentStatus = z.enum([
-  "pending",
-  "issued",
-  "approved",
-  "in_process",
-  "rejected",
-  "cancelled",
-  "refunded",
-  "deferred",
-  "objected",
-  "review",
-  "validate",
-  "overdue",
-]);
-
-export const PaymentMethodSummarySchema = z.object({
-  amount: money.optional(),
-  media_payment_id: z.number().int().optional(),
-  first_six_digits: z.string().optional(),
-  last_four_digits: z.string().optional(),
-  installments: z.number().int().optional(),
-  promotion_id: z.string().optional(),
-  expiration_year: z.number().int().optional(),
-  expiration_month: z.number().int().optional(),
-  authorization_code: z.string().optional(),
-  ticket_number: z.string().optional(),
-  holder: HolderSchema.optional(),
-});
-
-// ✅ Normalização: amount e final_amount podem vir como string/objeto; viram number opcional
-export const GetPaymentResponseSchema = z
-  .object({
-    id: z.string(),
-    external_transaction_id: z.string(),
-    type: PagoticPaymentType.optional(),
-    collector_id: z.string().optional(),
-    return_url: httpsUrl.optional(),
-    back_url: httpsUrl.optional(),
-    notification_url: httpsUrl.optional(),
-    form_url: httpsUrl.optional(),
-
-    details: z.array(
+export const payerSchema = z.object({
+  id: z.string().optional(),
+  external_reference: z.string().optional(),
+  name: z.string().optional(),
+  email: z.string().email().optional(),
+  identification: payerIdSchema.optional(),
+  phones: z
+    .array(
       z.object({
-        payment_id: z.string().optional(),
-        external_reference: z.string().optional(),
-        concept_id: z.string().min(1),
-        concept_description: z.string().min(1),
-        amount: money,
-        collector_id: z.string().optional(),
-        rate: money.optional(),
-        charge_delay: money.optional(),
-        currency_id: iso4217,
-      })
-    ),
+        description: z.string().optional(),
+        country_code: z.number().int().optional(),
+        area_code: z.number().int().optional(),
+        number: z.number().int().optional(),
+        extension: z.number().int().optional(),
+      }),
+    )
+    .optional(),
+});
 
-    payment_methods: z.array(PaymentMethodSummarySchema).optional(),
-    gateway: GatewaySchema.optional(),
+export const detailSchema = z.object({
+  payment_id: z.string().optional(),
+  external_reference: z.string().optional(),
+  concept_id: z.string(),
+  concept_description: z.string(),
+  amount: z.number().positive(),
+  collector_id: z.string().optional(),
+  rate: z.number().optional(),
+  charge_delay: z.number().optional(),
+});
 
-    payer: z
-      .object({
-        email: z.string().email().optional(),
-        identification: IdentificationSchema.partial().optional(),
-        phones: z.array(PhoneSchema).optional(),
-      })
-      .optional(),
+export const createPaymentInput = z.object({
+  type: z.enum(["debit", "online", "transfer", "debin", "coupon"]).optional(),
+  collector_id: z.string().optional(),
+  return_url: z.string().url().optional(),
+  back_url: z.string().url().optional(),
+  notification_url: z.string().url().optional(),
+  external_transaction_id: z.string().min(1),
+  details: z.array(detailSchema).min(1),
+  currency_id: z.string().length(3).optional(),
+  payment_methods: z
+    .array(
+      z.object({
+        authorization_transaction_id: z.string().optional(),
+        amount: z.number().positive(),
+        media_payment_id: z.number().int(),
+        number: z.string().optional(),
+        installments: z.number().int().optional(),
+        promotion_id: z.string().optional(),
+        expiration_year: z.number().int().optional(),
+        expiration_month: z.number().int().optional(),
+        security_code: z.string().optional(),
+        holder: z
+          .object({
+            name: z.string().optional(),
+            identification: payerIdSchema.optional(),
+          })
+          .optional(),
+      }),
+    )
+    .optional(),
+  payer: payerSchema.optional(),
+  due_date: z.string().optional(),
+  last_due_date: z.string().optional(),
+  metadata: z.record(z.any()).optional(),
+  carrier: z.string().optional(),
+  presets: z
+    .object({
+      media_payment_ids: z.array(z.number().int()).optional(),
+      type: z.enum(["debit", "online", "transfer", "debin", "coupon"]).optional(),
+      promotion_ids: z.string().optional(),
+      installments: z.number().int().optional(),
+      actions: z.array(z.object({ retry: z.boolean().optional() })).optional(),
+    })
+    .optional(),
+});
 
-    fee_details: z.array(FeeDetailSchema).optional(),
+export const refundInput = z.object({
+  id: z.string().min(1),
+  type: z.enum(["online", "manual", "by_media_payment"]).optional(),
+  amount: z.number().positive().optional(),
+  reason: z.string().optional(),
+});
 
-    // ✅ Campos normalizados
-    amount: z.preprocess((v) => coerceNumber(v), z.number().nonnegative().optional()).optional(),
-    final_amount: z.preprocess((v) => coerceNumber(v), z.number().nonnegative().optional()).optional(),
+export const cancelPaymentInput = z.object({
+  id: z.string().min(1),
+  status_detail: z.string().optional(),
+});
 
-    status: PaymentStatus,
-    status_detail: z.string().optional(),
-    validation: z.boolean().optional(),
-    review: z.boolean().optional(),
-    upgradeable: z.boolean().optional(),
+export const getPaymentByIdInput = z.object({
+  id: z.string().min(1),
+});
 
-    // Dates (RFC 822 + TZ)
-    request_date: rfc822TZ.optional(),
-    due_date: rfc822TZ.optional(),
-    last_due_date: rfc822TZ.optional(),
-    process_date: rfc822TZ.optional(),
-    paid_date: rfc822TZ.optional(),
-    rejected_date: rfc822TZ.optional(),
-    cancel_date: rfc822TZ.optional(),
-    accreditation_date: rfc822TZ.optional(),
-    review_validation_date: z.string().optional(),
-    payer_validation_date: z.string().optional(),
-    payer_deferred_date: z.string().optional(),
-    last_updated_date: rfc822TZ.optional(),
+export const listFiltersSchema = z.object({
+  field: z.string().min(1),
+  operation: z.enum([
+    "EQUAL",
+    "IN",
+    "EXISTS",
+    "CONTAINS_IGNORE_CASE",
+    "LESS_THAN",
+    "LESS_THAN_OR_EQUAL_TO",
+    "GREATER_THAN",
+    "GREATER_THAN_OR_EQUAL_TO",
+  ]),
+  value: z.union([z.string(), z.number(), z.boolean()]),
+});
 
-    metadata: z.record(z.unknown()).optional(),
-    carrier: z.string().optional(),
-    source: z
-      .object({
-        id: z.string().optional(),
-        name: z.string().optional(),
-        type: z.enum(["collector", "system", "backoffice", "customer", "carrier"]).optional(),
-      })
-      .optional(),
-  })
-  .passthrough();
+export const listPaymentsInput = z.object({
+  page: z.number().int().positive().default(1),
+  limit: z.number().int().positive().max(100).default(10),
+  sorts: z.record(z.enum(["ascending", "descending"])).default({}),
+  filters: z.array(listFiltersSchema).min(1), // API requires minimum filter combos
+});
 
-export type GetPaymentResponse = z.infer<typeof GetPaymentResponseSchema>;
+export const groupPaymentsInput = z.object({
+  paymentIds: z.array(z.string().min(1)).min(2),
+});
 
-/** Helper: prefere final_amount -> amount -> fallback (sempre retorna number) */
-export function getNormalizedAmount(resp: GetPaymentResponse, fallback: number): number {
-  if (typeof resp.final_amount === "number") return resp.final_amount;
-  if (typeof resp.amount === "number") return resp.amount;
-  return fallback;
-}
+export const ungroupPaymentsInput = z.object({
+  groupId: z.string().min(1), // if API requires a group identifier; may vary by tenant
+});
 
-/* ---------------------------------- */
-/* 6) Safe parsers (helpers)          */
-/* ---------------------------------- */
+export const distributionInput = z.object({
+  payment_id: z.string().min(1),
+  destinations: z
+    .array(
+      z.object({
+        destination_id: z.string().min(1),
+        amount: z.number().positive(),
+        description: z.string().optional(),
+      }),
+    )
+    .min(1),
+});
 
-export function parseEnv(env: unknown): PagoticEnv {
-  const result = PagoticEnvSchema.safeParse(env);
-  if (!result.success) {
-    throw new Error(
-      `Invalid PagoTIC env. ${result.error.issues
-        .map((i) => `${i.path.join(".")}: ${i.message}`)
-        .join(" | ")}`
-    );
-  }
-  return result.data;
-}
-
-export function parseCreatePaymentPayload(payload: unknown): CreatePaymentPayload {
-  const result = CreatePaymentPayloadSchema.safeParse(payload);
-  if (!result.success) {
-    throw new Error(
-      `Invalid CreatePayment payload. ${result.error.issues
-        .map((i) => `${i.path.join(".")}: ${i.message}`)
-        .join(" | ")}`
-    );
-  }
-  return result.data;
-}
-
-export function parseTokenResponse(json: unknown): TokenResponse {
-  const result = TokenResponseSchema.safeParse(json);
-  if (!result.success) {
-    throw new Error(
-      `Invalid token response. ${result.error.issues
-        .map((i) => `${i.path.join(".")}: ${i.message}`)
-        .join(" | ")}`
-    );
-  }
-  return result.data;
-}
-
-export function parseGetPaymentResponse(json: unknown): GetPaymentResponse {
-  const result = GetPaymentResponseSchema.safeParse(json);
-  if (!result.success) {
-    throw new Error(
-      `Invalid GetPayment response. ${result.error.issues
-        .map((i) => `${i.path.join(".")}: ${i.message}`)
-        .join(" | ")}`
-    );
-  }
-  return result.data;
-}
+// Webhook payload: mirror what the docs say (similar to GET by id)
+export const webhookPayloadSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  status: z.string(),
+  collector_id: z.string().optional(),
+  notification_url: z.string().optional(),
+  details: z.array(detailSchema).optional(),
+  payer: payerSchema.optional(),
+  final_amount: z.number().optional(),
+  request_date: z.string().optional(),
+  paid_date: z.string().nullish(),
+  rejected_date: z.string().nullish(),
+  metadata: z.record(z.any()).optional(),
+}).passthrough();

@@ -1,4 +1,3 @@
-// src/env/schema.ts
 import { z } from "zod";
 
 // Small helper: validates Postgres URL and requires sslmode=require
@@ -16,35 +15,36 @@ const postgresUrlWithSsl = z
     }
   }, "DATABASE_URL must be a valid Postgres URL and include sslmode=require");
 
-/**
- * Normalize any raw string into a valid origin (protocol + host + optional port)
- * Returns undefined if invalid.
- */
+// Helpers for cleaning/validating envs
+const clean = (v?: string | null) =>
+  (v ?? "").replace(/^["']|["']$/g, "").trim();
+
+const isUuid = (s: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    s,
+  );
+
 function normalizeUrl(raw?: string): string | undefined {
   if (!raw) return undefined;
   try {
     const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
     const u = new URL(url);
-    return u.origin; // only protocol + host + port
+    return u.origin;
   } catch {
     return undefined;
   }
 }
 
-/**
- * Compute a safe default for NEXTAUTH_URL without workarounds/hacks.
- * - In dev, defaults to http://localhost:3000
- * - In prod, tries NEXT_PUBLIC_APP_URL or VERCEL_URL, normalized
- */
 const computeDefaultNextAuthUrl = () => {
   if (process.env.NODE_ENV !== "production") {
     return "http://localhost:3000";
   }
-  const raw = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || undefined;
+  const raw =
+    process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || undefined;
   return normalizeUrl(raw);
 };
 
-/** Server-side (Node.js only) environment */
+// Server-side (Node.js only)
 export const serverSchema = z
   .object({
     NODE_ENV: z
@@ -55,8 +55,9 @@ export const serverSchema = z
       ),
 
     DATABASE_URL: postgresUrlWithSsl,
-
-    PGSSLMODE: z.enum(["disable", "allow", "prefer", "require"]).default("require"),
+    PGSSLMODE: z
+      .enum(["disable", "allow", "prefer", "require"])
+      .default("require"),
 
     NEXTAUTH_SECRET: z.string().min(1).optional(),
 
@@ -74,18 +75,38 @@ export const serverSchema = z
         ),
     ),
 
-    // ► PagoTIC
+    // ► PagoTIC (endurecido)
     PAGOTIC_BASE_URL: z.string().url(),
-    PAGOTIC_CLIENT_ID: z.string().min(1),
-    PAGOTIC_CLIENT_SECRET: z.string().min(1),
-    PAGOTIC_USERNAME: z.string().min(1),
-    PAGOTIC_PASSWORD: z.string().min(1),
+    PAGOTIC_AUTH_URL: z.string().url(),
+
+    PAGOTIC_CLIENT_ID: z.preprocess(
+      (v) => clean(v as string),
+      z
+        .string()
+        .min(36, "PAGOTIC_CLIENT_ID deve ter 36 caracteres")
+        .max(36, "PAGOTIC_CLIENT_ID deve ter 36 caracteres")
+        .refine(isUuid, "PAGOTIC_CLIENT_ID deve ser um UUID válido"),
+    ),
+
+    PAGOTIC_CLIENT_SECRET: z.preprocess(
+      (v) => clean(v as string),
+      z.string().min(1, "PAGOTIC_CLIENT_SECRET é obrigatório"),
+    ),
+
+    PAGOTIC_USERNAME: z.preprocess(
+      (v) => clean(v as string),
+      z.string().min(1, "PAGOTIC_USERNAME é obrigatório"),
+    ),
+    PAGOTIC_PASSWORD: z.preprocess(
+      (v) => clean(v as string),
+      z.string().min(1, "PAGOTIC_PASSWORD é obrigatório"),
+    ),
+
     PAGOTIC_RETURN_URL: z.string().url().optional(),
     PAGOTIC_BACK_URL: z.string().url().optional(),
     PAGOTIC_NOTIFICATION_URL: z.string().url().optional(),
-    PAGOTIC_AUTH_URL: z.string().url(),
 
-    // ► Supabase (server-side)
+    // ► Supabase
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
     SUPABASE_URL: z.string().url().optional(),
   })
@@ -99,7 +120,7 @@ export const serverSchema = z
     }
   });
 
-/** Public (browser-exposed) environment */
+// Client-side (browser-exposed)
 export const clientSchema = z.object({
   NEXT_PUBLIC_API_BASE: z.string().url(),
   NEXT_PUBLIC_APP_URL: z.string().url(),
@@ -107,11 +128,12 @@ export const clientSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
 });
 
-/** Parsed & validated envs */
 export const serverEnv = serverSchema.parse(process.env);
 
 export const clientEnv = clientSchema.parse(
   Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => key.startsWith("NEXT_PUBLIC_")),
+    Object.entries(process.env).filter(([key]) =>
+      key.startsWith("NEXT_PUBLIC_"),
+    ),
   ),
 );

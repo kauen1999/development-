@@ -97,17 +97,24 @@ const BuyBodyGeneral: React.FC<Props> = ({ event }) => {
       return;
     }
 
+    // ✅ Monta exatamente o formato exigido pelo backend (order.schema.ts):
+    // items: { ticketCategoryId: string; quantity: number }[]
     const items = event.categories
       .map((c) => ({
-        categoryId: c.id,
-        qty: quantities[c.id] || 0,
-        price: c.price,
+        ticketCategoryId: c.id,
+        quantity: quantities[c.id] || 0,
       }))
-      .filter((i) => i.qty > 0);
+      .filter((i) => i.quantity > 0);
 
+    if (items.length === 0) {
+      alert("Selecciona al menos una entrada.");
+      return;
+    }
+
+    // ✅ Não enviar 'price' — o servidor calcula/valida valores
     createGeneral.mutate({
       eventId: event.id,
-      eventSessionId: event.eventSessionId, // ✅ nome atualizado
+      eventSessionId: event.eventSessionId,
       items,
     });
   };
