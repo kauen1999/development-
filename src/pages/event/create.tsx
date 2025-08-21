@@ -11,7 +11,12 @@ import { trpc } from "@/utils/trpc";
 import { getBrowserSupabase } from "@/lib/supabaseClient";
 import type { CreateEventInput } from "@/modules/event/event.schema";
 
-const FIXED_TICKET_TYPES = ["Platea A", "Platea B", "Platea C", "Pullman"] as const;
+const FIXED_TICKET_TYPES = [
+  "Platea A",
+  "Platea B",
+  "Platea C",
+  "Pullman",
+] as const;
 type FixedType = (typeof FIXED_TICKET_TYPES)[number];
 
 const baseFormSchema = z.object({
@@ -37,7 +42,7 @@ type BaseFormInput = z.infer<typeof baseFormSchema>;
 type SessionRow = { date: string; city: string; venueName: string };
 type TicketRow = {
   title: string;
-  price: number;     // valor numérico em ARS
+  price: number; // valor numérico em ARS
   capacity: number;
 };
 
@@ -103,48 +108,45 @@ export default function CreateEventPage() {
     }
   };
 
-    const uploadImage = async (): Promise<string | undefined> => {
-      if (!imageFile) return imagePreview ?? undefined;
+  const uploadImage = async (): Promise<string | undefined> => {
+    if (!imageFile) return imagePreview ?? undefined;
 
-      console.log("[Upload] Iniciando upload para Supabase...");
+    console.log("[Upload] Iniciando upload para Supabase...");
 
-      const supabase = getBrowserSupabase();
-      const bucket = "entrad-maestro";
-      const fileName = `${Date.now()}-${imageFile.name}`;
+    const supabase = getBrowserSupabase();
+    const bucket = "entrad-maestro";
+    const fileName = `${Date.now()}-${imageFile.name}`;
 
-      console.log("[Upload] Bucket:", bucket);
-      console.log("[Upload] Arquivo:", fileName);
+    console.log("[Upload] Bucket:", bucket);
+    console.log("[Upload] Arquivo:", fileName);
 
-      // Faz upload do arquivo
-      const { data, error } = await supabase
-        .storage
-        .from(bucket)
-        .upload(fileName, imageFile, { upsert: true });
+    // Faz upload do arquivo
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(fileName, imageFile, { upsert: true });
 
-      if (error) {
-        console.error("[Upload] Erro no upload:", error);
-        alert(`Erro no upload: ${error.message}`);
-        throw error;
-      }
+    if (error) {
+      console.error("[Upload] Erro no upload:", error);
+      alert(`Erro no upload: ${error.message}`);
+      throw error;
+    }
 
-      console.log("[Upload] Upload concluído:", data);
+    console.log("[Upload] Upload concluído:", data);
 
-      // Gera URL pública oficial
-      const { data: publicData } = supabase
-        .storage
-        .from(bucket)
-        .getPublicUrl(fileName);
+    // Gera URL pública oficial
+    const { data: publicData } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(fileName);
 
-      if (!publicData?.publicUrl) {
-        console.error("[Upload] Falha ao gerar URL pública");
-        alert("Falha ao gerar URL pública da imagem");
-        throw new Error("Public URL not generated");
-      }
+    if (!publicData?.publicUrl) {
+      console.error("[Upload] Falha ao gerar URL pública");
+      alert("Falha ao gerar URL pública da imagem");
+      throw new Error("Public URL not generated");
+    }
 
-      console.log("[Upload] Public URL gerada:", publicData.publicUrl);
-      return publicData.publicUrl;
-    };
-
+    console.log("[Upload] Public URL gerada:", publicData.publicUrl);
+    return publicData.publicUrl;
+  };
 
   const totalTicketCapacity = useMemo(
     () => tickets.reduce((acc, t) => acc + (Number(t.capacity) || 0), 0),
@@ -160,7 +162,9 @@ export default function CreateEventPage() {
   const addSession = () =>
     setSessions((prev) => [...prev, { date: "", city: "", venueName: "" }]);
   const removeSession = (idx: number) =>
-    setSessions((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
+    setSessions((prev) =>
+      prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev
+    );
 
   // Entradas
   const addTicket = () =>
@@ -171,7 +175,9 @@ export default function CreateEventPage() {
       return [...prev, { title: "Platea A", price: 0, capacity: 1 }];
     });
   const removeTicket = (idx: number) =>
-    setTickets((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
+    setTickets((prev) =>
+      prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev
+    );
 
   // Atualiza preço com máscara ARS
   const handlePriceChange = (idx: number, maskedValue: string) => {
@@ -211,11 +217,13 @@ export default function CreateEventPage() {
       return;
     }
 
-    const ticketCategories: CreateEventInput["ticketCategories"] = tickets.map((t) => ({
-      title: t.title,
-      price: Number(t.price) || 0,
-      capacity: Number(t.capacity) || 0,
-    }));
+    const ticketCategories: CreateEventInput["ticketCategories"] = tickets.map(
+      (t) => ({
+        title: t.title,
+        price: Number(t.price) || 0,
+        capacity: Number(t.capacity) || 0,
+      })
+    );
 
     const payload: CreateEventInput = {
       ...parsed.data,
@@ -236,7 +244,7 @@ export default function CreateEventPage() {
 
     mutation.mutate(payload);
   };
-  
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
       <h1 className="mb-8 text-3xl font-bold text-gray-800">Crear evento</h1>
@@ -244,16 +252,32 @@ export default function CreateEventPage() {
       <form onSubmit={(e) => e.preventDefault()} className="space-y-10">
         {/* Información básica */}
         <div className="space-y-4 rounded-lg bg-white p-6 shadow-md">
-          <h2 className="text-xl font-semibold text-gray-700">Información básica</h2>
-          <input {...register("name")} placeholder="Nombre del evento" className={inputClass} />
-          <input {...register("description")} placeholder="Descripción" className={inputClass} />
-          <input {...register("slug")} placeholder="Slug (URL amigable)" className={inputClass} />
+          <h2 className="text-xl font-semibold text-gray-700">
+            Información básica
+          </h2>
+          <input
+            {...register("name")}
+            placeholder="Nombre del evento"
+            className={inputClass}
+          />
+          <input
+            {...register("description")}
+            placeholder="Descripción"
+            className={inputClass}
+          />
+          <input
+            {...register("slug")}
+            placeholder="Slug (URL amigable)"
+            className={inputClass}
+          />
           {errors.slug && <p className="text-sm text-red-600">Slug inválido</p>}
         </div>
 
         {/* Tipo de evento */}
         <div className="space-y-4 rounded-lg bg-white p-6 shadow-md">
-          <h2 className="text-xl font-semibold text-gray-700">Tipo de evento</h2>
+          <h2 className="text-xl font-semibold text-gray-700">
+            Tipo de evento
+          </h2>
           <div className="flex gap-6">
             <label className="flex items-center gap-2">
               <input
@@ -284,7 +308,9 @@ export default function CreateEventPage() {
 
         {/* Información del evento */}
         <div className="space-y-4 rounded-lg bg-white p-6 shadow-md">
-          <h2 className="text-xl font-semibold text-gray-700">Información del evento</h2>
+          <h2 className="text-xl font-semibold text-gray-700">
+            Información del evento
+          </h2>
 
           {/* Artistas */}
           <div className="flex gap-2">
@@ -311,14 +337,21 @@ export default function CreateEventPage() {
           {artists.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {artists.map((name, i) => (
-                <span key={i} className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-800">
+                <span
+                  key={i}
+                  className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-800"
+                >
                   {name}
                 </span>
               ))}
             </div>
           )}
 
-          <input {...register("venueName")} placeholder="Lugar del evento" className={inputClass} />
+          <input
+            {...register("venueName")}
+            placeholder="Lugar del evento"
+            className={inputClass}
+          />
           <input
             {...register("capacity", { valueAsNumber: true })}
             type="number"
@@ -334,12 +367,36 @@ export default function CreateEventPage() {
         <div className="space-y-4 rounded-lg bg-white p-6 shadow-md">
           <h2 className="text-xl font-semibold text-gray-700">Ubicación</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <input {...register("street")} placeholder="Calle" className={inputClass} />
-            <input {...register("number")} placeholder="Número" className={inputClass} />
-            <input {...register("neighborhood")} placeholder="Barrio" className={inputClass} />
-            <input {...register("city")} placeholder="Ciudad" className={inputClass} />
-            <input {...register("state")} placeholder="Estado" className={inputClass} />
-            <input {...register("zipCode")} placeholder="Código Postal" className={inputClass} />
+            <input
+              {...register("street")}
+              placeholder="Calle"
+              className={inputClass}
+            />
+            <input
+              {...register("number")}
+              placeholder="Número"
+              className={inputClass}
+            />
+            <input
+              {...register("neighborhood")}
+              placeholder="Barrio"
+              className={inputClass}
+            />
+            <input
+              {...register("city")}
+              placeholder="Ciudad"
+              className={inputClass}
+            />
+            <input
+              {...register("state")}
+              placeholder="Estado"
+              className={inputClass}
+            />
+            <input
+              {...register("zipCode")}
+              placeholder="Código Postal"
+              className={inputClass}
+            />
           </div>
         </div>
 
@@ -362,8 +419,10 @@ export default function CreateEventPage() {
 
         {/* Imagen del evento */}
         <div className="rounded-lg bg-white p-6 shadow-md">
-          <h2 className="mb-4 text-xl font-semibold text-gray-700">Imagen del evento</h2>
-          <input
+          <h2 className="mb-4 text-xl font-semibold text-gray-700">
+            Imagen del evento
+          </h2>
+          {/* <input
             type="file"
             accept="image/*"
             onChange={(e) => {
@@ -374,12 +433,51 @@ export default function CreateEventPage() {
               }
             }}
             className={inputClass}
-          />
+          /> */}
+          <div className="flex items-center gap-3">
+            {/* input nativo escondido */}
+            <input
+              id="event-image"
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setImageFile(file);
+                  setImagePreview(URL.createObjectURL(file));
+                } else {
+                  setImageFile(null);
+                  setImagePreview(null);
+                }
+              }}
+              className="sr-only"
+              aria-label="Seleccionar imagen del evento"
+            />
+
+            {/* botão “espanhol” */}
+            <label
+              htmlFor="event-image"
+              className="hover:bg-primary-200 cursor-pointer rounded bg-primary-100 px-4 py-2 text-white"
+              role="button"
+            >
+              Seleccionar archivo
+            </label>
+
+            {/* texto ao lado */}
+            <span className="truncate text-sm text-gray-600">
+              {imageFile?.name ?? "Ningún archivo seleccionado"}
+            </span>
+          </div>
           {imagePreview && (
             <div className="mt-4">
               <p className="mb-2 text-sm text-gray-500">Vista previa:</p>
               <div className="relative h-64 w-full overflow-hidden rounded">
-                <Image src={imagePreview} alt="Preview" fill className="object-cover" />
+                <Image
+                  src={imagePreview}
+                  alt="Preview"
+                  fill
+                  className="object-cover"
+                />
               </div>
             </div>
           )}
@@ -414,7 +512,7 @@ export default function CreateEventPage() {
                 }}
                 className={inputClass}
               />
-              <div className="flex items-start gap-2 min-w-0">
+              <div className="flex min-w-0 items-start gap-2">
                 <input
                   placeholder="Local"
                   value={s.venueName}
@@ -431,8 +529,12 @@ export default function CreateEventPage() {
                   type="button"
                   onClick={() => removeSession(i)}
                   disabled={sessions.length === 1}
-                  className="shrink-0 whitespace-nowrap rounded border px-3 py-2 text-sm text-red-600 disabled:cursor-not-allowed disabled:opacity-50 min-w-[96px]"
-                  title={sessions.length === 1 ? "Debe haber al menos 1 sesión" : "Eliminar sesión"}
+                  className="min-w-[96px] shrink-0 whitespace-nowrap rounded border px-3 py-2 text-sm text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  title={
+                    sessions.length === 1
+                      ? "Debe haber al menos 1 sesión"
+                      : "Eliminar sesión"
+                  }
                   aria-label="Eliminar sesión"
                 >
                   Eliminar
@@ -440,7 +542,11 @@ export default function CreateEventPage() {
               </div>
             </div>
           ))}
-          <button type="button" onClick={addSession} className="text-sm text-blue-600 underline">
+          <button
+            type="button"
+            onClick={addSession}
+            className="text-sm text-blue-600 underline"
+          >
             + Agregar sesión
           </button>
         </div>
@@ -470,7 +576,8 @@ export default function CreateEventPage() {
                   onChange={(e) =>
                     setTickets((prev) => {
                       const updated = [...prev];
-                      if (updated[i]) updated[i].title = e.target.value as FixedType;
+                      if (updated[i])
+                        updated[i].title = e.target.value as FixedType;
                       return updated;
                     })
                   }
@@ -494,7 +601,7 @@ export default function CreateEventPage() {
                 className={inputClass}
               />
 
-              <div className="flex items-start gap-2 min-w-0">
+              <div className="flex min-w-0 items-start gap-2">
                 <input
                   type="number"
                   placeholder="Cantidad"
@@ -502,7 +609,11 @@ export default function CreateEventPage() {
                   onChange={(e) =>
                     setTickets((prev) => {
                       const updated = [...prev];
-                      if (updated[i]) updated[i].capacity = Math.max(0, Number(e.target.value));
+                      if (updated[i])
+                        updated[i].capacity = Math.max(
+                          0,
+                          Number(e.target.value)
+                        );
                       return updated;
                     })
                   }
@@ -512,8 +623,12 @@ export default function CreateEventPage() {
                   type="button"
                   onClick={() => removeTicket(i)}
                   disabled={tickets.length === 1}
-                  className="shrink-0 whitespace-nowrap rounded border px-3 py-2 text-sm text-red-600 disabled:cursor-not-allowed disabled:opacity-50 min-w-[96px]"
-                  title={tickets.length === 1 ? "Debe haber al menos 1 entrada" : "Eliminar entrada"}
+                  className="min-w-[96px] shrink-0 whitespace-nowrap rounded border px-3 py-2 text-sm text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  title={
+                    tickets.length === 1
+                      ? "Debe haber al menos 1 entrada"
+                      : "Eliminar entrada"
+                  }
                   aria-label="Eliminar entrada"
                 >
                   Eliminar
@@ -523,7 +638,11 @@ export default function CreateEventPage() {
           ))}
 
           <div className="flex items-center gap-4">
-            <button type="button" onClick={addTicket} className="text-sm text-blue-600 underline">
+            <button
+              type="button"
+              onClick={addTicket}
+              className="text-sm text-blue-600 underline"
+            >
               + Agregar entrada
             </button>
             <span className="text-sm text-gray-500">
