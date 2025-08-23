@@ -10,7 +10,7 @@ export async function generateAndSaveTicket(orderItemId: string) {
   });
 
   if (existing) {
-    return existing; // já existe, retorna direto
+    return existing;
   }
 
   const orderItem = await prisma.orderItem.findUnique({
@@ -18,7 +18,7 @@ export async function generateAndSaveTicket(orderItemId: string) {
     include: {
       order: {
         include: {
-          eventSession: true, // ✅ relacionamento correto
+          eventSession: true, 
           user: true,
           event: true,
         },
@@ -38,7 +38,7 @@ export async function generateAndSaveTicket(orderItemId: string) {
   const ticket = await prisma.ticket.create({
     data: {
       seatId: orderItem.seatId,
-      eventSessionId: orderItem.order.eventSessionId, // ✅ campo correto
+      eventSessionId: orderItem.order.eventSessionId, 
       orderItemId: orderItem.id,
       userId: orderItem.order.userId,
       eventId: orderItem.order.eventId,

@@ -1,3 +1,4 @@
+// src/moduls/pagotic/pagotic.references.ts
 // Minimal references. Extend as you onboard more media/currencies from the docs.
 
 export const MediaPaymentId = {

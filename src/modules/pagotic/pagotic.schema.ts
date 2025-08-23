@@ -117,7 +117,7 @@ export const listPaymentsInput = z.object({
   page: z.number().int().positive().default(1),
   limit: z.number().int().positive().max(100).default(10),
   sorts: z.record(z.enum(["ascending", "descending"])).default({}),
-  filters: z.array(listFiltersSchema).min(1), // API requires minimum filter combos
+  filters: z.array(listFiltersSchema).min(1),
 });
 
 export const groupPaymentsInput = z.object({
@@ -125,7 +125,7 @@ export const groupPaymentsInput = z.object({
 });
 
 export const ungroupPaymentsInput = z.object({
-  groupId: z.string().min(1), // if API requires a group identifier; may vary by tenant
+  groupId: z.string().min(1),
 });
 
 export const distributionInput = z.object({
@@ -141,18 +141,20 @@ export const distributionInput = z.object({
     .min(1),
 });
 
-// Webhook payload: mirror what the docs say (similar to GET by id)
-export const webhookPayloadSchema = z.object({
-  id: z.string(),
-  type: z.string(),
-  status: z.string(),
-  collector_id: z.string().optional(),
-  notification_url: z.string().optional(),
-  details: z.array(detailSchema).optional(),
-  payer: payerSchema.optional(),
-  final_amount: z.number().optional(),
-  request_date: z.string().optional(),
-  paid_date: z.string().nullish(),
-  rejected_date: z.string().nullish(),
-  metadata: z.record(z.any()).optional(),
-}).passthrough();
+// Webhook payload (flexível)
+export const webhookPayloadSchema = z
+  .object({
+    id: z.string(),
+    type: z.string(),
+    status: z.string(),
+    collector_id: z.string().optional(),
+    notification_url: z.string().optional(),
+    details: z.array(detailSchema).optional(),
+    payer: payerSchema.optional(),
+    final_amount: z.number().optional(),
+    request_date: z.string().optional(),
+    paid_date: z.string().nullish(),
+    rejected_date: z.string().nullish(),
+    metadata: z.record(z.any()).optional(),
+  })
+  .passthrough();

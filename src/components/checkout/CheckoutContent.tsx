@@ -1,8 +1,9 @@
 // src/components/checkout/CheckoutContent.tsx
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import Image from "next/image";
+import { useRouter } from "next/router"; // ✅ para redirecionar quando pagar
 import { trpc } from "@/utils/trpc";
 import imgTU from "../../../public/images/PayPal.svg";
 
@@ -21,6 +22,16 @@ const currency = new Intl.NumberFormat("es-AR", {
   minimumFractionDigits: 2,
 });
 
+// Extrai com segurança checkoutUrl/formUrl do retorno do tRPC
+function extractCheckoutUrl(result: unknown): string | undefined {
+  if (result && typeof result === "object") {
+    const rec = result as Record<string, unknown>;
+    const url = (rec.checkoutUrl ?? rec.formUrl) as unknown;
+    if (typeof url === "string") return url;
+  }
+  return undefined;
+}
+
 const CheckoutContent: React.FC<CheckoutContentProps> = ({
   title,
   price,
@@ -29,26 +40,46 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
   picture,
   orderId,
 }) => {
+  const router = useRouter();
+
+  // ✅ 1) Mutation que pega a URL do checkout PagoTIC
   const pagoMutation = trpc.pagotic.startPagoTICPayment.useMutation();
+
+  // ✅ 2) Query do pedido para ficar “ouvindo” o status e redirecionar quando pagar
+  const orderQuery = trpc.order.getOrder.useQuery(
+    { id: orderId },
+    {
+      enabled: Boolean(orderId),
+      // refaz a cada 3s até ficar PAID; depois para automaticamente
+      refetchInterval: (data) => (data?.status === "PAID" ? false : 3000),
+      refetchOnWindowFocus: false,
+    }
+  );
+
+  // ✅ 3) Efeito: se ficou PAID, manda para a confirmation page
+  useEffect(() => {
+    if (orderQuery.data?.status === "PAID") {
+      router.push(`/checkout/confirmation?orderId=${orderId}`);
+    }
+  }, [orderQuery.data?.status, orderId, router]);
 
   const handlePayment = async () => {
     if (!orderId) {
       alert("Pedido no válido.");
       return;
     }
-
-    // Evita cliques múltiplos enquanto processa
     if (pagoMutation.isPending) return;
 
     try {
       const result = await pagoMutation.mutateAsync({ orderId });
+      const checkoutUrl = extractCheckoutUrl(result);
 
-      if (result?.checkoutUrl && /^https?:\/\//i.test(result.checkoutUrl)) {
-        console.info("[PagoTIC] Redirigiendo al checkout...");
-        // Redireciona para o PagoTIC sem passar pelo router do Next.js
-        window.location.href = result.checkoutUrl;
+      if (checkoutUrl && /^https?:\/\//i.test(checkoutUrl)) {
+        console.info("[PagoTIC] Abriendo checkout en nueva pestaña…");
+        // 🔵 abre em nova aba/ventana e mantém o checkout visível
+        window.open(checkoutUrl, "_blank");
       } else {
-        console.error("[PagoTIC] Checkout URL ausente ou inválida:", result);
+        console.error("[PagoTIC] Checkout URL ausente o inválida:", result);
         alert("No fue posible iniciar el pago. URL inválida.");
       }
     } catch (err) {
@@ -59,7 +90,6 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
     }
   };
 
-
   const isExternal = /^https?:\/\//i.test(picture);
 
   return (
@@ -68,7 +98,7 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
         <h1 className="mb-6 text-3xl font-bold text-gray-800">Finalizar compra</h1>
 
         <div className="flex flex-col gap-6 md:flex-row">
-          {/* RESUMO */}
+          {/* RESUMEN */}
           <div className="w-full md:w-1/2">
             <h2 className="mb-2 text-xl font-semibold text-gray-700">Resumen</h2>
             <div className="rounded border border-gray-200 bg-gray-50 p-4">
@@ -97,7 +127,7 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
             </div>
           </div>
 
-          {/* PAGAMENTO */}
+          {/* PAGO */}
           <div className="w-full md:w-1/2">
             <h2 className="mb-2 text-xl font-semibold text-gray-700">Pago</h2>
             <div className="rounded border border-gray-200 bg-gray-50 p-4">
@@ -120,6 +150,12 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({
                 {pagoMutation.isPending ? "Procesando..." : "PAGAR AHORA"}
               </button>
 
+              {/* Mensagens rápidas de estado (opcional) */}
+              {orderQuery.isFetching && (
+                <p className="mt-3 text-sm text-gray-500">
+                  Esperando confirmación del pago…
+                </p>
+              )}
               {pagoMutation.isError && (
                 <p className="mt-3 text-sm text-red-600">
                   {pagoMutation.error?.message ?? "Fallo al iniciar el pago."}

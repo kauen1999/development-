@@ -1,3 +1,4 @@
+// src/moduls/pagotic/pagotic.types.ts
 // Strong types for inputs and normalized outputs.
 
 export type ISO8601Local = string; // e.g. "2020-12-10T00:00:00-0300"

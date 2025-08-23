@@ -6,7 +6,7 @@ import { sendTicketEmail } from "@/modules/sendmail/mailer";
 
 /**
  * Endpoint de teste para confirmar pagamento e enviar ingressos.
- * Apenas para ambiente de desenvolvimento/homologação.
+ * Após confirmar, redireciona para a tela de confirmação.
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -40,16 +40,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Envia os ingressos por e-mail
     await sendTicketEmail(order.user, order.event, tickets);
 
-    return res.status(200).json({
-      message: "Pagamento confirmado, ingressos gerados e enviados por e-mail",
-      orderId: order.id,
-      email: order.user.email,
-      tickets: tickets.map((t) => ({
-        id: t.id,
-        qrCodeUrl: t.qrCodeUrl,
-        pdfUrl: t.pdfUrl,
-      })),
-    });
+    // 🔥 Redireciona direto para a tela de confirmação
+    return res.redirect(302, `/checkout/confirmation?orderId=${order.id}`);
   } catch (err) {
     console.error("💥 Erro no teste de confirmação de pagamento:", err);
     return res.status(500).json({ error: "Erro interno", details: (err as Error).message });

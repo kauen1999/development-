@@ -1,3 +1,4 @@
+// src/modules/order/order.service.ts
 import { prisma } from "@/lib/prisma";
 import { PagoticService } from "@/modules/pagotic/pagotic.service";
 import {
@@ -5,14 +6,23 @@ import {
   calculateOrderTotal,
   generateExternalTransactionId,
 } from "./order.utils";
-import { ORDER_STATUS } from "./order.constants";
-import { OrderNotFoundError } from "./order.errors";
 import { toOrderDTO } from "./order.mappers";
 import type { OrderItemDTO } from "./order.types";
+import { OrderStatus } from "@prisma/client";
 
 const pagotic = new PagoticService();
 
-/* ------------------- GENERAL ------------------- */
+function getCatOrThrow<T extends { id: string }>(
+  map: Map<string, T>,
+  id: string,
+  msg = "Category not found",
+): T {
+  const v = map.get(id);
+  if (!v) throw new Error(`${msg}: ${id}`);
+  return v;
+}
+
+// ---------- GENERAL ----------
 export async function createOrderGeneralService(
   userId: string,
   eventId: string,
@@ -23,19 +33,15 @@ export async function createOrderGeneralService(
     where: { id: { in: items.map((i) => i.ticketCategoryId) }, eventId },
     select: { id: true, price: true, title: true },
   });
-
   if (categories.length !== items.length) {
     throw new Error("Some ticket categories were not found for this event");
   }
-
   const catById = new Map(categories.map((c) => [c.id, c]));
 
-  const enriched = items.map((i) => {
-    const cat = catById.get(i.ticketCategoryId);
-    if (!cat) throw new Error(`Category ${i.ticketCategoryId} not found`);
+  const enriched: OrderItemDTO[] = items.map((i) => {
+    const cat = getCatOrThrow(catById, i.ticketCategoryId);
     return { ...i, price: cat.price };
   });
-
   const total = calculateOrderTotal(enriched);
 
   const order = await prisma.order.create({
@@ -43,22 +49,23 @@ export async function createOrderGeneralService(
       userId,
       eventId,
       eventSessionId,
-      status: ORDER_STATUS.PENDING,
+      // ✅ Use Prisma enum instead of string/any casts
+      status: OrderStatus.PENDING,
       total,
       expiresAt: calculateExpirationDate(),
       orderItems: {
-        create: enriched.map((i) => {
-          const cat = catById.get(i.ticketCategoryId);
-          if (!cat) throw new Error(`Category ${i.ticketCategoryId} not found`);
-
+        create: enriched.map((i, idx) => {
+          const cat = getCatOrThrow(catById, i.ticketCategoryId);
           return {
             ticketCategoryId: i.ticketCategoryId,
             qty: i.quantity,
             amount: (i.price ?? 0) * i.quantity,
             title: cat.title ?? "Ticket",
             description: "Event ticket",
-            conceptId: "woocommerce",
-            currency: "ARS",
+            conceptId: process.env.PAGOTIC_CONCEPT_ID_DEFAULT ?? "40000001",
+            currency: process.env.PAGOTIC_CURRENCY_ID ?? "ARS",
+            // Optional: externalReference per item (safe if your schema has this column)
+            externalReference: `${cat.id}-${idx + 1}`,
           };
         }),
       },
@@ -67,44 +74,46 @@ export async function createOrderGeneralService(
 
   const externalId = generateExternalTransactionId(order.id);
 
-  const details = enriched.map((i) => {
-    const cat = catById.get(i.ticketCategoryId);
-    if (!cat) throw new Error(`Category ${i.ticketCategoryId} not found`);
-
+  // External reference per detail (some tenants require it)
+  const details = enriched.map((i, idx) => {
+    const cat = getCatOrThrow(catById, i.ticketCategoryId);
     return {
-      concept_id: "woocommerce",
+      external_reference: `${order.id}-${idx + 1}`,
+      concept_id: process.env.PAGOTIC_CONCEPT_ID_DEFAULT ?? "40000001",
       concept_description: `${cat.title} x${i.quantity}`,
       amount: (i.price ?? 0) * i.quantity,
     };
   });
 
-  const payment = await pagotic.createPayment({
-    external_transaction_id: externalId,
-    currency_id: "ARS",
-    details,
-    payer: { external_reference: userId, email: "user@example.com" }, // TODO: e-mail real
-    notification_url: `${process.env.NEXT_PUBLIC_API_URL}/api/webhooks/pagotic`,
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, name: true },
   });
 
-  // Monta o objeto `data` com tipo do Prisma e injeta `formUrl` de forma segura.
-  type UpdateData = Parameters<typeof prisma.order.update>[0]["data"];
-  const updateData: UpdateData = {
-    externalTransactionId: externalId,
-    paymentNumber: payment.id,
-  };
-
-  // truque seguro: adiciona a propriedade opcional sem usar `any`
-  (updateData as Record<string, unknown>)["formUrl"] = payment.form_url ?? null;
+  const payment = await pagotic.createPayment({
+    external_transaction_id: externalId,
+    currency_id: process.env.PAGOTIC_CURRENCY_ID ?? "ARS",
+    details,
+    payer: {
+      external_reference: userId,
+      email: user?.email || undefined,
+      name: user?.name || undefined,
+    },
+  });
 
   const updated = await prisma.order.update({
     where: { id: order.id },
-    data: updateData,
+    data: {
+      externalTransactionId: externalId,
+      paymentNumber: payment.id,
+      formUrl: payment.form_url ?? null,
+    },
   });
 
   return toOrderDTO(updated);
 }
 
-/* ------------------- SEATED ------------------- */
+// ---------- SEATED ----------
 export async function createOrderSeatedService(
   userId: string,
   eventId: string,
@@ -115,7 +124,6 @@ export async function createOrderSeatedService(
     where: { id: { in: seatIds }, eventId, eventSessionId },
     select: { id: true, ticketCategoryId: true },
   });
-
   if (seats.length !== seatIds.length) {
     throw new Error("Some seats were not found for this session");
   }
@@ -124,12 +132,10 @@ export async function createOrderSeatedService(
     where: { id: { in: seats.map((s) => s.ticketCategoryId) }, eventId },
     select: { id: true, price: true, title: true },
   });
-
   const catById = new Map(categories.map((c) => [c.id, c]));
 
   const items: OrderItemDTO[] = seats.map((s) => {
-    const cat = catById.get(s.ticketCategoryId);
-    if (!cat) throw new Error(`Category ${s.ticketCategoryId} not found`);
+    const cat = getCatOrThrow(catById, s.ticketCategoryId);
     return { ticketCategoryId: s.ticketCategoryId, quantity: 1, price: cat.price };
   });
 
@@ -140,14 +146,12 @@ export async function createOrderSeatedService(
       userId,
       eventId,
       eventSessionId,
-      status: ORDER_STATUS.PENDING,
+      status: OrderStatus.PENDING,
       total,
       expiresAt: calculateExpirationDate(),
       orderItems: {
-        create: seats.map((s) => {
-          const cat = catById.get(s.ticketCategoryId);
-          if (!cat) throw new Error(`Category ${s.ticketCategoryId} not found`);
-
+        create: seats.map((s, idx) => {
+          const cat = getCatOrThrow(catById, s.ticketCategoryId);
           return {
             seatId: s.id,
             ticketCategoryId: s.ticketCategoryId,
@@ -155,8 +159,9 @@ export async function createOrderSeatedService(
             amount: cat.price,
             title: cat.title ?? "Seated ticket",
             description: "Assigned seat",
-            conceptId: "woocommerce",
-            currency: "ARS",
+            conceptId: process.env.PAGOTIC_CONCEPT_ID_DEFAULT ?? "40000001",
+            currency: process.env.PAGOTIC_CURRENCY_ID ?? "ARS",
+            externalReference: `${s.id}-${idx + 1}`,
           };
         }),
       },
@@ -165,45 +170,48 @@ export async function createOrderSeatedService(
 
   const externalId = generateExternalTransactionId(order.id);
 
-  const details = seats.map((s) => {
-    const cat = catById.get(s.ticketCategoryId);
-    if (!cat) throw new Error(`Category ${s.ticketCategoryId} not found`);
-
+  const details = seats.map((s, idx) => {
+    const cat = getCatOrThrow(catById, s.ticketCategoryId);
     return {
-      concept_id: "woocommerce",
+      external_reference: `${order.id}-seat-${idx + 1}`,
+      concept_id: process.env.PAGOTIC_CONCEPT_ID_DEFAULT ?? "40000001",
       concept_description: `${cat.title} (Seat ${s.id})`,
       amount: cat.price,
     };
   });
 
-  const payment = await pagotic.createPayment({
-    external_transaction_id: externalId,
-    currency_id: "ARS",
-    details,
-    payer: { external_reference: userId, email: "user@example.com" },
-    notification_url: `${process.env.NEXT_PUBLIC_API_URL}/api/webhooks/pagotic`,
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, name: true },
   });
 
-  // Mesmo truque para suportar `formUrl` com client desatualizado
-  type UpdateData = Parameters<typeof prisma.order.update>[0]["data"];
-  const updateData: UpdateData = {
-    externalTransactionId: externalId,
-    paymentNumber: payment.id,
-  };
-  (updateData as Record<string, unknown>)["formUrl"] = payment.form_url ?? null;
+  const payment = await pagotic.createPayment({
+    external_transaction_id: externalId,
+    currency_id: process.env.PAGOTIC_CURRENCY_ID ?? "ARS",
+    details,
+    payer: {
+      external_reference: userId,
+      email: user?.email || undefined,
+      name: user?.name || undefined,
+    },
+  });
 
   const updated = await prisma.order.update({
     where: { id: order.id },
-    data: updateData,
+    data: {
+      externalTransactionId: externalId,
+      paymentNumber: payment.id,
+      formUrl: payment.form_url ?? null,
+    },
   });
 
   return toOrderDTO(updated);
 }
 
-/* ------------------- Comuns ------------------- */
+// ---------- commons ----------
 export async function getOrderByIdService(orderId: string) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!order) throw new OrderNotFoundError(orderId);
+  if (!order) throw new Error(`Order ${orderId} not found`);
   return toOrderDTO(order);
 }
 
@@ -219,18 +227,16 @@ export async function listOrdersService(userId: string, page = 1, limit = 10) {
 
 export async function cancelOrderService(orderId: string) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!order) throw new OrderNotFoundError(orderId);
-  if (order.status === ORDER_STATUS.PAID) {
+  if (!order) throw new Error(`Order ${orderId} not found`);
+  if (order.status === OrderStatus.PAID) {
     throw new Error("Cannot cancel a paid order");
   }
-
   if (order.paymentNumber) {
     await pagotic.cancelPayment(order.paymentNumber, "Cancelled by user");
   }
-
   const updated = await prisma.order.update({
     where: { id: orderId },
-    data: { status: ORDER_STATUS.CANCELLED },
+    data: { status: OrderStatus.CANCELLED },
   });
   return toOrderDTO(updated);
 }
@@ -238,8 +244,8 @@ export async function cancelOrderService(orderId: string) {
 export async function expireOrdersService() {
   const now = new Date();
   const expiredOrders = await prisma.order.updateMany({
-    where: { status: ORDER_STATUS.PENDING, expiresAt: { lt: now } },
-    data: { status: ORDER_STATUS.EXPIRED },
+    where: { status: OrderStatus.PENDING, expiresAt: { lt: now } },
+    data: { status: OrderStatus.EXPIRED },
   });
   return expiredOrders.count;
 }

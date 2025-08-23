@@ -1,6 +1,7 @@
-// src/modules/pagotic/pagotic.router.ts
-import { router, protectedProcedure, publicProcedure } from "@/server/trpc/trpc"; // ajuste se necessário
+// src/moduls/pagotic/pagotic.router.ts
+import { router, protectedProcedure, publicProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import {
   cancelPaymentInput,
   createPaymentInput,
@@ -12,10 +13,11 @@ import {
 } from "./pagotic.schema";
 import { PagoticService } from "./pagotic.service";
 import { mapPayment } from "./pagotic.mappers";
+import { prisma } from "@/lib/prisma";
 
 const svc = new PagoticService();
 
-// Helper to safely read ctx.orderId without using `any`
+// Evita `any` para ctx
 function extractOrderId(ctx: unknown): string | undefined {
   if (ctx && typeof ctx === "object" && "orderId" in ctx) {
     const val = (ctx as { orderId?: unknown }).orderId;
@@ -25,10 +27,40 @@ function extractOrderId(ctx: unknown): string | undefined {
 }
 
 export const pagoticRouter = router({
+  // === Usado no frontend: busca formUrl/paymentId já criados ===
+  startPagoTICPayment: protectedProcedure
+    .input(z.object({ orderId: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      const order = await prisma.order.findUnique({
+        where: { id: input.orderId },
+        select: { id: true, userId: true, formUrl: true, paymentNumber: true, status: true },
+      });
+      if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
+
+      const userId = ctx.session?.user?.id;
+      if (userId && order.userId !== userId) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Not allowed" });
+      }
+
+      if (!order.paymentNumber || !order.formUrl) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Order has no payment prepared. Create order first.",
+        });
+      }
+
+      return {
+        orderId: order.id,
+        paymentId: order.paymentNumber,
+        formUrl: order.formUrl,
+         checkoutUrl: order.formUrl,
+        status: order.status,
+      };
+    }),
+
   createPayment: protectedProcedure
     .input(createPaymentInput)
     .mutation(async ({ input, ctx }) => {
-      // Attach metadata for traceability
       const body = {
         ...input,
         metadata: {
@@ -51,7 +83,6 @@ export const pagoticRouter = router({
   listPayments: protectedProcedure
     .input(listPaymentsInput)
     .query(async ({ input }) => {
-      // API requires minimum filter combos; relies on backend validation + 400 from provider if missing
       const resp = await svc.listPayments({
         page: input.page,
         limit: input.limit,
@@ -85,14 +116,9 @@ export const pagoticRouter = router({
     }),
 
   ungroupPayments: protectedProcedure
-    .input(groupPaymentsInput) // keep generic; adapt if tenant expects different body
+    .input(z.object({ groupId: z.string().min(1) }))
     .mutation(async ({ input }) => {
-      // If the API expects a "groupId" instead of ids array, adapt here.
-      const groupId = input.paymentIds[0];
-      if (!groupId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "groupId missing" });
-      }
-      return svc.ungroupPayments(groupId);
+      return svc.ungroupPayments(input.groupId);
     }),
 
   distributePayment: protectedProcedure
@@ -102,7 +128,7 @@ export const pagoticRouter = router({
     }),
 
   resendNotification: publicProcedure
-    .input(getPaymentByIdInput) // reuse 'id'
+    .input(getPaymentByIdInput)
     .mutation(async ({ input }) => {
       return svc.resendNotification(input.id);
     }),

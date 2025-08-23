@@ -10,8 +10,8 @@ export async function generateTicketAssets(ticketId: string): Promise<void> {
   const ticket = await prisma.ticket.findUnique({
     where: { id: ticketId },
     include: {
-      eventSession: true, // atualizado: nome do relacionamento correto
-      seat: true, // pode ser null em GENERAL
+      eventSession: true,
+      seat: true, 
       orderItem: {
         include: {
           order: { include: { event: true } },

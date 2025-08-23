@@ -1,16 +1,8 @@
+// src/modules/order/order.mappers.ts
 import type { Order } from "@prisma/client";
 import type { OrderDTO } from "./order.types";
 
-/**
- * Mapper robusto para cenários onde o Prisma Client local ainda não possui o campo `formUrl`.
- * Não usa `any`, faz leitura estrutural opcional.
- */
 export function toOrderDTO(order: Order): OrderDTO {
-  // Leitura estrutural para `formUrl` (caso o client ainda não tenha o campo no tipo)
-  const withFormUrl: { formUrl?: string | null } = order as unknown as {
-    formUrl?: string | null;
-  };
-
   return {
     id: order.id,
     userId: order.userId,
@@ -19,11 +11,14 @@ export function toOrderDTO(order: Order): OrderDTO {
     status: order.status,
     total: order.total,
     createdAt: order.createdAt,
-    // Prisma permite null aqui
+    // no schema do Prisma pode ser null
     expiresAt: order.expiresAt ?? null,
 
     externalTransactionId: order.externalTransactionId ?? null,
     paymentNumber: order.paymentNumber ?? null,
-    formUrl: withFormUrl.formUrl ?? null,
+
+    // alguns clientes Prisma podem ainda não ter o campo tipado; usamos fallback seguro
+    // (a coluna existe — vide logs SELECT "Order"."formUrl" — então não quebra o runtime)
+    formUrl: (order as unknown as { formUrl?: string | null })?.formUrl ?? null,
   };
 }

@@ -1,3 +1,4 @@
+// src/moduls/pagotic/pagotic.utils.ts
 import type { PagoticListFilter, PagoticSorts } from "./pagotic.types";
 
 export function buildFiltersQuery(filters: PagoticListFilter[]): URLSearchParams {
