@@ -47,7 +47,6 @@ type Seat = {
 
 type CreatedOrder = { id: string };
 
-// Mescla o mapa estático com os preços reais vindos do banco
 const mergeMapWithTicketPrices = (
   mapConfig: EventMapConfig,
   ticketCategories: Props["event"]["ticketCategories"]
@@ -69,8 +68,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   const [selectedSeats, setSelectedSeats] = useState<Seat[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
-  // índice label -> seatId usando dados vindos do SSR
-  // formata chave igual ao que você envia do front: `${row}-${seatNumber}`
+  // índice label -> seatId usando dados vindos do SSR (chave `${row}-${number}`)
   const seatIdByLabel = (() => {
     const map = new Map<string, string>();
     for (const cat of event.ticketCategories) {
@@ -93,7 +91,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
         prev.filter((s) => !(s.sector === sector && s.row === row && s.seat === seat))
       );
     } else {
-      if (selectedSeats.length >= 5) return; // mantém regra de até 5 ingressos por compra
+      if (selectedSeats.length >= 5) return;
       setSelectedSeats((prev) => [...prev, { sector, row, seat, price }]);
     }
   };
@@ -103,7 +101,6 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   const disabled = totalTickets === 0;
 
   const staticMap = eventMaps["belgrano"];
-  // ⚠️ Sem hooks condicionais; cálculo simples
   if (!staticMap) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -113,12 +110,11 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   }
   const mapConfig = mergeMapWithTicketPrices(staticMap, event.ticketCategories);
 
-  // Total de assentos disponíveis (status === AVAILABLE)
   const totalAvailableSeats = event.ticketCategories.flatMap((cat) =>
     cat.seats.filter((s) => s.status === "AVAILABLE")
   ).length;
 
-  // Use a mutation existente no seu router (ex.: createSeated)
+  // ✅ ALTERAÇÃO: usar o procedimento correto do router (createSeated)
   const createOrder = trpc.order.createSeated.useMutation();
 
   const handleBuy = async () => {
@@ -133,7 +129,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
       return;
     }
 
-    // converte labels selecionados em seatIds reais exigidos pelo backend
+    // ✅ ALTERAÇÃO: enviar seatIds (ids reais dos assentos)
     const seatIds: string[] = [];
     for (const s of selectedSeats) {
       const key = `${s.row}-${s.seat}`;
@@ -149,11 +145,10 @@ const BuyBody: React.FC<Props> = ({ event }) => {
       const order: CreatedOrder = await createOrder.mutateAsync({
         eventId: event.id,
         eventSessionId,
-        seatIds, // ✅ payload correto
+        seatIds,
       });
       router.push(`/checkout/${order.id}`);
     } catch (e) {
-      // sem tipar como any/unknown; mostramos mensagem genérica
       console.error("💥 Erro ao criar pedido:", e);
       alert("Uno o más asientos ya no están disponibles.");
     }
