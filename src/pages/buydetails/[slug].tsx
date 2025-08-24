@@ -1,4 +1,3 @@
-// src/pages/buydetails/[slug].tsx
 import Header from "../../components/principal/header/Header";
 import Footer from "../../components/principal/footer/Footer";
 import BuyHero from "../../components/buydetailsComponent/BuyHero/BuyHero";
@@ -46,7 +45,7 @@ interface EventGeneral {
   image: string | null;
   city: string;
   venueName: string;
-  eventSessionId: string; // ✅ alterado
+  eventSessionId: string;
   sessionDateISO?: string;
   categories: GeneralCategory[];
 }
@@ -117,7 +116,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
   const base = await prisma.event.findUnique({
     where: { slug },
     include: {
-      eventSessions: { orderBy: { date: "asc" } }, // ✅ trocado de sessions para eventSessions
+      eventSessions: { orderBy: { date: "asc" } },
       ticketCategories: true,
       category: true,
     },
@@ -131,6 +130,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
 
   // SEATED event
   if (base.eventType === "SEATED") {
+    // << alteração mínima: incluir seats para o BuyBody saber os ids reais >>
     const withSeats = await prisma.event.findUnique({
       where: { slug },
       include: { ticketCategories: { include: { seats: true } } },
@@ -172,7 +172,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     return { props: { kind: "SEATED", event: eventSeated } as PageProps };
   }
 
-  // GENERAL event → calculate real available capacity
+  // GENERAL event → calcula capacidade real
   const categories: GeneralCategory[] = await Promise.all(
     base.ticketCategories.map(async (tc) => {
       const usedCount = await prisma.orderItem.aggregate({
@@ -180,7 +180,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
           ticketCategoryId: tc.id,
           order: {
             eventId: base.id,
-            eventSessionId: firstEventSession.id, // ✅ trocado
+            eventSessionId: firstEventSession.id,
             status: { in: ["PENDING", "PAID"] },
           },
         },
@@ -205,7 +205,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     image: base.image ?? null,
     city: base.city,
     venueName: base.venueName,
-    eventSessionId: firstEventSession.id, // ✅ trocado
+    eventSessionId: firstEventSession.id,
     sessionDateISO: firstDateISO,
     categories,
   };

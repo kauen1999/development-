@@ -1,4 +1,3 @@
-// src/components/buydetailsComponent/BuyBody/BuyBody.tsx
 import React, { useState } from "react";
 import { useRouter } from "next/router";
 import { EventMap } from "../../BuyBody/EventMap";
@@ -47,6 +46,7 @@ type Seat = {
 
 type CreatedOrder = { id: string };
 
+// mescla mapa estático com preços reais
 const mergeMapWithTicketPrices = (
   mapConfig: EventMapConfig,
   ticketCategories: Props["event"]["ticketCategories"]
@@ -114,7 +114,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
     cat.seats.filter((s) => s.status === "AVAILABLE")
   ).length;
 
-  // ✅ ALTERAÇÃO: usar o procedimento correto do router (createSeated)
+  // usar o procedimento correto do router (createSeated)
   const createOrder = trpc.order.createSeated.useMutation();
 
   const handleBuy = async () => {
@@ -129,7 +129,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
       return;
     }
 
-    // ✅ ALTERAÇÃO: enviar seatIds (ids reais dos assentos)
+    // converter `${row}-${seat}` para seatIds reais
     const seatIds: string[] = [];
     for (const s of selectedSeats) {
       const key = `${s.row}-${s.seat}`;
