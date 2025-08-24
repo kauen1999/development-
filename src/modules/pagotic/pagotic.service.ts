@@ -38,6 +38,11 @@ function isPublicHttpUrl(value?: string): value is string {
   }
 }
 
+// ✅ normaliza URL de input (ignora "", localhost e inválidas)
+function normalizeInputUrl(v?: string): string | undefined {
+  return isPublicHttpUrl(v) ? v : undefined;
+}
+
 export class PagoticService {
   constructor(private readonly env: EnvLike = process.env) {}
 
@@ -51,9 +56,31 @@ export class PagoticService {
     return raw ? Number(raw) : 15000;
   }
 
-  private envUrl(key: "PAGOTIC_RETURN_URL" | "PAGOTIC_BACK_URL" | "PAGOTIC_NOTIFICATION_URL"): string | undefined {
+  private envUrl(
+    key: "PAGOTIC_RETURN_URL" | "PAGOTIC_BACK_URL" | "PAGOTIC_NOTIFICATION_URL"
+  ): string | undefined {
     const v = this.env[key];
     return isPublicHttpUrl(v) ? v : undefined;
+  }
+
+  // ✅ fallback seguro baseado no domínio público da app
+  private publicBase(): string | undefined {
+    const base = this.env.NEXT_PUBLIC_APP_URL;
+    if (!isPublicHttpUrl(base)) return undefined;
+    return base.replace(/\/+$/, "");
+  }
+
+  private defaultReturnUrl(): string | undefined {
+    const b = this.publicBase();
+    return b ? `${b}/api/webhooks/pagotic-return` : undefined;
+  }
+  private defaultBackUrl(): string | undefined {
+    const b = this.publicBase();
+    return b ? `${b}/payment/cancel` : undefined;
+  }
+  private defaultNotificationUrl(): string | undefined {
+    const b = this.publicBase();
+    return b ? `${b}/api/webhooks/pagotic` : undefined;
   }
 
   // Garante compatibilidade com o tipo ProcessEnv do Next
@@ -79,14 +106,49 @@ export class PagoticService {
   // --- Core operations ---
 
   async createPayment(input: CreatePagoticPayment): Promise<PagoticPaymentResponse> {
+    // ✅ usa URL do input apenas se for pública e válida; senão cai para .env; senão cai para fallback pelo NEXT_PUBLIC_APP_URL
+    const return_url =
+      normalizeInputUrl(input.return_url) ??
+      this.envUrl("PAGOTIC_RETURN_URL") ??
+      this.defaultReturnUrl();
+
+    const back_url =
+      normalizeInputUrl(input.back_url) ??
+      this.envUrl("PAGOTIC_BACK_URL") ??
+      this.defaultBackUrl();
+
+    const notification_url =
+      normalizeInputUrl(input.notification_url) ??
+      this.envUrl("PAGOTIC_NOTIFICATION_URL") ??
+      this.defaultNotificationUrl();
+
+    // ⚠️ não quebra fluxo: se ainda assim ficar sem notification_url, loga e segue (mas você verá o alerta nos logs)
+    if (!notification_url) {
+      console.error(
+        "[PagoTIC] notification_url ausente (input/env/fallback inválidos). O webhook NÃO será disparado."
+      );
+    }
+
     const body: CreatePagoticPayment = stripUndefined({
       ...input,
       collector_id: input.collector_id ?? this.env.PAGOTIC_COLLECTOR_ID,
       currency_id: input.currency_id ?? (this.env.PAGOTIC_CURRENCY_ID || "ARS"),
-      return_url: input.return_url ?? this.envUrl("PAGOTIC_RETURN_URL"),
-      back_url: input.back_url ?? this.envUrl("PAGOTIC_BACK_URL"),
-      notification_url: input.notification_url ?? this.envUrl("PAGOTIC_NOTIFICATION_URL"),
+      return_url,
+      back_url,
+      notification_url,
     });
+
+    // 🔎 log diagnóstico sem dados sensíveis
+    try {
+      console.log("[PagoTIC][createPayment] urls", {
+        external_transaction_id: body.external_transaction_id,
+        notification_url: body.notification_url,
+        return_url: body.return_url,
+        back_url: body.back_url,
+        collector_id: body.collector_id,
+        currency_id: body.currency_id,
+      });
+    } catch {}
 
     const rsp = await this.authedFetch(PAGOTIC_ENDPOINTS.pagos, {
       method: "POST",
@@ -176,7 +238,7 @@ export class PagoticService {
     return parseJSON<{ import_id: string }>(rsp);
   }
 
-  async bulkImportDetails(importId: string, filters: PagoticListFilter[] = []): Promise<unknown> {
+  async bulkImportDetails(importId: string, filters: PagoticListFilter[] = []) {
     const q = buildFiltersQuery(filters);
     const path = `${PAGOTIC_ENDPOINTS.importacionesPagosDetalles(importId)}?${q.toString()}`;
     const rsp = await this.authedFetch(path);
