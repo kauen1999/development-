@@ -4,106 +4,119 @@ import { prisma } from "@/lib/prisma";
 import { generateTicketsFromOrder } from "@/modules/ticket/ticket.service";
 import { sendTicketEmail } from "@/modules/sendmail/mailer";
 import type { Ticket } from "@prisma/client";
+import * as qs from "querystring";
 
-// Aceita até 1mb e mantém o bodyParser padrão (JSON/x-www-form-urlencoded)
-export const config = { api: { bodyParser: { sizeLimit: "1mb" } } };
+// Desliga o parser do Next para pegarmos o raw body e tratar urlencoded
+export const config = { api: { bodyParser: false } };
 
-// Converte valores variados para string
+// Helpers
 function toStr(v: unknown): string | undefined {
   if (typeof v === "string") return v;
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
   return undefined;
 }
-
-// Extrai o orderId que você enviou no createPayment (ex.: "order_<id>")
 function resolveOrderIdFromExternal(externalId: string): string {
-  const m = externalId.match(/^order_([a-z0-9_-]+)$/i);
-  return m?.[1] ?? externalId;
+  if (!externalId.toLowerCase().startsWith("order_")) return externalId;
+  return externalId.slice(6);
 }
-
-// Payload “mínimo” que o PagoTIC costuma enviar.
-// Obs: diferentes tenants podem incluir mais campos — usamos .passthrough no parse manual abaixo.
 type PagoTicNotification = {
-  id?: string;                         // <- identificador do pagamento no PagoTIC (USAR ESTE)
-  status?: string;                     // approved | pending | rejected | cancelled | ...
+  id?: string;
+  status?: string;
   final_amount?: number;
   currency?: string;
-  collector?: string;                  // deve bater com PAGOTIC_COLLECTOR_ID (se usar esse guard)
-  external_transaction_id?: string;    // aqui vem o "order_<id>" que você mandou
+  collector?: string;
+  external_transaction_id?: string;
   metadata?: unknown;
-  // Alguns ambientes podem mandar payment_number, mas não confie; use "id"
   payment_number?: string | number | null;
 };
 
-// Normaliza status heterogêneos para o enum do Prisma
-function normalizeOrderStatus(statusRaw: string | undefined): "PAID" | "PENDING" | "CANCELLED" {
+function normalizeOrderStatus(
+  statusRaw: string | undefined
+): "PAID" | "PENDING" | "CANCELLED" {
   const s = (statusRaw ?? "").trim().toLowerCase();
-
-  // aprovados (variações)
-  const approved = new Set(["approved", "accredited", "paid", "aprobado", "pagado"]);
+  const approved = new Set(["approved","accredited","paid","aprobado","pagado"]);
   if (approved.has(s)) return "PAID";
-
-  // rejeitados/cancelados
-  const cancelled = new Set(["rejected", "cancelled", "canceled"]);
+  const cancelled = new Set(["rejected","cancelled","canceled"]);
   if (cancelled.has(s)) return "CANCELLED";
-
-  // default
   return "PENDING";
 }
 
-// Tolerante a JSON e x-www-form-urlencoded
-function parseNotification(req: NextApiRequest): PagoTicNotification {
+async function readRawBody(req: NextApiRequest): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function parseNotification(req: NextApiRequest): Promise<PagoTicNotification> {
   const ct = String(req.headers["content-type"] ?? "");
+  const raw = await readRawBody(req);
+
+  // x-www-form-urlencoded
   if (ct.includes("application/x-www-form-urlencoded")) {
-    // Next já parseia para objeto; garantimos strings
-    const raw = req.body as Record<string, unknown>;
-    const obj: PagoTicNotification = {
-      id: toStr(raw.id),
-      status: toStr(raw.status),
-      final_amount: typeof raw.final_amount === "string" ? Number(raw.final_amount) : (raw.final_amount as number | undefined),
-      currency: toStr(raw.currency),
-      collector: toStr(raw.collector),
-      external_transaction_id: toStr(raw.external_transaction_id),
-      payment_number: raw.payment_number as string | number | null | undefined,
-      metadata: raw.metadata,
+    const parsed = qs.parse(raw);
+    return {
+      id: toStr(parsed.id),
+      status: toStr(parsed.status),
+      final_amount: parsed.final_amount ? Number(parsed.final_amount) : undefined,
+      currency: toStr(parsed.currency),
+      collector: toStr(parsed.collector),
+      external_transaction_id: toStr(parsed.external_transaction_id),
+      payment_number: parsed.payment_number as string | number | null | undefined,
+      metadata: parsed.metadata, // pode vir string JSON; se precisar, tente JSON.parse aqui
     };
-    return obj;
   }
+
   // JSON
-  return req.body as PagoTicNotification;
+  try {
+    return JSON.parse(raw) as PagoTicNotification;
+  } catch {
+    // fallback vazio para não quebrar
+    return {};
+  }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  console.log("[PAGOTIC][Webhook] Incoming request:", {
+    method: req.method,
+    headers: req.headers,
+  });
+
+  // PagoTIC manda POST; GET respondemos 200 p/ evitar retry storm
+  if (req.method !== "POST") {
+    console.warn("[PAGOTIC][Webhook] Método inesperado:", req.method);
+    return res.status(200).json({ ok: true, method: req.method });
+  }
 
   try {
-    const body = parseNotification(req);
+    const body = await parseNotification(req);
 
-    // Guard opcional por collector
+    // ⚠️ Collector (não derrube se vier vazio; apenas logue)
     if (process.env.PAGOTIC_COLLECTOR_ID) {
       const collector = toStr(body.collector);
       if (collector && collector !== process.env.PAGOTIC_COLLECTOR_ID) {
-        // 200 para não gerar tempestade de retries
-        console.warn("[PagoTIC][Webhook] Collector inválido:", { got: collector, expected: process.env.PAGOTIC_COLLECTOR_ID });
+        console.warn("[PagoTIC][Webhook] Collector divergente:", {
+          got: collector,
+          expected: process.env.PAGOTIC_COLLECTOR_ID,
+        });
+        // ainda assim respondemos 200 (não vale a pena dar retry infinito)
         return res.status(200).json({ ok: true });
       }
     }
 
-    // Precisamos do external_transaction_id para localizar a Order
     const ext = toStr(body.external_transaction_id);
     if (!ext) {
       console.error("[PagoTIC][Webhook] external_transaction_id ausente no payload");
       return res.status(200).json({ ok: true });
     }
+
     const orderId = resolveOrderIdFromExternal(ext);
-
-    // Normaliza status para enum do Prisma
     const nextStatus = normalizeOrderStatus(body.status);
-
-    // Captura o "id" do pagamento (identificador verdadeiro na PagoTIC)
     const paymentId = toStr(body.id);
 
-    // Busca a Order
+    console.log("[PAGOTIC][Webhook] Parsed data:", {
+      orderId, status: body.status, normalized: nextStatus, paymentId,
+    });
+
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       include: { user: true, event: true },
@@ -113,42 +126,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ ok: true });
     }
 
-    // Idempotência: se já está pago e o payload também é aprovado, finalize cedo
+    // idempotência
     if (order.status === "PAID" && nextStatus === "PAID") {
+      console.log("[PAGOTIC][Webhook] Order já estava paga:", orderId);
       return res.status(200).json({ ok: true, message: "Already PAID" });
     }
 
-    // Atualiza espelhos + status (não sobrescreve info se ausente)
     const updated = await prisma.order.update({
       where: { id: orderId },
       data: {
         status: nextStatus,
         externalTransactionId: ext,
-        // ⚠️ AQUI O AJUSTE PRINCIPAL: usar "id" do provedor como número/identificador
         paymentNumber: paymentId ?? order.paymentNumber,
       },
       include: { user: true, event: true },
     });
 
-    // Se APROVADO → gerar tickets (idempotente no teu serviço) + e‑mail
+    console.log("[PAGOTIC][Webhook] Order atualizada:", { id: updated.id, status: updated.status });
+
     if (nextStatus === "PAID") {
       try {
-        // Gera tickets (o serviço deve ser idempotente para não duplicar)
         const ticketsRaw = await generateTicketsFromOrder(updated.id);
         const tickets = (ticketsRaw as Array<Ticket | null>).filter((t): t is Ticket => !!t);
+        console.log("[PAGOTIC][Webhook] Tickets gerados:", tickets.map((t) => t.id));
 
         if (updated.user?.email) {
           await sendTicketEmail(updated.user, updated.event, tickets);
+          console.log("[PAGOTIC][Webhook] E-mail enviado para:", updated.user.email);
         }
       } catch (e) {
-        // Não falhe o webhook por causa de e‑mail/geração (idempotência + logs)
-        console.error("[PagoTIC][Webhook] Pós-pagamento (tickets/email) falhou:", (e as Error).message);
+        console.error("[PagoTIC][Webhook] Pós-pagamento falhou:", (e as Error).message);
       }
     }
 
     return res.status(200).json({ ok: true });
   } catch (e) {
-    // Responda 200 para evitar retry storm; registre para análise
     console.error("[PagoTIC][Webhook] Erro:", (e as Error).message);
     return res.status(200).json({ ok: true });
   }
