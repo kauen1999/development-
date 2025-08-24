@@ -1,16 +1,10 @@
 // src/moduls/pagotic/pagotic.types.ts
-// Strong types for inputs and normalized outputs.
+export type ISO8601Local = string;
 
-export type ISO8601Local = string; // e.g. "2020-12-10T00:00:00-0300"
 export type FilterOperation =
-  | "EQUAL"
-  | "IN"
-  | "EXISTS"
-  | "CONTAINS_IGNORE_CASE"
-  | "LESS_THAN"
-  | "LESS_THAN_OR_EQUAL_TO"
-  | "GREATER_THAN"
-  | "GREATER_THAN_OR_EQUAL_TO";
+  | "EQUAL" | "IN" | "EXISTS" | "CONTAINS_IGNORE_CASE"
+  | "LESS_THAN" | "LESS_THAN_OR_EQUAL_TO"
+  | "GREATER_THAN" | "GREATER_THAN_OR_EQUAL_TO";
 
 export interface PagoticListFilter {
   field: string;
@@ -19,13 +13,12 @@ export interface PagoticListFilter {
 }
 
 export type PagoticSortDirection = "ascending" | "descending";
-
 export type PagoticSorts = Record<string, PagoticSortDirection>;
 
 export interface PagoticPayerId {
-  type: "DNI_ARG" | "CUIT_ARG" | string;
+  type: string;
   number: string;
-  country: string; // ISO 3166-1 alpha-3, e.g. "ARG"
+  country: string;
 }
 
 export interface PagoticPayer {
@@ -70,7 +63,7 @@ export interface CreatePagoticPayment {
   notification_url?: string;
   external_transaction_id: string;
   details: PagoticDetail[];
-  currency_id?: string; // ARS recommended by docs; keep optional to match your project decisions
+  currency_id?: string;
   payment_methods?: Array<{
     authorization_transaction_id?: string;
     amount: number;
@@ -86,7 +79,7 @@ export interface CreatePagoticPayment {
   payer?: PagoticPayer;
   due_date?: ISO8601Local;
   last_due_date?: ISO8601Local;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, string | number | boolean | null>;
   carrier?: string;
   presets?: PagoticPaymentMethodsPreset;
 }
@@ -107,8 +100,8 @@ export interface PagoticPaymentResponse {
   currency_id?: string;
   details?: PagoticDetail[];
   payer?: PagoticPayer;
-  metadata?: Record<string, unknown>;
-  [k: string]: unknown; // keep extensible
+  metadata?: Record<string, string | number | boolean | null>;
+  [k: string]: string | number | boolean | null | PagoticDetail[] | PagoticPayer | Record<string, unknown> | undefined;
 }
 
 export interface PagoticListResponse<T> {
@@ -120,7 +113,7 @@ export interface PagoticListResponse<T> {
 
 export interface PagoticRefundRequest {
   type?: "online" | "manual" | "by_media_payment";
-  amount?: number; // partial refunds
+  amount?: number;
   reason?: string;
 }
 

@@ -1,3 +1,4 @@
+// src/moduls/pagotic/pagotic.errors.ts
 export class PagoticError extends Error {
   constructor(message: string, public status?: number, public code?: number) {
     super(message);

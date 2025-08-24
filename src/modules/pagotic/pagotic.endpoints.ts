@@ -1,4 +1,4 @@
-// Centralize PagoTIC endpoints to avoid string literals scattered across the code.
+// src/moduls/pagotic/pagotic.endpoints.ts
 export const PAGOTIC_ENDPOINTS = {
   authToken: "/auth/realms/entidades/protocol/openid-connect/token",
   pagos: "/pagos",
@@ -6,10 +6,10 @@ export const PAGOTIC_ENDPOINTS = {
   pagosCancelar: (id: string) => `/pagos/cancelar/${encodeURIComponent(id)}`,
   pagosDevolucion: (id: string) => `/pagos/devolucion/${encodeURIComponent(id)}`,
   pagosAgrupar: "/pagos/agrupar",
-  pagosDesagrupar: "/pagos/cancelar-agrupacion", // some spaces document "Cancelar agrupación"
-  pagosDistribucion: "/pagos/distribucion", // distribution per payment (see docs)
-  importacionesPagosCsv: "/importaciones/pagos", // base pública endpoints live under /importaciones/*
+  pagosDesagrupar: "/pagos/cancelar-agrupacion",
+  pagosDistribucion: "/pagos/distribucion",
+  importacionesPagosCsv: "/importaciones/pagos",
   importacionesPagosDetalles: (importId: string) =>
     `/importaciones/pagos/${encodeURIComponent(importId)}/detalles`,
-  resendNotification: "/notificaciones/reintentar", // when available
+  resendNotification: "/notificaciones/reintentar",
 } as const;

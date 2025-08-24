@@ -1,9 +1,9 @@
-// src/middleware.ts
+// middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import type { JWT } from "next-auth/jwt";
 
-// ✅ Rotas públicas (não exigem autenticação)
 const PUBLIC_PATHS = [
   "/login",
   "/register",
@@ -12,51 +12,41 @@ const PUBLIC_PATHS = [
   "/.well-known",
   "/auth",
   "/api/trpc/auth.register",
-  "/api/trpc/event.list",         // Listar todos os eventos
-  "/api/trpc/event.listByDate",   // Listar eventos por data (ex: eventos de hoje)
-  "/api/trpc/event.getById",      // Detalhes públicos do evento
+  "/api/trpc/event.list",
+  "/api/trpc/event.listByDate",
+  "/api/trpc/event.getById",
 ];
 
-// ✅ Rotas protegidas (exigem login + perfil completo)
-const PROTECTED_PATHS = [
-  "/checkout",
-  "/pagamento",
-  "/buydetails",
-];
+const PROTECTED_PATHS = ["/checkout", "/pagamento", "/buydetails"];
 
 function isPublic(pathname: string) {
-  return PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(p)
-  );
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p));
+}
+function isProtected(pathname: string) {
+  return PROTECTED_PATHS.some((p) => pathname.startsWith(p));
 }
 
-function isProtected(pathname: string) {
-  return PROTECTED_PATHS.some(
-    (p) => pathname.startsWith(p)
-  );
-}
+type AppJWT = JWT & { profileCompleted?: boolean };
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Ignora rotas internas do NextAuth
-  if (pathname.startsWith("/api/auth")) return NextResponse.next();
+  // ✅ Pule qualquer coisa em /api (inclui /api/webhooks e /api/trpc)
+  if (pathname.startsWith("/api/")) return NextResponse.next();
 
-  // Libera caminhos públicos
+  // ✅ Libere caminhos públicos
   if (isPublic(pathname)) return NextResponse.next();
 
-  // Obtém token JWT do NextAuth
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const raw = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const token = raw as AppJWT | null;
 
-  // Se não logado → redireciona para login
   if (!token) {
     const url = new URL("/login", req.url);
     url.searchParams.set("callbackUrl", req.nextUrl.pathname);
     return NextResponse.redirect(url);
   }
 
-  // Se rota protegida e perfil incompleto → redireciona para /auth
-  if (isProtected(pathname) && !token.profileCompleted) {
+  if (isProtected(pathname) && !Boolean(token.profileCompleted)) {
     const redirectUrl = new URL("/auth", req.url);
     redirectUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(redirectUrl);
@@ -65,8 +55,7 @@ export async function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
+// ✅ Matcher simples: aplica em tudo, menos assets estáticos
 export const config = {
-  matcher: [
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|.well-known).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.well-known).*)"],
 };

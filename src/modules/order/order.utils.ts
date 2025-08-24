@@ -1,10 +1,11 @@
-import crypto from "crypto";
+// src/modules/order/order.utils.ts
 import { ORDER_RULES } from "./order.constants";
 import type { OrderDTO, OrderItemDTO } from "./order.types";
 
 export function generateExternalTransactionId(orderId: string): string {
-  return `order_${orderId}_${crypto.randomBytes(6).toString("hex")}`;
+  return `order_${orderId}`;
 }
+
 
 export function calculateOrderTotal(items: OrderItemDTO[]): number {
   return items.reduce((sum, i) => sum + (i.price ?? 0) * i.quantity, 0);

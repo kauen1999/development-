@@ -17,17 +17,34 @@ import { prisma } from "@/lib/prisma";
 
 const svc = new PagoticService();
 
-// Evita `any` para ctx
+function isPublicHttpUrl(value?: string): value is string {
+  if (!value) return false;
+  try {
+    const u = new URL(value);
+    const isHttp = u.protocol === "http:" || u.protocol === "https:";
+    const isLocal =
+      u.hostname === "localhost" ||
+      u.hostname === "127.0.0.1" ||
+      u.hostname.endsWith(".local");
+    return isHttp && !isLocal;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeInputUrl(v?: string): string | undefined {
+  return isPublicHttpUrl(v) ? v : undefined;
+}
+
 function extractOrderId(ctx: unknown): string | undefined {
   if (ctx && typeof ctx === "object" && "orderId" in ctx) {
-    const val = (ctx as { orderId?: unknown }).orderId;
+    const val = (ctx as { orderId?: string }).orderId;
     return typeof val === "string" ? val : undefined;
   }
   return undefined;
 }
 
 export const pagoticRouter = router({
-  // === Usado no frontend: busca formUrl/paymentId já criados ===
   startPagoTICPayment: protectedProcedure
     .input(z.object({ orderId: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
@@ -37,7 +54,7 @@ export const pagoticRouter = router({
       });
       if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
 
-      const userId = ctx.session?.user?.id;
+      const userId = ctx.session?.user?.id ?? null;
       if (userId && order.userId !== userId) {
         throw new TRPCError({ code: "FORBIDDEN", message: "Not allowed" });
       }
@@ -53,7 +70,7 @@ export const pagoticRouter = router({
         orderId: order.id,
         paymentId: order.paymentNumber,
         formUrl: order.formUrl,
-         checkoutUrl: order.formUrl,
+        checkoutUrl: order.formUrl,
         status: order.status,
       };
     }),
@@ -61,16 +78,69 @@ export const pagoticRouter = router({
   createPayment: protectedProcedure
     .input(createPaymentInput)
     .mutation(async ({ input, ctx }) => {
-      const body = {
+      // 1) deriva orderId
+      const orderIdFromCtx = extractOrderId(ctx);
+      const orderIdFromMeta = typeof input.metadata?.appOrderId === "string" && input.metadata.appOrderId
+        ? input.metadata.appOrderId
+        : undefined;
+      const orderIdFromExt = input.external_transaction_id?.toLowerCase().startsWith("order_")
+        ? input.external_transaction_id.slice(6)
+        : undefined;
+
+      const orderId = orderIdFromCtx ?? orderIdFromMeta ?? orderIdFromExt;
+      if (!orderId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Missing order id to build external_transaction_id" });
+      }
+
+      // 2) idempotência — se já temos payment para a Order, retorna
+      const existing = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { paymentNumber: true, formUrl: true, status: true },
+      });
+      if (existing?.paymentNumber && existing.formUrl) {
+        return {
+          id: existing.paymentNumber,
+          status: existing.status,
+          finalAmount: 0,
+          formUrl: existing.formUrl,
+          paidAt: null,
+          requestDate: null,
+          details: [],
+          raw: {},
+        };
+      }
+
+      // 3) normalize URLs vindas do client
+      const cleaned: typeof input = {
         ...input,
+        external_transaction_id: `order_${orderId}`,
+        return_url: normalizeInputUrl(input.return_url),
+        back_url: normalizeInputUrl(input.back_url),
+        notification_url: normalizeInputUrl(input.notification_url),
         metadata: {
           ...(input.metadata ?? {}),
-          appOrderId: extractOrderId(ctx),
+          appOrderId: orderId,
           appUserId: ctx.session?.user?.id ?? undefined,
         },
       };
-      const resp = await svc.createPayment(body);
-      return mapPayment(resp);
+
+      const resp = await svc.createPayment(cleaned);
+      const mapped = mapPayment(resp);
+
+      // 4) espelha na Order (sem bloquear UX em caso de falha)
+      await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          paymentNumber: mapped.id,
+          formUrl: mapped.formUrl ?? null,
+          externalTransactionId: `order_${orderId}`,
+        },
+      }).catch((e: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error("[PagoTIC][router.createPayment] Persist error:", e instanceof Error ? e.message : String(e));
+      });
+
+      return mapped;
     }),
 
   getPaymentById: protectedProcedure
@@ -89,10 +159,7 @@ export const pagoticRouter = router({
         filters: input.filters,
         sorts: input.sorts,
       });
-      return {
-        ...resp,
-        data: resp.data.map(mapPayment),
-      };
+      return { ...resp, data: resp.data.map(mapPayment) };
     }),
 
   cancelPayment: protectedProcedure
@@ -111,25 +178,17 @@ export const pagoticRouter = router({
 
   groupPayments: protectedProcedure
     .input(groupPaymentsInput)
-    .mutation(async ({ input }) => {
-      return svc.groupPayments({ paymentIds: input.paymentIds });
-    }),
+    .mutation(async ({ input }) => svc.groupPayments({ paymentIds: input.paymentIds })),
 
   ungroupPayments: protectedProcedure
     .input(z.object({ groupId: z.string().min(1) }))
-    .mutation(async ({ input }) => {
-      return svc.ungroupPayments(input.groupId);
-    }),
+    .mutation(async ({ input }) => svc.ungroupPayments(input.groupId)),
 
   distributePayment: protectedProcedure
     .input(distributionInput)
-    .mutation(async ({ input }) => {
-      return svc.distributePayment(input);
-    }),
+    .mutation(async ({ input }) => svc.distributePayment(input)),
 
   resendNotification: publicProcedure
     .input(getPaymentByIdInput)
-    .mutation(async ({ input }) => {
-      return svc.resendNotification(input.id);
-    }),
+    .mutation(async ({ input }) => svc.resendNotification(input.id)),
 });

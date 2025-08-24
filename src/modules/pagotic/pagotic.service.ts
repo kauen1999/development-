@@ -15,35 +15,31 @@ import type {
 
 type EnvLike = Partial<Record<string, string | undefined>>;
 
-function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (v !== undefined) out[k] = v;
-  }
-  return out as T;
-}
-
 function isPublicHttpUrl(value?: string): value is string {
   if (!value) return false;
   try {
     const u = new URL(value);
     const isHttp = u.protocol === "http:" || u.protocol === "https:";
-    const isLocalhost =
+    const isLocal =
       u.hostname === "localhost" ||
       u.hostname === "127.0.0.1" ||
       u.hostname.endsWith(".local");
-    return isHttp && !isLocalhost;
+    return isHttp && !isLocal;
   } catch {
     return false;
   }
+}
+
+function normalizeInputUrl(v?: string): string | undefined {
+  return isPublicHttpUrl(v) ? v : undefined;
 }
 
 export class PagoticService {
   constructor(private readonly env: EnvLike = process.env) {}
 
   private baseUrl(): string {
-    const b = this.env.PAGOTIC_BASE_URL?.replace(/\/+$/, "");
-    return b || "https://api.paypertic.com";
+    const raw = (this.env.PAGOTIC_BASE_URL || this.env.PAGOTIC_API_URL || "https://api.paypertic.com") as string;
+    return raw.replace(/\/+$/, "");
   }
 
   private timeoutMs(): number {
@@ -51,20 +47,19 @@ export class PagoticService {
     return raw ? Number(raw) : 15000;
   }
 
-  private envUrl(key: "PAGOTIC_RETURN_URL" | "PAGOTIC_BACK_URL" | "PAGOTIC_NOTIFICATION_URL"): string | undefined {
-    const v = this.env[key];
+  private envUrl(k: "PAGOTIC_RETURN_URL" | "PAGOTIC_BACK_URL" | "PAGOTIC_NOTIFICATION_URL"): string | undefined {
+    const v = this.env[k];
     return isPublicHttpUrl(v) ? v : undefined;
   }
 
-  // Garante compatibilidade com o tipo ProcessEnv do Next
-  private authEnv(): NodeJS.ProcessEnv {
-    return { ...process.env, ...this.env } as NodeJS.ProcessEnv;
+  private currency(): string {
+    return this.env.PAGOTIC_CURRENCY || this.env.PAGOTIC_CURRENCY_ID || "ARS";
   }
 
   private async authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
-    const token = await getPagoticToken(this.authEnv());
+    const token = await getPagoticToken({ ...process.env, ...this.env } as NodeJS.ProcessEnv);
     const signal = withTimeout(this.timeoutMs());
-    const rsp = await fetch(`${this.baseUrl()}${path}`, {
+    return fetch(`${this.baseUrl()}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
@@ -73,25 +68,30 @@ export class PagoticService {
       },
       signal,
     });
-    return rsp;
   }
 
-  // --- Core operations ---
-
   async createPayment(input: CreatePagoticPayment): Promise<PagoticPaymentResponse> {
-    const body: CreatePagoticPayment = stripUndefined({
+    const body: CreatePagoticPayment = {
       ...input,
       collector_id: input.collector_id ?? this.env.PAGOTIC_COLLECTOR_ID,
-      currency_id: input.currency_id ?? (this.env.PAGOTIC_CURRENCY_ID || "ARS"),
-      return_url: input.return_url ?? this.envUrl("PAGOTIC_RETURN_URL"),
-      back_url: input.back_url ?? this.envUrl("PAGOTIC_BACK_URL"),
-      notification_url: input.notification_url ?? this.envUrl("PAGOTIC_NOTIFICATION_URL"),
-    });
+      currency_id: input.currency_id ?? this.currency(),
+      return_url: normalizeInputUrl(input.return_url) ?? this.envUrl("PAGOTIC_RETURN_URL"),
+      back_url: normalizeInputUrl(input.back_url) ?? this.envUrl("PAGOTIC_BACK_URL"),
+      notification_url: normalizeInputUrl(input.notification_url) ?? this.envUrl("PAGOTIC_NOTIFICATION_URL"),
+    };
 
-    const rsp = await this.authedFetch(PAGOTIC_ENDPOINTS.pagos, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
+    // Log de pré-visualização seguro
+    const preview = {
+      external_transaction_id: body.external_transaction_id,
+      return_url: body.return_url,
+      back_url: body.back_url,
+      notification_url: body.notification_url,
+      detailsCount: Array.isArray(body.details) ? body.details.length : 0,
+    };
+    // eslint-disable-next-line no-console
+    console.log("[PagoTIC][createPayment] body.preview", preview);
+
+    const rsp = await this.authedFetch(PAGOTIC_ENDPOINTS.pagos, { method: "POST", body: JSON.stringify(body) });
     if (!rsp.ok) throw await toPagoticError(rsp);
     return parseJSON<PagoticPaymentResponse>(rsp);
   }
@@ -126,71 +126,47 @@ export class PagoticService {
     return parseJSON<PagoticPaymentResponse>(rsp);
   }
 
-  async refundPayment(id: string, body: PagoticRefundRequest = {}): Promise<unknown> {
+  async refundPayment(id: string, body: PagoticRefundRequest = {}): Promise<Record<string, unknown>> {
     const rsp = await this.authedFetch(PAGOTIC_ENDPOINTS.pagosDevolucion(id), {
       method: "POST",
       body: JSON.stringify(body),
     });
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<unknown>(rsp);
+    return parseJSON<Record<string, unknown>>(rsp);
   }
 
-  async groupPayments(req: PagoticGroupRequest): Promise<unknown> {
+  async groupPayments(req: PagoticGroupRequest): Promise<Record<string, unknown>> {
     const rsp = await this.authedFetch(PAGOTIC_ENDPOINTS.pagosAgrupar, {
       method: "POST",
       body: JSON.stringify(req.paymentIds),
     });
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<unknown>(rsp);
+    return parseJSON<Record<string, unknown>>(rsp);
   }
 
-  async ungroupPayments(groupId: string): Promise<unknown> {
+  async ungroupPayments(groupId: string): Promise<Record<string, unknown>> {
     const rsp = await this.authedFetch(PAGOTIC_ENDPOINTS.pagosDesagrupar, {
       method: "POST",
       body: JSON.stringify({ group_id: groupId }),
     });
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<unknown>(rsp);
+    return parseJSON<Record<string, unknown>>(rsp);
   }
 
-  async distributePayment(req: PagoticDistributionRequest): Promise<unknown> {
+  async distributePayment(req: PagoticDistributionRequest): Promise<Record<string, unknown>> {
     const rsp = await this.authedFetch(PAGOTIC_ENDPOINTS.pagosDistribucion, {
       method: "POST",
       body: JSON.stringify(req),
     });
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<unknown>(rsp);
+    return parseJSON<Record<string, unknown>>(rsp);
   }
 
-  // --- Bulk import (base pública) ---
-
-  async bulkImportCsvStart(formData: FormData): Promise<{ import_id: string }> {
-    const token = await getPagoticToken(this.authEnv());
-    const rsp = await fetch(`${this.baseUrl()}${PAGOTIC_ENDPOINTS.importacionesPagosCsv}`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-      signal: withTimeout(this.timeoutMs()),
-    });
-    if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<{ import_id: string }>(rsp);
-  }
-
-  async bulkImportDetails(importId: string, filters: PagoticListFilter[] = []): Promise<unknown> {
-    const q = buildFiltersQuery(filters);
-    const path = `${PAGOTIC_ENDPOINTS.importacionesPagosDetalles(importId)}?${q.toString()}`;
-    const rsp = await this.authedFetch(path);
-    if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<unknown>(rsp);
-  }
-
-  // --- Notifications ---
-
-  async resendNotification(id: string): Promise<unknown> {
+  async resendNotification(id: string): Promise<Record<string, unknown>> {
     const rsp = await this.authedFetch(`${PAGOTIC_ENDPOINTS.resendNotification}/${encodeURIComponent(id)}`, {
       method: "POST",
     });
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<unknown>(rsp);
+    return parseJSON<Record<string, unknown>>(rsp);
   }
 }

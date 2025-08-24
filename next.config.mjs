@@ -1,3 +1,4 @@
+//next.config.mjs
 /** @type {import('next').NextConfig} */
 import { execSync } from 'child_process';
 

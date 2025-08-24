@@ -1,6 +1,6 @@
+//src/env/server.ts
 import { z } from "zod";
 
-// … seu clientSchema aqui …
 
 export const serverSchema = z.object({
   // — seus campos já existentes —
