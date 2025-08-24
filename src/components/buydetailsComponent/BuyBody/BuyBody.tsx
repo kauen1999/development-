@@ -1,3 +1,4 @@
+// src/components/buydetailsComponent/BuyBody/BuyBody.tsx
 import React, { useState } from "react";
 import { useRouter } from "next/router";
 import { EventMap } from "../../BuyBody/EventMap";
@@ -44,6 +45,8 @@ type Seat = {
   price: number;
 };
 
+type CreatedOrder = { id: string };
+
 // Mescla o mapa estático com os preços reais vindos do banco
 const mergeMapWithTicketPrices = (
   mapConfig: EventMapConfig,
@@ -54,21 +57,11 @@ const mergeMapWithTicketPrices = (
       (tc) => tc.title.toLowerCase() === sector.name.toLowerCase()
     );
     const price = ticketCategory?.price ?? 0;
-
-    const newPricesByRow = Object.fromEntries(
-      sector.rows.map((row) => [row, price])
-    );
-
-    return {
-      ...sector,
-      pricesByRow: newPricesByRow,
-    };
+    const newPricesByRow = Object.fromEntries(sector.rows.map((row) => [row, price]));
+    return { ...sector, pricesByRow: newPricesByRow };
   });
 
-  return {
-    ...mapConfig,
-    sectors: newSectors,
-  };
+  return { ...mapConfig, sectors: newSectors };
 };
 
 const BuyBody: React.FC<Props> = ({ event }) => {
@@ -76,21 +69,28 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   const [selectedSeats, setSelectedSeats] = useState<Seat[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
-  const handleSelect = (
-    sector: string,
-    row: string,
-    seat: number,
-    price: number
-  ) => {
+  // índice label -> seatId usando dados vindos do SSR
+  // formata chave igual ao que você envia do front: `${row}-${seatNumber}`
+  const seatIdByLabel = (() => {
+    const map = new Map<string, string>();
+    for (const cat of event.ticketCategories) {
+      for (const s of cat.seats) {
+        if (s.row && typeof s.number === "number") {
+          map.set(`${s.row}-${s.number}`, s.id);
+        }
+      }
+    }
+    return map;
+  })();
+
+  const handleSelect = (sector: string, row: string, seat: number, price: number) => {
     const isAlreadySelected = selectedSeats.some(
       (s) => s.sector === sector && s.row === row && s.seat === seat
     );
 
     if (isAlreadySelected) {
       setSelectedSeats((prev) =>
-        prev.filter(
-          (s) => !(s.sector === sector && s.row === row && s.seat === seat)
-        )
+        prev.filter((s) => !(s.sector === sector && s.row === row && s.seat === seat))
       );
     } else {
       if (selectedSeats.length >= 5) return; // mantém regra de até 5 ingressos por compra
@@ -103,6 +103,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   const disabled = totalTickets === 0;
 
   const staticMap = eventMaps["belgrano"];
+  // ⚠️ Sem hooks condicionais; cálculo simples
   if (!staticMap) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -110,25 +111,17 @@ const BuyBody: React.FC<Props> = ({ event }) => {
       </div>
     );
   }
-
   const mapConfig = mergeMapWithTicketPrices(staticMap, event.ticketCategories);
 
-  // Calcula total de assentos disponíveis (status === AVAILABLE)
+  // Total de assentos disponíveis (status === AVAILABLE)
   const totalAvailableSeats = event.ticketCategories.flatMap((cat) =>
     cat.seats.filter((s) => s.status === "AVAILABLE")
   ).length;
 
-  const createOrder = trpc.order.create.useMutation({
-    onSuccess: (order) => {
-      router.push(`/checkout/${order.id}`);
-    },
-    onError: (error) => {
-      console.error("💥 Erro ao criar pedido:", error);
-      alert("Uno o más asientos ya no están disponibles.");
-    },
-  });
+  // Use a mutation existente no seu router (ex.: createSeated)
+  const createOrder = trpc.order.createSeated.useMutation();
 
-  const handleBuy = () => {
+  const handleBuy = async () => {
     if (!termsAccepted || selectedSeats.length === 0) {
       alert("Debe aceptar los términos y seleccionar al menos una entrada.");
       return;
@@ -140,13 +133,30 @@ const BuyBody: React.FC<Props> = ({ event }) => {
       return;
     }
 
-    const selectedLabels = selectedSeats.map((s) => `${s.row}-${s.seat}`);
+    // converte labels selecionados em seatIds reais exigidos pelo backend
+    const seatIds: string[] = [];
+    for (const s of selectedSeats) {
+      const key = `${s.row}-${s.seat}`;
+      const id = seatIdByLabel.get(key);
+      if (!id) {
+        alert(`Asiento no encontrado: ${key}`);
+        return;
+      }
+      seatIds.push(id);
+    }
 
-    createOrder.mutate({
-      eventId: event.id,
-      eventSessionId,
-      selectedLabels,
-    });
+    try {
+      const order: CreatedOrder = await createOrder.mutateAsync({
+        eventId: event.id,
+        eventSessionId,
+        seatIds, // ✅ payload correto
+      });
+      router.push(`/checkout/${order.id}`);
+    } catch (e) {
+      // sem tipar como any/unknown; mostramos mensagem genérica
+      console.error("💥 Erro ao criar pedido:", e);
+      alert("Uno o más asientos ya no están disponibles.");
+    }
   };
 
   return (
@@ -174,7 +184,6 @@ const BuyBody: React.FC<Props> = ({ event }) => {
           DOM-06/JUL
         </h2>
 
-        {/* ALTERAÇÃO: Mostra ao cliente o total real de assentos disponíveis */}
         <p className="mt-2 text-sm text-gray-600">
           Total de asientos disponibles: {totalAvailableSeats}
         </p>
@@ -182,7 +191,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
         {selectedSeats.length > 0 ? (
           <div className="mt-4 max-h-64 space-y-4 overflow-y-auto pr-2">
             {selectedSeats.map((s, i) => (
-              <div key={i} className="border-b pb-2">
+              <div key={`${s.row}-${s.seat}-${i}`} className="border-b pb-2">
                 <div className="flex items-center justify-between">
                   <p>Sector: {s.sector}</p>
                   <p>
@@ -206,7 +215,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
               type="checkbox"
               checked={termsAccepted}
               onChange={(e) => setTermsAccepted(e.target.checked)}
-              className="text-primary-600 focus:ring-primary-500 h-4 w-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
             />
             <label htmlFor="terms" className="text-sm text-gray-600">
               Acepto los términos y condiciones
@@ -215,10 +224,10 @@ const BuyBody: React.FC<Props> = ({ event }) => {
           <button
             disabled={disabled || !termsAccepted}
             onClick={handleBuy}
-            className="hover:bg-primary-200 w-full rounded bg-primary-100 py-2 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-400"
+            className="w-full rounded bg-primary-100 py-2 font-bold text-white hover:bg-primary-200 disabled:cursor-not-allowed disabled:bg-gray-400"
           >
-            Comprar ahora ({totalTickets} ingresso{totalTickets > 1 ? "s" : ""})
-            - ${totalPrice.toFixed(2)}
+            Comprar ahora ({totalTickets} ingresso{totalTickets > 1 ? "s" : ""}) - $
+            {totalPrice.toFixed(2)}
           </button>
         </div>
       </div>
