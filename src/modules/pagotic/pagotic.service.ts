@@ -1,4 +1,4 @@
-// src/moduls/pagotic/pagotic.service.ts
+// src/modules/pagotic/pagotic.service.ts
 import { getPagoticToken } from "./pagotic.auth";
 import { PAGOTIC_ENDPOINTS } from "./pagotic.endpoints";
 import { toPagoticError } from "./pagotic.errors";
@@ -38,10 +38,19 @@ function isPublicHttpUrl(value?: string): value is string {
   }
 }
 
-// ✅ normaliza URL de input (ignora "", localhost e inválidas)
+// ✅ Evita aceitar string vazia/localhost
 function normalizeInputUrl(v?: string): string | undefined {
   return isPublicHttpUrl(v) ? v : undefined;
 }
+
+// Tipagem mais forte para debug (detalhes do pagamento)
+type PaymentDetailPreview = {
+  payment_id?: string;
+  concept_id?: string;
+  concept_description?: string;
+  amount?: number;
+  external_reference?: string;
+};
 
 export class PagoticService {
   constructor(private readonly env: EnvLike = process.env) {}
@@ -63,27 +72,6 @@ export class PagoticService {
     return isPublicHttpUrl(v) ? v : undefined;
   }
 
-  // ✅ fallback seguro baseado no domínio público da app
-  private publicBase(): string | undefined {
-    const base = this.env.NEXT_PUBLIC_APP_URL;
-    if (!isPublicHttpUrl(base)) return undefined;
-    return base.replace(/\/+$/, "");
-  }
-
-  private defaultReturnUrl(): string | undefined {
-    const b = this.publicBase();
-    return b ? `${b}/api/webhooks/pagotic-return` : undefined;
-  }
-  private defaultBackUrl(): string | undefined {
-    const b = this.publicBase();
-    return b ? `${b}/payment/cancel` : undefined;
-  }
-  private defaultNotificationUrl(): string | undefined {
-    const b = this.publicBase();
-    return b ? `${b}/api/webhooks/pagotic` : undefined;
-  }
-
-  // Garante compatibilidade com o tipo ProcessEnv do Next
   private authEnv(): NodeJS.ProcessEnv {
     return { ...process.env, ...this.env } as NodeJS.ProcessEnv;
   }
@@ -91,7 +79,7 @@ export class PagoticService {
   private async authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
     const token = await getPagoticToken(this.authEnv());
     const signal = withTimeout(this.timeoutMs());
-    const rsp = await fetch(`${this.baseUrl()}${path}`, {
+    return fetch(`${this.baseUrl()}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
@@ -100,54 +88,33 @@ export class PagoticService {
       },
       signal,
     });
-    return rsp;
   }
 
   // --- Core operations ---
 
   async createPayment(input: CreatePagoticPayment): Promise<PagoticPaymentResponse> {
-    // ✅ usa URL do input apenas se for pública e válida; senão cai para .env; senão cai para fallback pelo NEXT_PUBLIC_APP_URL
-    const return_url =
-      normalizeInputUrl(input.return_url) ??
-      this.envUrl("PAGOTIC_RETURN_URL") ??
-      this.defaultReturnUrl();
-
-    const back_url =
-      normalizeInputUrl(input.back_url) ??
-      this.envUrl("PAGOTIC_BACK_URL") ??
-      this.defaultBackUrl();
-
-    const notification_url =
-      normalizeInputUrl(input.notification_url) ??
-      this.envUrl("PAGOTIC_NOTIFICATION_URL") ??
-      this.defaultNotificationUrl();
-
-    // ⚠️ não quebra fluxo: se ainda assim ficar sem notification_url, loga e segue (mas você verá o alerta nos logs)
-    if (!notification_url) {
-      console.error(
-        "[PagoTIC] notification_url ausente (input/env/fallback inválidos). O webhook NÃO será disparado."
-      );
-    }
-
     const body: CreatePagoticPayment = stripUndefined({
       ...input,
       collector_id: input.collector_id ?? this.env.PAGOTIC_COLLECTOR_ID,
       currency_id: input.currency_id ?? (this.env.PAGOTIC_CURRENCY_ID || "ARS"),
-      return_url,
-      back_url,
-      notification_url,
+      return_url: normalizeInputUrl(input.return_url) ?? this.envUrl("PAGOTIC_RETURN_URL"),
+      back_url: normalizeInputUrl(input.back_url) ?? this.envUrl("PAGOTIC_BACK_URL"),
+      notification_url: normalizeInputUrl(input.notification_url) ?? this.envUrl("PAGOTIC_NOTIFICATION_URL"),
     });
 
-    // 🔎 log diagnóstico sem dados sensíveis
+    // 🔹 Log seguro sem any
     try {
-      console.log("[PagoTIC][createPayment] urls", {
+      const dbg = {
         external_transaction_id: body.external_transaction_id,
-        notification_url: body.notification_url,
         return_url: body.return_url,
         back_url: body.back_url,
-        collector_id: body.collector_id,
-        currency_id: body.currency_id,
-      });
+        notification_url: body.notification_url,
+        detailsCount: Array.isArray(body.details) ? body.details.length : 0,
+        firstDetail: Array.isArray(body.details)
+          ? (body.details[0] as PaymentDetailPreview)
+          : undefined,
+      };
+      console.log("[PagoTIC][createPayment] body.preview", dbg);
     } catch {}
 
     const rsp = await this.authedFetch(PAGOTIC_ENDPOINTS.pagos, {
@@ -224,8 +191,7 @@ export class PagoticService {
     return parseJSON<unknown>(rsp);
   }
 
-  // --- Bulk import (base pública) ---
-
+  // --- Bulk import (CSV) ---
   async bulkImportCsvStart(formData: FormData): Promise<{ import_id: string }> {
     const token = await getPagoticToken(this.authEnv());
     const rsp = await fetch(`${this.baseUrl()}${PAGOTIC_ENDPOINTS.importacionesPagosCsv}`, {
@@ -238,7 +204,7 @@ export class PagoticService {
     return parseJSON<{ import_id: string }>(rsp);
   }
 
-  async bulkImportDetails(importId: string, filters: PagoticListFilter[] = []) {
+  async bulkImportDetails(importId: string, filters: PagoticListFilter[] = []): Promise<unknown> {
     const q = buildFiltersQuery(filters);
     const path = `${PAGOTIC_ENDPOINTS.importacionesPagosDetalles(importId)}?${q.toString()}`;
     const rsp = await this.authedFetch(path);
@@ -247,7 +213,6 @@ export class PagoticService {
   }
 
   // --- Notifications ---
-
   async resendNotification(id: string): Promise<unknown> {
     const rsp = await this.authedFetch(`${PAGOTIC_ENDPOINTS.resendNotification}/${encodeURIComponent(id)}`, {
       method: "POST",
