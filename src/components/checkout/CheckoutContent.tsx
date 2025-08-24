@@ -49,7 +49,7 @@ const CheckoutContent: React.FC<CheckoutContentProps> = ({ title, price, sector,
       const result = await pagoMutation.mutateAsync({ orderId }) as StartResult;
       const checkoutUrl = extractCheckoutUrl(result);
       if (checkoutUrl && /^https?:\/\//i.test(checkoutUrl)) {
-        window.open(checkoutUrl, "_blank");
+        window.location.href = checkoutUrl;
       } else {
         alert("No fue posible iniciar el pago. URL inválida.");
       }
