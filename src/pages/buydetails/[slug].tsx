@@ -1,3 +1,4 @@
+// src/pages/buydetails/[slug].tsx
 import Header from "../../components/principal/header/Header";
 import Footer from "../../components/principal/footer/Footer";
 import BuyHero from "../../components/buydetailsComponent/BuyHero/BuyHero";
@@ -128,12 +129,11 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
   if (!firstEventSession) return { notFound: true };
   const firstDateISO = firstEventSession.date.toISOString();
 
-  // SEATED event
+  // 🔹 SEATED event → entrega ticketCategories + seats completos
   if (base.eventType === "SEATED") {
-    // << alteração mínima: incluir seats para o BuyBody saber os ids reais >>
     const withSeats = await prisma.event.findUnique({
       where: { slug },
-      include: { ticketCategories: { include: { seats: true } } },
+      include: { ticketCategories: { include: { seats: true } } }, // pega seats com row/number/status
     });
 
     const ticketCategories =
@@ -172,7 +172,7 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     return { props: { kind: "SEATED", event: eventSeated } as PageProps };
   }
 
-  // GENERAL event → calcula capacidade real
+  // 🔹 GENERAL event (INALTERADO)
   const categories: GeneralCategory[] = await Promise.all(
     base.ticketCategories.map(async (tc) => {
       const usedCount = await prisma.orderItem.aggregate({

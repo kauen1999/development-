@@ -1,17 +1,15 @@
+// src/components/buydetailsComponent/BuyBody/BuyBody.tsx
 import React, { useState } from "react";
 import { useRouter } from "next/router";
 import { EventMap } from "../../BuyBody/EventMap";
-import { eventMaps } from "../../../data/maps";
+import { generateMapFromSeats } from "../../../data/maps";
 import { trpc } from "@/utils/trpc";
-import type { EventMapConfig } from "@/data/maps";
+// ⚡ importa os dois tipos para evitar conflito
+import type { EventMapConfig as EventMapConfigUI } from "@/components/BuyBody/EventMap";
 
 interface Props {
   event: {
-    eventSessions: {
-      id: string;
-      date: string;
-      venueName: string;
-    }[];
+    eventSessions: { id: string; date: string; venueName: string }[];
     id: string;
     name: string;
     date: string;
@@ -30,10 +28,7 @@ interface Props {
         status: "AVAILABLE" | "RESERVED" | "SOLD";
       }[];
     }[];
-    category: {
-      id: string;
-      name: string;
-    };
+    category: { id: string; name: string };
   };
 }
 
@@ -46,30 +41,13 @@ type Seat = {
 
 type CreatedOrder = { id: string };
 
-// mescla mapa estático com preços reais
-const mergeMapWithTicketPrices = (
-  mapConfig: EventMapConfig,
-  ticketCategories: Props["event"]["ticketCategories"]
-): EventMapConfig => {
-  const newSectors = mapConfig.sectors.map((sector) => {
-    const ticketCategory = ticketCategories.find(
-      (tc) => tc.title.toLowerCase() === sector.name.toLowerCase()
-    );
-    const price = ticketCategory?.price ?? 0;
-    const newPricesByRow = Object.fromEntries(sector.rows.map((row) => [row, price]));
-    return { ...sector, pricesByRow: newPricesByRow };
-  });
-
-  return { ...mapConfig, sectors: newSectors };
-};
-
 const BuyBody: React.FC<Props> = ({ event }) => {
   const router = useRouter();
   const [selectedSeats, setSelectedSeats] = useState<Seat[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   // índice label -> seatId usando dados vindos do SSR (chave `${row}-${number}`)
-  const seatIdByLabel = (() => {
+  const seatIdByLabel: Map<string, string> = (() => {
     const map = new Map<string, string>();
     for (const cat of event.ticketCategories) {
       for (const s of cat.seats) {
@@ -81,17 +59,24 @@ const BuyBody: React.FC<Props> = ({ event }) => {
     return map;
   })();
 
-  const handleSelect = (sector: string, row: string, seat: number, price: number) => {
+  const handleSelect = (
+    sector: string,
+    row: string,
+    seat: number,
+    price: number
+  ) => {
     const isAlreadySelected = selectedSeats.some(
       (s) => s.sector === sector && s.row === row && s.seat === seat
     );
 
     if (isAlreadySelected) {
       setSelectedSeats((prev) =>
-        prev.filter((s) => !(s.sector === sector && s.row === row && s.seat === seat))
+        prev.filter(
+          (s) => !(s.sector === sector && s.row === row && s.seat === seat)
+        )
       );
     } else {
-      if (selectedSeats.length >= 5) return;
+      if (selectedSeats.length >= 5) return; // regra: até 5 ingressos
       setSelectedSeats((prev) => [...prev, { sector, row, seat, price }]);
     }
   };
@@ -100,21 +85,25 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   const totalTickets = selectedSeats.length;
   const disabled = totalTickets === 0;
 
-  const staticMap = eventMaps["belgrano"];
-  if (!staticMap) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <span className="text-gray-500">Mapa del evento no encontrado.</span>
-      </div>
-    );
-  }
-  const mapConfig = mergeMapWithTicketPrices(staticMap, event.ticketCategories);
+  // 🔹 gera o mapa dinamicamente a partir dos assentos do banco
+  const allSeats = event.ticketCategories.flatMap((tc) =>
+    tc.seats.map((s) => ({
+      id: s.id,
+      label: s.label,
+      row: s.row ?? "",
+      number: s.number ?? 0,
+      ticketCategory: { id: tc.id, name: tc.title, price: tc.price },
+    }))
+  );
 
+  const mapConfig: EventMapConfigUI = generateMapFromSeats(allSeats);
+
+  // total de assentos disponíveis
   const totalAvailableSeats = event.ticketCategories.flatMap((cat) =>
     cat.seats.filter((s) => s.status === "AVAILABLE")
   ).length;
 
-  // usar o procedimento correto do router (createSeated)
+  // mutation para criar order SEATED
   const createOrder = trpc.order.createSeated.useMutation();
 
   const handleBuy = async () => {
@@ -129,7 +118,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
       return;
     }
 
-    // converter `${row}-${seat}` para seatIds reais
+    // converter seleção (row/number) em seatIds do banco
     const seatIds: string[] = [];
     for (const s of selectedSeats) {
       const key = `${s.row}-${s.seat}`;
@@ -149,7 +138,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
       });
       router.push(`/checkout/${order.id}`);
     } catch (e) {
-      console.error("💥 Erro ao criar pedido:", e);
+      console.error("💥 Erro ao crear pedido:", e);
       alert("Uno o más asientos ya no están disponibles.");
     }
   };
@@ -164,7 +153,9 @@ const BuyBody: React.FC<Props> = ({ event }) => {
           maxReached={selectedSeats.length >= 5}
           soldSeats={event.ticketCategories.flatMap((cat) =>
             cat.seats
-              .filter((s) => s.status === "SOLD" || s.status === "RESERVED")
+              .filter(
+                (s) => s.status === "SOLD" || s.status === "RESERVED"
+              )
               .map((s) => ({
                 sector: cat.title,
                 row: s.row ?? "",

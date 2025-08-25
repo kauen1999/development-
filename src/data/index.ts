@@ -1,5 +1,5 @@
 // src/data/index.ts
-import { StaticImageData } from "next/image";
+import type { StaticImageData } from "next/image";
 
 interface Card {
   categoria: string;
