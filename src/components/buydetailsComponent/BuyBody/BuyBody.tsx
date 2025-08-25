@@ -2,9 +2,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/router";
 import { EventMap } from "../../BuyBody/EventMap";
-import { generateMapFromSeats } from "../../../data/maps";
 import { trpc } from "@/utils/trpc";
-// ⚡ importa os dois tipos para evitar conflito
 import type { EventMapConfig as EventMapConfigUI } from "@/components/BuyBody/EventMap";
 
 interface Props {
@@ -41,12 +39,51 @@ type Seat = {
 
 type CreatedOrder = { id: string };
 
+// 🔹 constrói o mapa só com o que existe no banco
+function buildDynamicMap(ticketCategories: Props["event"]["ticketCategories"]): EventMapConfigUI {
+  // setores = categorias com ao menos 1 seat
+  const sectors = ticketCategories
+    .filter(tc => tc.seats.length > 0)
+    .map(tc => {
+      // filas únicas presentes nessa categoria
+      const rows = Array.from(
+        new Set(tc.seats.map(s => s.row ?? "").filter(Boolean))
+      );
+
+      // preço por fila (um preço por categoria, replicado por fila existente)
+      const pricesByRow = Object.fromEntries(rows.map(r => [r, tc.price]));
+
+      return {
+        id: tc.id,
+        name: tc.title,      // ex.: "Platea A"
+        rows,                // ex.: ["A","B","C"] (ou só ["A"])
+        pricesByRow,
+      };
+    });
+
+  // assentos por fila = maior "number" visto na categoria/fila
+  // (se você preferir “quantidade por fila” em vez do maior número,
+  // troque para contar por row)
+  const seatsPerRow = Math.max(
+    1,
+    ...ticketCategories.flatMap(tc =>
+      tc.seats.map(s => s.number ?? 0)
+    )
+  );
+
+  return {
+    name: "Mapa dinâmico",
+    seatsPerRow,
+    sectors,
+  };
+}
+
 const BuyBody: React.FC<Props> = ({ event }) => {
   const router = useRouter();
   const [selectedSeats, setSelectedSeats] = useState<Seat[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
-  // índice label -> seatId usando dados vindos do SSR (chave `${row}-${number}`)
+  // índice row-number -> seatId (usa exatamente row e number vindos do banco)
   const seatIdByLabel: Map<string, string> = (() => {
     const map = new Map<string, string>();
     for (const cat of event.ticketCategories) {
@@ -59,25 +96,18 @@ const BuyBody: React.FC<Props> = ({ event }) => {
     return map;
   })();
 
-  const handleSelect = (
-    sector: string,
-    row: string,
-    seat: number,
-    price: number
-  ) => {
+  const handleSelect = (sector: string, row: string, seat: number, price: number) => {
     const isAlreadySelected = selectedSeats.some(
-      (s) => s.sector === sector && s.row === row && s.seat === seat
+      s => s.sector === sector && s.row === row && s.seat === seat
     );
 
     if (isAlreadySelected) {
-      setSelectedSeats((prev) =>
-        prev.filter(
-          (s) => !(s.sector === sector && s.row === row && s.seat === seat)
-        )
+      setSelectedSeats(prev =>
+        prev.filter(s => !(s.sector === sector && s.row === row && s.seat === seat))
       );
     } else {
-      if (selectedSeats.length >= 5) return; // regra: até 5 ingressos
-      setSelectedSeats((prev) => [...prev, { sector, row, seat, price }]);
+      if (selectedSeats.length >= 5) return; // até 5 ingressos
+      setSelectedSeats(prev => [...prev, { sector, row, seat, price }]);
     }
   };
 
@@ -85,22 +115,12 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   const totalTickets = selectedSeats.length;
   const disabled = totalTickets === 0;
 
-  // 🔹 gera o mapa dinamicamente a partir dos assentos do banco
-  const allSeats = event.ticketCategories.flatMap((tc) =>
-    tc.seats.map((s) => ({
-      id: s.id,
-      label: s.label,
-      row: s.row ?? "",
-      number: s.number ?? 0,
-      ticketCategory: { id: tc.id, name: tc.title, price: tc.price },
-    }))
-  );
+  // ✅ mapa 100% dinâmico (agora, se o evento só tem “Platea A”, só isso aparece)
+  const mapConfig = buildDynamicMap(event.ticketCategories);
 
-  const mapConfig: EventMapConfigUI = generateMapFromSeats(allSeats);
-
-  // total de assentos disponíveis
-  const totalAvailableSeats = event.ticketCategories.flatMap((cat) =>
-    cat.seats.filter((s) => s.status === "AVAILABLE")
+  // total de assentos disponíveis (apenas AVAILABLE)
+  const totalAvailableSeats = event.ticketCategories.flatMap(cat =>
+    cat.seats.filter(s => s.status === "AVAILABLE")
   ).length;
 
   // mutation para criar order SEATED
@@ -121,7 +141,7 @@ const BuyBody: React.FC<Props> = ({ event }) => {
     // converter seleção (row/number) em seatIds do banco
     const seatIds: string[] = [];
     for (const s of selectedSeats) {
-      const key = `${s.row}-${s.seat}`;
+      const key = `${s.row}-${s.seat}`; // 👈 usa row e número “crus”
       const id = seatIdByLabel.get(key);
       if (!id) {
         alert(`Asiento no encontrado: ${key}`);
@@ -151,14 +171,12 @@ const BuyBody: React.FC<Props> = ({ event }) => {
           onSelect={handleSelect}
           selectedSeats={selectedSeats}
           maxReached={selectedSeats.length >= 5}
-          soldSeats={event.ticketCategories.flatMap((cat) =>
+          soldSeats={event.ticketCategories.flatMap(cat =>
             cat.seats
-              .filter(
-                (s) => s.status === "SOLD" || s.status === "RESERVED"
-              )
-              .map((s) => ({
-                sector: cat.title,
-                row: s.row ?? "",
+              .filter(s => s.status === "SOLD" || s.status === "RESERVED")
+              .map(s => ({
+                sector: cat.title,     // 👈 setor = título da categoria
+                row: s.row ?? "",      // 👈 fila “crua” (sem concat)
                 seat: s.number ?? 0,
               }))
           )}
