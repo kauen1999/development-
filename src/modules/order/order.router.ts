@@ -1,5 +1,6 @@
 // src/modules/order/order.router.ts
 import { router, protectedProcedure } from "@/server/trpc/trpc";
+import { TRPCError } from "@trpc/server";
 import {
   getOrderInput,
   listOrdersInput,
@@ -15,18 +16,23 @@ import {
   createOrderSeatedService,
 } from "./order.service";
 
+function requireUser(ctx: unknown): string {
+  const id = (ctx as { session?: { user?: { id?: string } } })?.session?.user?.id;
+  if (!id) throw new TRPCError({ code: "UNAUTHORIZED" });
+  return id;
+}
+
 export const orderRouter = router({
   // usado em eventos "GENERAL"
   createGeneral: protectedProcedure
     .input(createOrderGeneralInput)
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session?.user?.id;
-      if (!userId) throw new Error("Unauthorized");
+      const userId = requireUser(ctx);
       return createOrderGeneralService(
         userId,
         input.eventId,
         input.eventSessionId,
-        input.items,
+        input.items
       );
     }),
 
@@ -34,13 +40,12 @@ export const orderRouter = router({
   createSeated: protectedProcedure
     .input(createOrderSeatedInput)
     .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session?.user?.id;
-      if (!userId) throw new Error("Unauthorized");
+      const userId = requireUser(ctx);
       return createOrderSeatedService(
         userId,
         input.eventId,
         input.eventSessionId,
-        input.seatIds,
+        input.seatIds
       );
     }),
 
@@ -51,8 +56,7 @@ export const orderRouter = router({
   listOrders: protectedProcedure
     .input(listOrdersInput)
     .query(async ({ input, ctx }) => {
-      const userId = ctx.session?.user?.id;
-      if (!userId) throw new Error("Unauthorized");
+      const userId = requireUser(ctx);
       return listOrdersService(userId, input.page, input.limit);
     }),
 

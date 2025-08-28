@@ -3,12 +3,11 @@ import type { NextAuthOptions, User } from "next-auth";
 import type { Provider } from "next-auth/providers";
 import Credentials from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/server/db/client";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import type { JWT } from "next-auth/jwt";
 
-// Check if user profile is complete
 function isProfileComplete(user: {
   name?: string | null;
   email?: string | null;
@@ -17,17 +16,9 @@ function isProfileComplete(user: {
   phone?: string | null;
   birthdate?: Date | string | null;
 }): boolean {
-  return Boolean(
-    user?.name &&
-      user?.email &&
-      user?.dniName &&
-      user?.dni &&
-      user?.phone &&
-      user?.birthdate
-  );
+  return Boolean(user?.name && user?.email && user?.dniName && user?.dni && user?.phone && user?.birthdate);
 }
 
-// Get minimal user data from DB for JWT/Session
 async function getUserData(email: string) {
   return prisma.user.findUnique({
     where: { email },
@@ -40,7 +31,8 @@ async function getUserData(email: string) {
       dni: true,
       phone: true,
       birthdate: true,
-      image: true
+      image: true,
+      emailVerified: true,
     },
   });
 }
@@ -56,10 +48,7 @@ function getProviders(): Provider[] {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
-
+        const user = await prisma.user.findUnique({ where: { email: credentials.email } });
         if (!user || !user.password) return null;
 
         const valid = await bcrypt.compare(credentials.password, user.password);
@@ -72,6 +61,7 @@ function getProviders(): Provider[] {
           image: user.image,
           role: user.role as Role,
           profileCompleted: isProfileComplete(user),
+          emailVerified: !!user.emailVerified,
         };
 
         return result;
@@ -96,11 +86,9 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   callbacks: {
     async signIn({ user, account }) {
-      // Google login flow
+      // Google login flow: considere e-mail verificado
       if (account?.provider === "google" && user?.email) {
-        let dbUser = await prisma.user.findUnique({
-          where: { email: user.email },
-        });
+        let dbUser = await prisma.user.findUnique({ where: { email: user.email } });
 
         if (!dbUser) {
           dbUser = await prisma.user.create({
@@ -110,13 +98,15 @@ export const authOptions: NextAuthOptions = {
               image: user.image ?? null,
               provider: "google",
               role: "USER",
+              emailVerified: new Date(),
             },
           });
         } else {
           const needsUpdate =
             (user.name && user.name !== dbUser.name) ||
             (user.image && user.image !== dbUser.image) ||
-            dbUser.provider !== "google";
+            dbUser.provider !== "google" ||
+            !dbUser.emailVerified;
 
           if (needsUpdate) {
             await prisma.user.update({
@@ -125,6 +115,7 @@ export const authOptions: NextAuthOptions = {
                 name: user.name ?? dbUser.name,
                 image: user.image ?? dbUser.image,
                 provider: "google",
+                emailVerified: dbUser.emailVerified ?? new Date(),
               },
             });
           }
@@ -144,6 +135,7 @@ export const authOptions: NextAuthOptions = {
         token.email = dbUser.email;
         token.name = dbUser.name;
         token.profileCompleted = isProfileComplete(dbUser);
+        token.emailVerified = !!dbUser.emailVerified;
       }
       return token;
     },
@@ -154,6 +146,7 @@ export const authOptions: NextAuthOptions = {
         id: token.id,
         role: token.role,
         profileCompleted: token.profileCompleted,
+        emailVerified: token.emailVerified,
       };
       return session;
     },

@@ -4,27 +4,27 @@ import { useRouter } from "next/router";
 import Image from "next/image";
 import { trpc } from "@/utils/trpc";
 
-// ===== Tipos utilitários (sem any) =====
+// ===== Tipos utilitários (sem null/any) =====
 type TicketLike = {
   id?: string;
-  qrCodeUrl?: string | null;
-  qr_code_url?: string | null;
-  pdfUrl?: string | null;
-  pdf_url?: string | null;
+  qrCodeUrl?: string;
+  qr_code_url?: string;
+  pdfUrl?: string;
+  pdf_url?: string;
   createdAt?: string | Date;
-  seatId?: string | null;
-  ticketCategoryId?: string | null;
+  seatId?: string;
+  ticketCategoryId?: string;
 };
 
 type OrderItemLike = {
   id?: string;
-  title?: string | null;
-  amount?: number | null;
-  currency?: string | null;
-  ticket?: TicketLike | null;
+  title?: string;
+  amount?: number;
+  currency?: string;
+  ticket?: TicketLike;
 };
 
-type UserLike = { email?: string | null };
+type UserLike = { email?: string };
 
 type OrderDTOBase = {
   id: string;
@@ -34,14 +34,14 @@ type OrderDTOBase = {
   status: string;
   total: number;
   createdAt: Date | string;
-  expiresAt: Date | string | null;
-  externalTransactionId: string | null;
-  paymentNumber: string | null;
-  formUrl: string | null;
+  expiresAt?: Date | string;
+  externalTransactionId?: string;
+  paymentNumber?: string;
+  formUrl?: string;
 };
 
 type OrderForView = OrderDTOBase & {
-  user?: UserLike | null;
+  user?: UserLike;
   orderItems?: OrderItemLike[];
 };
 
@@ -53,9 +53,9 @@ function isOrderForView(x: unknown): x is OrderForView {
   return true;
 }
 
-function formatMoney(amount?: number | null, currency?: string | null) {
+function formatMoney(amount?: number, currency?: string) {
   if (typeof amount !== "number") return null;
-  const code = currency ?? "USD";
+  const code = currency || "USD";
   try {
     return new Intl.NumberFormat("es-ES", {
       style: "currency",
@@ -71,8 +71,12 @@ export default function ConfirmationPage() {
   const router = useRouter();
   const { orderId } = router.query as { orderId?: string };
 
-  const { data, isLoading, error } = trpc.order.getOrder.useQuery(
-    { id: orderId ?? "" },
+  const {
+    data,
+    isLoading,
+    error,
+  } = trpc.order.getOrder.useQuery(
+    { id: orderId || "" },
     { enabled: Boolean(orderId) }
   );
 
@@ -84,24 +88,19 @@ export default function ConfirmationPage() {
     return () => clearTimeout(timer);
   }, [router]);
 
-  if (!orderId) return <p>Pedido no informado.</p>;
-  if (isLoading) return <p>Cargando pedido…</p>;
-  if (error) return <p>Error: {error.message}</p>;
-  if (!isOrderForView(data)) return <p>Pedido no encontrado.</p>;
+  if (!orderId) return <p>Pedido não informado.</p>;
+  if (isLoading) return <p>Carregando pedido…</p>;
+  if (error) return <p>Erro: {error.message}</p>;
+  if (!isOrderForView(data)) return <p>Pedido não encontrado.</p>;
 
-  const order: OrderForView = data as unknown as OrderForView;
+  // A partir daqui, `data` é OrderForView pelo type guard
+  const order = data;
 
   const ticketRows: Array<{ item: OrderItemLike; ticket: TicketLike }> =
     (order.orderItems ?? [])
-      .map((item: OrderItemLike) =>
-        item && item.ticket ? { item, ticket: item.ticket as TicketLike } : null
-      )
-      .filter(
-        (row): row is { item: OrderItemLike; ticket: TicketLike } =>
-          row !== null
-      );
+      .flatMap((item) => (item?.ticket ? [{ item, ticket: item.ticket }] : []));
 
-  const userEmail = order.user?.email ?? null;
+  const userEmail = order.user?.email;
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-white px-4 text-center">
@@ -122,14 +121,14 @@ export default function ConfirmationPage() {
 
       {ticketRows.length > 0 ? (
         ticketRows.map(({ item, ticket }, idx) => {
-          const qr = ticket.qrCodeUrl ?? ticket.qr_code_url ?? "";
-          const pdf = ticket.pdfUrl ?? ticket.pdf_url ?? "";
-          const isExternal = /^https?:\/\//i.test(qr);
-          const precio = formatMoney(item.amount ?? null, item.currency ?? null);
+          const qr = ticket.qrCodeUrl ?? ticket.qr_code_url;
+          const pdf = ticket.pdfUrl ?? ticket.pdf_url;
+          const isExternal = typeof qr === "string" && /^https?:\/\//i.test(qr);
+          const precio = formatMoney(item.amount, item.currency);
 
           return (
             <div
-              key={ticket.id ?? item.id ?? idx}
+              key={ticket.id ?? item.id ?? String(idx)}
               className="mb-4 w-full max-w-md rounded-lg bg-gray-100 p-6 text-left shadow-md"
             >
               <h2 className="mb-2 text-lg font-semibold text-gray-800">

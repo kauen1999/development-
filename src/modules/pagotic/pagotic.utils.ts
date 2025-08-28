@@ -1,8 +1,8 @@
 // src/moduls/pagotic/pagotic.utils.ts
 import type { PagoticListFilter, PagoticSorts } from "./pagotic.types";
 
+/** Monta a query de filtros no formato esperado pela API */
 export function buildFiltersQuery(filters: PagoticListFilter[]): URLSearchParams {
-  // API expects filters[n][field], filters[n][operation], filters[n][value]
   const params = new URLSearchParams();
   filters.forEach((f, idx) => {
     params.append(`filters[${idx}][field]`, f.field);
@@ -12,6 +12,7 @@ export function buildFiltersQuery(filters: PagoticListFilter[]): URLSearchParams
   return params;
 }
 
+/** Monta a query de ordenações no formato esperado pela API */
 export function buildSortsQuery(sorts: PagoticSorts): URLSearchParams {
   const params = new URLSearchParams();
   for (const [field, dir] of Object.entries(sorts)) {
@@ -20,15 +21,19 @@ export function buildSortsQuery(sorts: PagoticSorts): URLSearchParams {
   return params;
 }
 
+/** Parse seguro de JSON (erro curto e útil para logs) */
 export async function parseJSON<T>(rsp: Response): Promise<T> {
   const text = await rsp.text();
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new Error(`Invalid JSON from PagoTIC: ${text.slice(0, 512)}`);
+    const head = text.slice(0, 512);
+    const hint = `Invalid JSON from PagoTIC${rsp.status ? ` (status ${rsp.status})` : ""}: ${head}`;
+    throw new Error(hint);
   }
 }
 
+/** Aborta um fetch após ms (compatível com edge/node) */
 export function withTimeout(ms: number): AbortSignal | undefined {
   if (!ms || ms <= 0) return undefined;
   const ctl = new AbortController();
@@ -36,13 +41,45 @@ export function withTimeout(ms: number): AbortSignal | undefined {
   return ctl.signal;
 }
 
+/** Remove dados sensíveis de logs (PAN/CVV) */
 export function sanitizeForLog(obj: unknown): unknown {
-  // Remove potential PAN/security fields if present
   if (!obj || typeof obj !== "object") return obj;
   return JSON.parse(
     JSON.stringify(obj, (_k, v) => {
       if (typeof v === "string" && /(\b\d{12,19}\b)|\bCVV\b/i.test(v)) return "***";
       return v;
-    }),
+    })
   );
+}
+
+/**
+ * Converte todos os `null` do objeto em `undefined` (recursivo),
+ * útil para cumprir regras de lint que proíbem `null`.
+ */
+export function nullsToUndefined<T>(obj: T): T {
+  return JSON.parse(
+    JSON.stringify(obj),
+    (_k, v) => (v === null ? undefined : v)
+  ) as T;
+}
+
+/** URL http(s) pública e não-localhost */
+export function isPublicHttpUrl(value?: string): value is string {
+  if (!value) return false;
+  try {
+    const u = new URL(value);
+    const isHttp = u.protocol === "http:" || u.protocol === "https:";
+    const isLocal =
+      u.hostname === "localhost" ||
+      u.hostname === "127.0.0.1" ||
+      u.hostname.endsWith(".local");
+    return isHttp && !isLocal;
+  } catch {
+    return false;
+  }
+}
+
+/** Normaliza URL de input; strings vazias/localhost/invalidas viram undefined */
+export function normalizeInputUrl(v?: string): string | undefined {
+  return isPublicHttpUrl(v) ? v : undefined;
 }

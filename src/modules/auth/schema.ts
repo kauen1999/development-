@@ -73,3 +73,25 @@ export type ModifyBirthdateInput = z.infer<typeof modifyBirthdateSchema>;
 // Fetch user by ID (string, não necessariamente UUID)
 export const getUserByIdSchema = z.string().min(1);
 export type GetUserByIdInput = z.infer<typeof getUserByIdSchema>;
+
+// ====== NOVOS SCHEMAS (verificação e reset) ======
+export const requestEmailVerificationSchema = z.object({
+  email: z.string().email("Email inválido."),
+});
+export const verifyEmailSchema = z.object({
+  token: z.string().min(10, "Token inválido."),
+});
+
+export const requestPasswordResetSchema = z.object({
+  email: z.string().email("Email inválido."),
+});
+export const confirmPasswordResetSchema = z
+  .object({
+    token: z.string().min(10, "Token inválido."),
+    password: z.string().min(8, "Senha deve ter pelo menos 8 caracteres."),
+    confirmPassword: z.string().min(8, "Confirme sua senha."),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "As senhas não conferem.",
+  });

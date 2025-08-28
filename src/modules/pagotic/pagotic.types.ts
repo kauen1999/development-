@@ -2,9 +2,14 @@
 export type ISO8601Local = string;
 
 export type FilterOperation =
-  | "EQUAL" | "IN" | "EXISTS" | "CONTAINS_IGNORE_CASE"
-  | "LESS_THAN" | "LESS_THAN_OR_EQUAL_TO"
-  | "GREATER_THAN" | "GREATER_THAN_OR_EQUAL_TO";
+  | "EQUAL"
+  | "IN"
+  | "EXISTS"
+  | "CONTAINS_IGNORE_CASE"
+  | "LESS_THAN"
+  | "LESS_THAN_OR_EQUAL_TO"
+  | "GREATER_THAN"
+  | "GREATER_THAN_OR_EQUAL_TO";
 
 export interface PagoticListFilter {
   field: string;
@@ -79,29 +84,51 @@ export interface CreatePagoticPayment {
   payer?: PagoticPayer;
   due_date?: ISO8601Local;
   last_due_date?: ISO8601Local;
-  metadata?: Record<string, string | number | boolean | null>;
+  metadata?: Record<string, string | number | boolean | undefined>;
   carrier?: string;
   presets?: PagoticPaymentMethodsPreset;
 }
 
+/**
+ * Importante: a API pode retornar `null` em alguns campos.
+ * Para cumprir a regra "no-null", tipamos como `?` (opcional) e
+ * recomendamos sanitizar a resposta transformando `null` -> `undefined`.
+ */
 export interface PagoticPaymentResponse {
   id: string;
-  form_url?: string;
-  final_amount: number;
   status: string;
+  final_amount: number;
+
+  // Adicionado para evitar uso de `any` em reconcile:
+  external_transaction_id?: string;
+
+  form_url?: string;
   type?: string;
   collector_id?: string;
   notification_url?: string;
+
   request_date?: string;
-  paid_date?: string | null;
-  rejected_date?: string | null;
-  due_date?: string | null;
-  last_due_date?: string | null;
+  paid_date?: string;
+  rejected_date?: string;
+  due_date?: string;
+  last_due_date?: string;
+
   currency_id?: string;
   details?: PagoticDetail[];
   payer?: PagoticPayer;
-  metadata?: Record<string, string | number | boolean | null>;
-  [k: string]: string | number | boolean | null | PagoticDetail[] | PagoticPayer | Record<string, unknown> | undefined;
+
+  // metadados livres; evite `null` no tipo
+  metadata?: Record<string, string | number | boolean | undefined>;
+
+  // índice aberto sem `null`
+  [k: string]:
+    | string
+    | number
+    | boolean
+    | undefined
+    | PagoticDetail[]
+    | PagoticPayer
+    | Record<string, unknown>;
 }
 
 export interface PagoticListResponse<T> {

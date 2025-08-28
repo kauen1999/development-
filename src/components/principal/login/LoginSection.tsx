@@ -6,8 +6,6 @@ import { signIn, getSession } from "next-auth/react";
 import concierto from "../../../../public/images/concierto.jpg";
 import logo from "../../../../public/images/logo_white.png";
 import { FcGoogle } from "react-icons/fc";
-import { AiFillFacebook } from "react-icons/ai";
-
 const LoginSection: React.FC = () => {
   const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "" });
@@ -135,16 +133,6 @@ const LoginSection: React.FC = () => {
                 <span className="text-left text-black">
                   Iniciar Sesion con Google
                 </span>
-              </div>
-            </button>
-            <button
-              className="btn-warning btn btn my-2 bg-[#3b5998] text-white"
-              onClick={() => console.log("🧭 [front] facebook login (não implementado)")}
-              disabled={isSubmitting}
-            >
-              <div className="flex items-center justify-center">
-                <AiFillFacebook className="mr-2 text-4xl" />
-                <span className="text-left">Iniciar Sesion con Facebook</span>
               </div>
             </button>
           </div>

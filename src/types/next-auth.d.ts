@@ -6,13 +6,13 @@ type ExtraUserFields = {
   id: string;
   role: Role;
   profileCompleted: boolean;
+  emailVerified?: boolean;
 };
 
 declare module "next-auth" {
   interface Session {
     user: ExtraUserFields & DefaultSession["user"];
   }
-
   interface User extends DefaultUser, ExtraUserFields {}
 }
 

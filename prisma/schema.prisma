@@ -82,6 +82,10 @@ model User {
   cartItems      CartItem[]
   seats          Seat[]
   validationLogs ValidationLog[] @relation("UserValidatedTickets")
+
+  // ── RELAÇÕES DE TOKENS DE AUTH (NOVO)
+  emailVerificationTokens EmailVerificationToken[] @relation("UserEmailVerificationTokens")
+  passwordResetTokens     PasswordResetToken[]     @relation("UserPasswordResetTokens")
 }
 
 model Account {
@@ -285,7 +289,7 @@ model Order {
   expiresAt             DateTime?
   externalTransactionId String?     @unique
   paymentNumber         String?     @unique
-  formUrl               String?     // URL de checkout do PayPerTIC
+  formUrl               String? // URL de checkout do PayPerTIC
 
   userId         String
   eventSessionId String
@@ -312,7 +316,7 @@ model OrderItem {
 
   title             String
   description       String
-  amount            Float   // total do item (unitPrice * qty)
+  amount            Float // total do item (unitPrice * qty)
   currency          String  @default("ARS")
   conceptId         String  @default("woocommerce")
   externalReference String?
@@ -322,8 +326,11 @@ model OrderItem {
   ticket         Ticket?
   ticketCategory TicketCategory? @relation(fields: [ticketCategoryId], references: [id])
 
+  // REMOVIDO: permite vários itens da mesma categoria no mesmo pedido
+  // @@unique([orderId, ticketCategoryId])
+
+  // um assento por pedido
   @@unique([orderId, seatId])
-  @@unique([orderId, ticketCategoryId])
 }
 
 model Ticket {
@@ -378,4 +385,34 @@ model ValidationLog {
 
   ticket    Ticket @relation("TicketValidationLogs", fields: [ticketId], references: [id])
   validator User?  @relation("UserValidatedTickets", fields: [validatorId], references: [id])
+}
+
+// ───────── TOKENS DE AUTH (NOVO) ─────────
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation("UserEmailVerificationTokens", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation("UserPasswordResetTokens", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
