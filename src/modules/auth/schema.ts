@@ -74,17 +74,23 @@ export type ModifyBirthdateInput = z.infer<typeof modifyBirthdateSchema>;
 export const getUserByIdSchema = z.string().min(1);
 export type GetUserByIdInput = z.infer<typeof getUserByIdSchema>;
 
-// ====== NOVOS SCHEMAS (verificação e reset) ======
+// ====== SCHEMAS DE VERIFICAÇÃO DE E-MAIL ======
 export const requestEmailVerificationSchema = z.object({
   email: z.string().email("Email inválido."),
 });
+export type RequestEmailVerificationInput = z.infer<typeof requestEmailVerificationSchema>;
+
 export const verifyEmailSchema = z.object({
   token: z.string().min(10, "Token inválido."),
 });
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
 
+// ====== SCHEMAS DE RESET DE SENHA (NOVOS) ======
 export const requestPasswordResetSchema = z.object({
   email: z.string().email("Email inválido."),
 });
+export type RequestPasswordResetInput = z.infer<typeof requestPasswordResetSchema>;
+
 export const confirmPasswordResetSchema = z
   .object({
     token: z.string().min(10, "Token inválido."),
@@ -95,3 +101,4 @@ export const confirmPasswordResetSchema = z
     path: ["confirmPassword"],
     message: "As senhas não conferem.",
   });
+export type ConfirmPasswordResetInput = z.infer<typeof confirmPasswordResetSchema>;

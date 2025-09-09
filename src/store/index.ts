@@ -1,6 +1,6 @@
 // src/store/index.ts
 import create from "zustand";
-import { IUser } from "../types/types";
+import type { IUser } from "../types/types";
 
 type Store = {
   authUser: IUser | null;

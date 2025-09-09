@@ -5,17 +5,15 @@ import Datos from "./Datos";
 
 interface Session {
   id: string;
-  date: string;     // ISO
+  slug: string;
+  date: string;   
   venueName: string;
   city: string;
 }
 
 interface Props {
   artist: string;
-  slug: string;
-  image: string;
 
-  // ► novos campos vindos do banco (opcionais p/ compatibilidade)
   description?: string;
   venueName?: string;
   city?: string;
@@ -25,8 +23,6 @@ interface Props {
 
 const Details: React.FC<Props> = ({
   artist,
-  slug,
-  image,
   description,
   venueName,
   city,
@@ -40,13 +36,8 @@ const Details: React.FC<Props> = ({
     );
   }, [sessions]);
 
-  const handleNavigation = (sessionId: string) => {
-    const url = `/buydetails/${encodeURIComponent(
-      slug
-    )}?artist=${encodeURIComponent(artist)}&picture=${encodeURIComponent(
-      image
-    )}&sessionId=${encodeURIComponent(sessionId)}`;
-    router.push(url);
+  const handleNavigation = (sessionSlug: string) => {
+    router.push(`/buydetails/${encodeURIComponent(sessionSlug)}`);
   };
 
   return (
@@ -54,12 +45,12 @@ const Details: React.FC<Props> = ({
       <div className="mx-auto w-11/12 lg:w-3/4">
         <h2 className="text-3xl font-bold">Todos los conciertos</h2>
 
-        {/* Descripción del evento (dinámica) */}
+        {/* Descripción del evento */}
         {description && (
           <p className="mt-2 text-gray-600">{description}</p>
         )}
 
-        {/* Ubicación del evento (dinámica, mostrada si no hay sesiones) */}
+        {/* Ubicación si no hay sesiones */}
         {!orderedSessions.length && (venueName || city) && (
           <div className="mt-3 text-gray-700">
             {venueName && <span className="mr-2">{venueName}</span>}
@@ -96,7 +87,7 @@ const Details: React.FC<Props> = ({
                   />
 
                   <button
-                    onClick={() => handleNavigation(session.id)}
+                    onClick={() => handleNavigation(session.slug)}
                     className="rounded-lg bg-primary-100 py-3 font-bold text-white lg:px-5"
                     aria-label="Comprar entrada para esta sesión"
                   >

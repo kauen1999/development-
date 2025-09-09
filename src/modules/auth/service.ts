@@ -18,9 +18,8 @@ import type { Context } from "@/server/trpc/context";
 import {
   issueEmailVerificationToken,
   consumeEmailVerificationToken,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  issuepasswordResetToken,
-  consumepasswordResetToken,
+  issuePasswordResetToken,   
+  consumePasswordResetToken, 
 } from "./token.service";
 import { sendVerificationEmail, sendPasswordResetEmail, appUrl } from "@/modules/sendmail/auth-mails";
 
@@ -60,14 +59,17 @@ export class AuthService {
     if (!valid) throw new Error("Credenciais inválidas");
 
     if (!user.emailVerified && process.env.ENFORCE_EMAIL_VERIFIED === "true") {
-      throw new Error("E-mail não verificado. Verifique sua caixa de entrada.");
+      // 🇪🇸 mensagem amigável (como combinado)
+      throw new Error(
+        "Tu correo aún no ha sido verificado. Revisa tu bandeja de entrada o haz clic en «Reenviar verificación» para continuar."
+      );
     }
 
     ctx.session.user = {
       id: user.id,
       role: user.role,
       profileCompleted: Boolean(user.dniName && user.dni && user.phone && user.birthdate),
-      emailVerified: !!user.emailVerified, 
+      emailVerified: !!user.emailVerified, // ✅ garante compatibilidade com os tipos
       image: user.image ?? "",
     };
     return { success: true };
@@ -155,13 +157,16 @@ export class AuthService {
   static async requestPasswordReset(email: string): Promise<void> {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.password) return; // apenas contas com senha local
-    const { token } = await issuepasswordResetToken(user.id, 30);
+    const { token } = await issuePasswordResetToken(user.id, 30); // ✅ nome correto
     const link = appUrl(`/reset-password?token=${encodeURIComponent(token)}`); // página pública do front
     await sendPasswordResetEmail(email, link);
   }
 
-  static async resetPasswordWithToken(token: string, newPassword: string): Promise<"OK" | "NOT_FOUND" | "USED" | "EXPIRED"> {
-    const res = await consumepasswordResetToken(token);
+  static async resetPasswordWithToken(
+    token: string,
+    newPassword: string
+  ): Promise<"OK" | "NOT_FOUND" | "USED" | "EXPIRED"> {
+    const res = await consumePasswordResetToken(token); // ✅ nome correto
     if (!res.ok) return res.reason;
     const hash = await bcrypt.hash(newPassword, 12);
     await prisma.user.update({ where: { id: res.userId }, data: { password: hash } });

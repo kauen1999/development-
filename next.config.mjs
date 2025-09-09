@@ -39,6 +39,10 @@ const config = {
         protocol: "https",
         hostname: "mdueqvcazdypzlepvxoc.supabase.co",
       },
+      {
+        protocol: "https",
+        hostname: "lqshkfaxmljadbdfbrnp.supabase.co",
+      },
     ],
   },
   typescript: {

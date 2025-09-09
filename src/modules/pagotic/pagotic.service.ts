@@ -1,11 +1,9 @@
-// src/moduls/pagotic/pagotic.service.ts
 import { getPagoticToken } from "./pagotic.auth";
 import { PAGOTIC_ENDPOINTS } from "./pagotic.endpoints";
 import { toPagoticError } from "./pagotic.errors";
 import {
   buildFiltersQuery,
   buildSortsQuery,
-  parseJSON,
   withTimeout,
 } from "./pagotic.utils";
 import type {
@@ -36,7 +34,7 @@ function isPublicHttpUrl(value?: string): value is string {
   }
 }
 
-/** Normaliza URL de input; vazia/localhost/ inválida → undefined */
+/** Normaliza URL de input; vazia/localhost → undefined */
 function normalizeInputUrl(v?: string): string | undefined {
   return isPublicHttpUrl(v) ? v : undefined;
 }
@@ -89,7 +87,6 @@ export class PagoticService {
   // --- Core operations ---
 
   async createPayment(input: CreatePagoticPayment): Promise<PagoticPaymentResponse> {
-    // Resolve URLs com fallback ao .env
     const return_url =
       normalizeInputUrl(input.return_url) ?? this.envUrl("PAGOTIC_RETURN_URL");
     const back_url =
@@ -98,10 +95,9 @@ export class PagoticService {
       normalizeInputUrl(input.notification_url) ??
       this.envUrl("PAGOTIC_NOTIFICATION_URL");
 
-    // 🚧 FIX CRÍTICO: não permite criar pagamento sem notification_url
     if (!notification_url) {
       throw new Error(
-        "notification_url ausente ou inválido. Configure PAGOTIC_NOTIFICATION_URL no ambiente ou envie uma URL pública válida no input.",
+        "notification_url ausente. Configure PAGOTIC_NOTIFICATION_URL no ambiente ou envie uma URL pública válida."
       );
     }
 
@@ -114,31 +110,40 @@ export class PagoticService {
       notification_url,
     };
 
-    // Log de pré-visualização seguro (sem dados sensíveis)
-    try {
-      const preview = {
-        external_transaction_id: body.external_transaction_id,
-        return_url: body.return_url,
-        back_url: body.back_url,
-        notification_url: body.notification_url,
-        detailsCount: Array.isArray(body.details) ? body.details.length : 0,
-      };
-      // eslint-disable-next-line no-console
-      console.log("[PagoTIC][createPayment] body.preview", preview);
-    } catch {}
+    // Log de preview
+    console.log("[PagoTIC][createPayment] body.preview", {
+      external_transaction_id: body.external_transaction_id,
+      return_url: body.return_url,
+      back_url: body.back_url,
+      notification_url: body.notification_url,
+      detailsCount: Array.isArray(body.details) ? body.details.length : 0,
+    });
 
     const rsp = await this.authedFetch(PAGOTIC_ENDPOINTS.pagos, {
       method: "POST",
       body: JSON.stringify(body),
     });
+
+    const text = await rsp.text();
+    console.log("[PagoTIC][createPayment] raw response:", rsp.status, text);
+
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<PagoticPaymentResponse>(rsp);
+
+    try {
+      return JSON.parse(text) as PagoticPaymentResponse;
+    } catch {
+      throw new Error(`Invalid JSON PagoTIC: ${text.slice(0, 200)}`);
+    }
   }
 
   async getPaymentById(id: string): Promise<PagoticPaymentResponse> {
     const rsp = await this.authedFetch(PAGOTIC_ENDPOINTS.pagosById(id));
+    const text = await rsp.text();
+    console.log("[PagoTIC][getPaymentById] raw response:", rsp.status, text);
+
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<PagoticPaymentResponse>(rsp);
+
+    return JSON.parse(text) as PagoticPaymentResponse;
   }
 
   async listPayments(params: {
@@ -152,8 +157,11 @@ export class PagoticService {
     buildFiltersQuery(filters).forEach((v, k) => q.append(k, v));
     buildSortsQuery(sorts).forEach((v, k) => q.append(k, v));
     const rsp = await this.authedFetch(`${PAGOTIC_ENDPOINTS.pagos}?${q.toString()}`);
+    const text = await rsp.text();
+    console.log("[PagoTIC][listPayments] raw response:", rsp.status, text);
+
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<PagoticListResponse<PagoticPaymentResponse>>(rsp);
+    return JSON.parse(text) as PagoticListResponse<PagoticPaymentResponse>;
   }
 
   async cancelPayment(id: string, status_detail?: string): Promise<PagoticPaymentResponse> {
@@ -161,8 +169,11 @@ export class PagoticService {
       method: "POST",
       body: JSON.stringify(status_detail ? { status_detail } : {}),
     });
+    const text = await rsp.text();
+    console.log("[PagoTIC][cancelPayment] raw response:", rsp.status, text);
+
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<PagoticPaymentResponse>(rsp);
+    return JSON.parse(text) as PagoticPaymentResponse;
   }
 
   async refundPayment(
@@ -173,8 +184,11 @@ export class PagoticService {
       method: "POST",
       body: JSON.stringify(body),
     });
+    const text = await rsp.text();
+    console.log("[PagoTIC][refundPayment] raw response:", rsp.status, text);
+
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<Record<string, unknown>>(rsp);
+    return JSON.parse(text) as Record<string, unknown>;
   }
 
   async groupPayments(req: PagoticGroupRequest): Promise<Record<string, unknown>> {
@@ -182,8 +196,11 @@ export class PagoticService {
       method: "POST",
       body: JSON.stringify(req.paymentIds),
     });
+    const text = await rsp.text();
+    console.log("[PagoTIC][groupPayments] raw response:", rsp.status, text);
+
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<Record<string, unknown>>(rsp);
+    return JSON.parse(text) as Record<string, unknown>;
   }
 
   async ungroupPayments(groupId: string): Promise<Record<string, unknown>> {
@@ -191,8 +208,11 @@ export class PagoticService {
       method: "POST",
       body: JSON.stringify({ group_id: groupId }),
     });
+    const text = await rsp.text();
+    console.log("[PagoTIC][ungroupPayments] raw response:", rsp.status, text);
+
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<Record<string, unknown>>(rsp);
+    return JSON.parse(text) as Record<string, unknown>;
   }
 
   async distributePayment(req: PagoticDistributionRequest): Promise<Record<string, unknown>> {
@@ -200,8 +220,11 @@ export class PagoticService {
       method: "POST",
       body: JSON.stringify(req),
     });
+    const text = await rsp.text();
+    console.log("[PagoTIC][distributePayment] raw response:", rsp.status, text);
+
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<Record<string, unknown>>(rsp);
+    return JSON.parse(text) as Record<string, unknown>;
   }
 
   async resendNotification(id: string): Promise<Record<string, unknown>> {
@@ -209,7 +232,10 @@ export class PagoticService {
       `${PAGOTIC_ENDPOINTS.resendNotification}/${encodeURIComponent(id)}`,
       { method: "POST" },
     );
+    const text = await rsp.text();
+    console.log("[PagoTIC][resendNotification] raw response:", rsp.status, text);
+
     if (!rsp.ok) throw await toPagoticError(rsp);
-    return parseJSON<Record<string, unknown>>(rsp);
+    return JSON.parse(text) as Record<string, unknown>;
   }
 }

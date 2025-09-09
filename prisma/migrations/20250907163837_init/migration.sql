@@ -2,7 +2,10 @@
 CREATE TYPE "Role" AS ENUM ('USER', 'ADMIN', 'PROMOTER', 'FINANCE', 'SUPPORT');
 
 -- CreateEnum
-CREATE TYPE "EventStatus" AS ENUM ('OPEN', 'SOLD_OUT', 'FINISHED');
+CREATE TYPE "EventStatus" AS ENUM ('DRAFT', 'PUBLISHED', 'PAUSED', 'CANCELLED');
+
+-- CreateEnum
+CREATE TYPE "SessionStatus" AS ENUM ('DRAFT', 'PUBLISHED', 'PAUSED', 'CANCELLED');
 
 -- CreateEnum
 CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'PAID', 'CANCELLED', 'EXPIRED');
@@ -14,7 +17,7 @@ CREATE TYPE "PaymentProvider" AS ENUM ('PAGOTIC');
 CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'APPROVED', 'FAILED', 'CANCELLED');
 
 -- CreateEnum
-CREATE TYPE "EventType" AS ENUM ('SEATED', 'GENERAL');
+CREATE TYPE "SessionTicketingType" AS ENUM ('SEATED', 'GENERAL');
 
 -- CreateEnum
 CREATE TYPE "SeatStatus" AS ENUM ('AVAILABLE', 'RESERVED', 'SOLD');
@@ -95,6 +98,11 @@ CREATE TABLE "Category" (
 CREATE TABLE "Artist" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "normalizedName" TEXT NOT NULL,
+    "isGlobal" BOOLEAN NOT NULL DEFAULT false,
+    "approvedByAdminAt" TIMESTAMP(3),
+    "createdByUserId" TEXT,
     "bio" TEXT,
     "image" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -103,11 +111,12 @@ CREATE TABLE "Artist" (
 );
 
 -- CreateTable
-CREATE TABLE "EventArtist" (
-    "eventId" TEXT NOT NULL,
+CREATE TABLE "SessionArtist" (
+    "sessionId" TEXT NOT NULL,
     "artistId" TEXT NOT NULL,
+    "order" INTEGER NOT NULL DEFAULT 0,
 
-    CONSTRAINT "EventArtist_pkey" PRIMARY KEY ("eventId","artistId")
+    CONSTRAINT "SessionArtist_pkey" PRIMARY KEY ("sessionId","artistId")
 );
 
 -- CreateTable
@@ -117,21 +126,14 @@ CREATE TABLE "Event" (
     "slug" TEXT NOT NULL,
     "description" TEXT,
     "image" TEXT,
-    "city" TEXT NOT NULL,
-    "state" TEXT NOT NULL,
-    "venueName" TEXT NOT NULL,
-    "zipCode" TEXT NOT NULL,
-    "neighborhood" TEXT NOT NULL,
-    "street" TEXT NOT NULL,
-    "number" TEXT NOT NULL,
+    "startDate" TIMESTAMP(3),
+    "endDate" TIMESTAMP(3),
     "publishedAt" TIMESTAMP(3),
-    "status" "EventStatus" NOT NULL DEFAULT 'OPEN',
-    "eventType" "EventType" NOT NULL DEFAULT 'GENERAL',
-    "capacity" INTEGER NOT NULL DEFAULT 0,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "status" "EventStatus" NOT NULL DEFAULT 'DRAFT',
     "categoryId" TEXT NOT NULL,
     "organizerId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
 );
@@ -148,12 +150,24 @@ CREATE TABLE "Enrollment" (
 -- CreateTable
 CREATE TABLE "EventSession" (
     "id" TEXT NOT NULL,
-    "date" TIMESTAMP(3) NOT NULL,
+    "eventId" TEXT NOT NULL,
+    "status" "SessionStatus" NOT NULL DEFAULT 'DRAFT',
+    "publishedAt" TIMESTAMP(3),
+    "dateTimeStart" TIMESTAMP(3) NOT NULL,
+    "durationMin" INTEGER NOT NULL,
+    "timezone" TEXT,
     "venueName" TEXT NOT NULL,
+    "street" TEXT NOT NULL,
+    "number" TEXT NOT NULL,
+    "neighborhood" TEXT NOT NULL,
     "city" TEXT NOT NULL,
+    "state" TEXT NOT NULL,
+    "zip" TEXT NOT NULL,
+    "country" TEXT NOT NULL,
+    "ticketingType" "SessionTicketingType" NOT NULL DEFAULT 'GENERAL',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "eventId" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
 
     CONSTRAINT "EventSession_pkey" PRIMARY KEY ("id")
 );
@@ -161,26 +175,62 @@ CREATE TABLE "EventSession" (
 -- CreateTable
 CREATE TABLE "TicketCategory" (
     "id" TEXT NOT NULL,
+    "sessionId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "price" DOUBLE PRECISION NOT NULL,
     "capacity" INTEGER NOT NULL DEFAULT 0,
-    "eventId" TEXT NOT NULL,
+    "currency" TEXT NOT NULL DEFAULT 'ARS',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "eventId" TEXT,
 
     CONSTRAINT "TicketCategory_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
+CREATE TABLE "Sector" (
+    "id" TEXT NOT NULL,
+    "sessionId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "ticketCategoryId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Sector_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Row" (
+    "id" TEXT NOT NULL,
+    "sectorId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "order" INTEGER NOT NULL DEFAULT 0,
+    "ticketCategoryId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "eventSessionId" TEXT,
+
+    CONSTRAINT "Row_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Seat" (
     "id" TEXT NOT NULL,
-    "label" TEXT NOT NULL,
-    "row" TEXT NOT NULL,
+    "eventId" TEXT NOT NULL,
+    "eventSessionId" TEXT NOT NULL,
+    "sectorId" TEXT NOT NULL,
+    "rowId" TEXT NOT NULL,
+    "rowName" TEXT NOT NULL,
     "number" INTEGER NOT NULL,
     "status" "SeatStatus" NOT NULL DEFAULT 'AVAILABLE',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "eventSessionId" TEXT NOT NULL,
-    "ticketCategoryId" TEXT NOT NULL,
+    "labelShort" TEXT NOT NULL,
+    "labelFull" TEXT NOT NULL,
+    "ticketCategoryId" TEXT,
     "userId" TEXT,
-    "eventId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Seat_pkey" PRIMARY KEY ("id")
 );
@@ -315,16 +365,61 @@ CREATE UNIQUE INDEX "VerificationToken_token_key" ON "VerificationToken"("token"
 CREATE UNIQUE INDEX "VerificationToken_identifier_token_key" ON "VerificationToken"("identifier", "token");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Artist_slug_key" ON "Artist"("slug");
+
+-- CreateIndex
+CREATE INDEX "Artist_normalizedName_idx" ON "Artist"("normalizedName");
+
+-- CreateIndex
+CREATE INDEX "SessionArtist_artistId_idx" ON "SessionArtist"("artistId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Event_slug_key" ON "Event"("slug");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "EventSession_slug_key" ON "EventSession"("slug");
+
+-- CreateIndex
 CREATE INDEX "EventSession_eventId_idx" ON "EventSession"("eventId");
+
+-- CreateIndex
+CREATE INDEX "EventSession_status_idx" ON "EventSession"("status");
+
+-- CreateIndex
+CREATE INDEX "EventSession_dateTimeStart_idx" ON "EventSession"("dateTimeStart");
+
+-- CreateIndex
+CREATE INDEX "TicketCategory_sessionId_idx" ON "TicketCategory"("sessionId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TicketCategory_sessionId_title_key" ON "TicketCategory"("sessionId", "title");
+
+-- CreateIndex
+CREATE INDEX "Sector_sessionId_idx" ON "Sector"("sessionId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Sector_sessionId_code_key" ON "Sector"("sessionId", "code");
+
+-- CreateIndex
+CREATE INDEX "Row_sectorId_idx" ON "Row"("sectorId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Row_sectorId_name_key" ON "Row"("sectorId", "name");
 
 -- CreateIndex
 CREATE INDEX "Seat_eventId_idx" ON "Seat"("eventId");
 
 -- CreateIndex
 CREATE INDEX "Seat_eventSessionId_status_idx" ON "Seat"("eventSessionId", "status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Seat_eventSessionId_labelFull_key" ON "Seat"("eventSessionId", "labelFull");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Seat_eventSessionId_sectorId_rowId_number_key" ON "Seat"("eventSessionId", "sectorId", "rowId", "number");
+
+-- CreateIndex
+CREATE INDEX "CartItem_eventSessionId_idx" ON "CartItem"("eventSessionId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "CartItem_userId_seatId_key" ON "CartItem"("userId", "seatId");
@@ -339,6 +434,12 @@ CREATE UNIQUE INDEX "Order_paymentNumber_key" ON "Order"("paymentNumber");
 CREATE INDEX "Order_status_idx" ON "Order"("status");
 
 -- CreateIndex
+CREATE INDEX "Order_eventSessionId_idx" ON "Order"("eventSessionId");
+
+-- CreateIndex
+CREATE INDEX "OrderItem_ticketCategoryId_idx" ON "OrderItem"("ticketCategoryId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "OrderItem_orderId_seatId_key" ON "OrderItem"("orderId", "seatId");
 
 -- CreateIndex
@@ -349,6 +450,9 @@ CREATE UNIQUE INDEX "Ticket_orderItemId_key" ON "Ticket"("orderItemId");
 
 -- CreateIndex
 CREATE INDEX "Ticket_qrCodeUrl_idx" ON "Ticket"("qrCodeUrl");
+
+-- CreateIndex
+CREATE INDEX "Ticket_eventSessionId_idx" ON "Ticket"("eventSessionId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Payment_orderId_key" ON "Payment"("orderId");
@@ -381,10 +485,13 @@ ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId"
 ALTER TABLE "Notification" ADD CONSTRAINT "Notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "EventArtist" ADD CONSTRAINT "EventArtist_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Artist" ADD CONSTRAINT "Artist_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "EventArtist" ADD CONSTRAINT "EventArtist_artistId_fkey" FOREIGN KEY ("artistId") REFERENCES "Artist"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "SessionArtist" ADD CONSTRAINT "SessionArtist_artistId_fkey" FOREIGN KEY ("artistId") REFERENCES "Artist"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SessionArtist" ADD CONSTRAINT "SessionArtist_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "EventSession"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Event" ADD CONSTRAINT "Event_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -393,31 +500,52 @@ ALTER TABLE "Event" ADD CONSTRAINT "Event_categoryId_fkey" FOREIGN KEY ("categor
 ALTER TABLE "Event" ADD CONSTRAINT "Event_organizerId_fkey" FOREIGN KEY ("organizerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Enrollment" ADD CONSTRAINT "Enrollment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Enrollment" ADD CONSTRAINT "Enrollment_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Enrollment" ADD CONSTRAINT "Enrollment_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Enrollment" ADD CONSTRAINT "Enrollment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "EventSession" ADD CONSTRAINT "EventSession_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "TicketCategory" ADD CONSTRAINT "TicketCategory_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "TicketCategory" ADD CONSTRAINT "TicketCategory_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Seat" ADD CONSTRAINT "Seat_eventSessionId_fkey" FOREIGN KEY ("eventSessionId") REFERENCES "EventSession"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "TicketCategory" ADD CONSTRAINT "TicketCategory_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "EventSession"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Seat" ADD CONSTRAINT "Seat_ticketCategoryId_fkey" FOREIGN KEY ("ticketCategoryId") REFERENCES "TicketCategory"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Sector" ADD CONSTRAINT "Sector_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "EventSession"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Seat" ADD CONSTRAINT "Seat_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Sector" ADD CONSTRAINT "Sector_ticketCategoryId_fkey" FOREIGN KEY ("ticketCategoryId") REFERENCES "TicketCategory"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Row" ADD CONSTRAINT "Row_eventSessionId_fkey" FOREIGN KEY ("eventSessionId") REFERENCES "EventSession"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Row" ADD CONSTRAINT "Row_sectorId_fkey" FOREIGN KEY ("sectorId") REFERENCES "Sector"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Row" ADD CONSTRAINT "Row_ticketCategoryId_fkey" FOREIGN KEY ("ticketCategoryId") REFERENCES "TicketCategory"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Seat" ADD CONSTRAINT "Seat_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Seat" ADD CONSTRAINT "Seat_eventSessionId_fkey" FOREIGN KEY ("eventSessionId") REFERENCES "EventSession"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Seat" ADD CONSTRAINT "Seat_rowId_fkey" FOREIGN KEY ("rowId") REFERENCES "Row"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Seat" ADD CONSTRAINT "Seat_sectorId_fkey" FOREIGN KEY ("sectorId") REFERENCES "Sector"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Seat" ADD CONSTRAINT "Seat_ticketCategoryId_fkey" FOREIGN KEY ("ticketCategoryId") REFERENCES "TicketCategory"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Seat" ADD CONSTRAINT "Seat_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_eventSessionId_fkey" FOREIGN KEY ("eventSessionId") REFERENCES "EventSession"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -426,13 +554,16 @@ ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_eventSessionId_fkey" FOREIGN KEY
 ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_seatId_fkey" FOREIGN KEY ("seatId") REFERENCES "Seat"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Order" ADD CONSTRAINT "Order_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Order" ADD CONSTRAINT "Order_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Order" ADD CONSTRAINT "Order_eventSessionId_fkey" FOREIGN KEY ("eventSessionId") REFERENCES "EventSession"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Order" ADD CONSTRAINT "Order_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Order" ADD CONSTRAINT "Order_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -444,25 +575,25 @@ ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_seatId_fkey" FOREIGN KEY ("sea
 ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_ticketCategoryId_fkey" FOREIGN KEY ("ticketCategoryId") REFERENCES "TicketCategory"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_eventSessionId_fkey" FOREIGN KEY ("eventSessionId") REFERENCES "EventSession"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_seatId_fkey" FOREIGN KEY ("seatId") REFERENCES "Seat"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_eventSessionId_fkey" FOREIGN KEY ("eventSessionId") REFERENCES "EventSession"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_orderItemId_fkey" FOREIGN KEY ("orderItemId") REFERENCES "OrderItem"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_validatorId_fkey" FOREIGN KEY ("validatorId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_seatId_fkey" FOREIGN KEY ("seatId") REFERENCES "Seat"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_ticketCategoryId_fkey" FOREIGN KEY ("ticketCategoryId") REFERENCES "TicketCategory"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Ticket" ADD CONSTRAINT "Ticket_validatorId_fkey" FOREIGN KEY ("validatorId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

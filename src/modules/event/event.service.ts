@@ -1,357 +1,544 @@
+// src/modules/event/event.service.ts
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
-import { EventStatus, EventType } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
+import {
+  EventStatus,
+  OrderStatus,
+  SeatStatus,
+  SessionTicketingType,
+} from "@prisma/client";
 import type {
   CreateEventInput,
   UpdateEventInput,
-  GetEventByIdInput,
+  UpdateEventWithGraphInput,
 } from "./event.schema";
-import { TRPCError } from "@trpc/server";
 
-const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
-
-function rowFromCategoryTitle(title: string) {
-  const m = title.match(/([A-Za-z])\s*$/);
-  return (m?.[1] ?? title.charAt(0) ?? "A").toUpperCase();
+/* =========================
+ * Helpers
+ * ========================= */
+function toSlug(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/ç/g, "c")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
 }
 
-function buildSeatsByCapacity(args: {
-  eventId: string;
-  eventSessionId: string;
-  ticketCategoryId: string;
-  row: string;
-  capacity: number;
-}): Prisma.SeatCreateManyInput[] {
-  const out: Prisma.SeatCreateManyInput[] = [];
-  for (let i = 1; i <= args.capacity; i++) {
-    out.push({
-      eventId: args.eventId,
-      eventSessionId: args.eventSessionId,
-      ticketCategoryId: args.ticketCategoryId,
-      row: args.row,
-      number: i,
-      label: `${args.row}${i}`,
-      status: "AVAILABLE",
-      createdAt: new Date(),
-      userId: null,
-    });
-  }
-  return out;
+function generateSessionSlug(eventName: string, date: Date): string {
+  const iso = date.toISOString();
+  const datePart = iso.split("T")[0] as string;
+  return `${toSlug(eventName)}-${datePart.replace(/-/g, "")}-${Date.now()}`;
 }
 
-export const createEvent = async (input: CreateEventInput) => {
-  const existing = await prisma.event.findUnique({ where: { slug: input.slug } });
-  if (existing) throw new TRPCError({ code: "CONFLICT", message: "Slug já existe." });
+/* =========================
+ * CREATE / UPDATE SIMPLES
+ * ========================= */
+export async function createEvent(input: CreateEventInput) {
+  const slug: string = toSlug(input.name);
 
-  const totalCats = sum(input.ticketCategories.map((c) => c.capacity ?? 0));
-  if (totalCats > input.capacity) {
+  const exists = await prisma.event.findUnique({ where: { slug } });
+  if (exists) {
     throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Soma das capacidades das categorias (${totalCats}) excede a capacidade do evento (${input.capacity}).`,
+      code: "CONFLICT",
+      message: "El nombre ya existe, el slug generado está en uso.",
     });
   }
 
-  const createdId = await prisma.$transaction(async (tx) => {
-    const event = await tx.event.create({
-      data: {
-        name: input.name,
-        description: input.description,
-        image: input.image,
-        street: input.street,
-        number: input.number,
-        neighborhood: input.neighborhood,
-        city: input.city,
-        state: input.state,
-        zipCode: input.zipCode,
-        venueName: input.venueName,
-        slug: input.slug,
-        status: input.status ?? EventStatus.OPEN,
-        eventType: input.eventType,
-        capacity: input.capacity,
-        publishedAt: input.publishedAt ?? new Date(),
-        category: { connect: { id: input.categoryId } },
-        organizer: { connect: { id: input.userId } },
-        ticketCategories: {
-          create: input.ticketCategories.map((c) => ({
-            title: c.title,
-            price: c.price,
-            capacity: c.capacity,
-          })),
-        },
-        eventSessions: {
-          create: input.eventSessions.map((s) => ({
-            date: s.date,
-            venueName: s.venueName,
-            city: s.city,
-          })),
-        },
-      },
-      include: { ticketCategories: true, eventSessions: true },
-    });
-
-    if (event.eventType === EventType.SEATED) {
-      const seatData: Prisma.SeatCreateManyInput[] = [];
-      for (const cat of event.ticketCategories) {
-        const row = rowFromCategoryTitle(cat.title);
-        for (const ses of event.eventSessions) {
-          seatData.push(
-            ...buildSeatsByCapacity({
-              eventId: event.id,
-              eventSessionId: ses.id,
-              ticketCategoryId: cat.id,
-              row,
-              capacity: cat.capacity,
-            })
-          );
-        }
-      }
-      if (seatData.length) await tx.seat.createMany({ data: seatData });
-    }
-
-    if (input.artists?.length) {
-      for (const nameStr of input.artists) {
-        const artist = await tx.artist.create({ data: { name: nameStr } });
-        await tx.eventArtist.create({
-          data: { eventId: event.id, artistId: artist.id },
-        });
-      }
-    }
-
-    return event.id;
-  });
-
-  return prisma.event.findUniqueOrThrow({
-    where: { id: createdId },
-    include: {
-      category: true,
-      organizer: true,
-      eventSessions: true,
-      ticketCategories: { include: { seats: true } },
-      artists: { include: { artist: true } },
+  return prisma.event.create({
+    data: {
+      name: input.name,
+      slug,
+      description: input.description,
+      image: input.image,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      status: EventStatus.DRAFT,
+      publishedAt: null,
+      category: { connect: { id: input.categoryId } },
+      organizer: { connect: { id: input.userId } },
     },
   });
-};
+}
 
-export const updateEvent = async (input: UpdateEventInput) => {
-  const current = await prisma.event.findUniqueOrThrow({
-    where: { id: input.id },
-    include: { ticketCategories: true },
-  });
+export async function updateEvent(input: UpdateEventInput) {
+  const current = await prisma.event.findUnique({ where: { id: input.id } });
+  if (!current) throw new TRPCError({ code: "NOT_FOUND" });
 
-  const newCapacity = typeof input.capacity === "number" ? input.capacity : current.capacity;
-  const catsForValidation =
-    input.ticketCategories ?? current.ticketCategories.map((c) => ({
-      title: c.title,
-      price: c.price,
-      capacity: c.capacity,
-    }));
-
-  const totalCats = sum(catsForValidation.map((c) => c.capacity ?? 0));
-  if (totalCats > newCapacity) {
+  if (current.status !== EventStatus.PAUSED) {
     throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Soma das capacidades das categorias (${totalCats}) excede a capacidade do evento (${newCapacity}).`,
+      code: "PRECONDITION_FAILED",
+      message: "El evento solo puede editarse en estado PAUSED.",
     });
   }
 
-  const updatedId = await prisma.$transaction(async (tx) => {
-    await tx.event.update({
+  return prisma.event.update({
+    where: { id: input.id },
+    data: {
+      name: input.name,
+      description: input.description,
+      image: input.image,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      category: input.categoryId
+        ? { connect: { id: input.categoryId } }
+        : undefined,
+    },
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      description: true,
+      image: true,
+      startDate: true,
+      endDate: true,
+      categoryId: true,
+      organizerId: true,
+      status: true,
+      publishedAt: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+}
+
+/* =========================
+ * UPDATE COM SESSÕES (GRAFO)
+ * ========================= */
+export async function updateEventWithGraph(
+  input: UpdateEventWithGraphInput
+): Promise<ReturnType<typeof getEventById>> {
+  const current = await prisma.event.findUnique({
+    where: { id: input.id },
+    include: { eventSessions: true },
+  });
+
+  if (!current) throw new TRPCError({ code: "NOT_FOUND" });
+  if (current.status !== EventStatus.PAUSED) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "El evento solo puede editarse en estado PAUSED.",
+    });
+  }
+  if (input.startDate && input.endDate && input.startDate > input.endDate) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "La fecha de fin no puede ser anterior a la fecha de inicio del evento.",
+    });
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const ev = await tx.event.update({
       where: { id: input.id },
       data: {
         name: input.name,
         description: input.description,
         image: input.image,
-        street: input.street,
-        number: input.number,
-        neighborhood: input.neighborhood,
-        city: input.city,
-        state: input.state,
-        zipCode: input.zipCode,
-        venueName: input.venueName,
-        slug: input.slug,
-        status: input.status,
-        eventType: input.eventType,
-        capacity: input.capacity,
-        publishedAt: input.publishedAt,
-        ...(input.categoryId && { category: { connect: { id: input.categoryId } } }),
-        ...(input.userId && { organizer: { connect: { id: input.userId } } }),
-        ...(input.ticketCategories && {
-          ticketCategories: {
-            deleteMany: {},
-            create: input.ticketCategories.map((c) => ({
-              title: c.title,
-              price: c.price,
-              capacity: c.capacity,
-            })),
-          },
-        }),
-        ...(input.eventSessions && {
-          eventSessions: {
-            deleteMany: {},
-            create: input.eventSessions.map((s) => ({
-              date: s.date,
-              venueName: s.venueName,
-              city: s.city,
-            })),
-          },
-        }),
+        startDate: input.startDate,
+        endDate: input.endDate,
+        category: { connect: { id: input.categoryId } },
       },
     });
 
-    if (input.eventType === EventType.SEATED) {
-      await tx.seat.deleteMany({ where: { eventId: input.id } });
-      const fresh = await tx.event.findUniqueOrThrow({
-        where: { id: input.id },
-        include: { eventSessions: true, ticketCategories: true },
-      });
-
-      const seatData: Prisma.SeatCreateManyInput[] = [];
-      for (const cat of fresh.ticketCategories) {
-        const row = rowFromCategoryTitle(cat.title);
-        for (const ses of fresh.eventSessions) {
-          seatData.push(
-            ...buildSeatsByCapacity({
-              eventId: fresh.id,
-              eventSessionId: ses.id,
-              ticketCategoryId: cat.id,
-              row,
-              capacity: cat.capacity,
-            })
-          );
-        }
+    // Remove sessões antigas não presentes
+    const currentIds = new Set(current.eventSessions.map((s) => s.id));
+    const incomingIds = new Set(
+      input.sessions.map((s) => s.id).filter(Boolean) as string[]
+    );
+    for (const s of current.eventSessions) {
+      if (!incomingIds.has(s.id)) {
+        await tx.sessionArtist.deleteMany({ where: { sessionId: s.id } });
+        await tx.seat.deleteMany({ where: { eventSessionId: s.id } });
+        await tx.row.deleteMany({ where: { eventSessionId: s.id } });
+        await tx.sector.deleteMany({ where: { sessionId: s.id } });
+        await tx.ticketCategory.deleteMany({ where: { sessionId: s.id } });
+        await tx.eventSession.delete({ where: { id: s.id } });
       }
-
-      if (seatData.length) await tx.seat.createMany({ data: seatData });
-    } else {
-      await tx.seat.deleteMany({ where: { eventId: input.id } });
     }
 
-    if (input.artists) {
-      await tx.eventArtist.deleteMany({ where: { eventId: input.id } });
-      for (const nameStr of input.artists) {
-        const artist = await tx.artist.create({ data: { name: nameStr } });
-        await tx.eventArtist.create({
-          data: { eventId: input.id, artistId: artist.id },
+    // Upsert sessões
+    for (const s of input.sessions) {
+      let sessionId: string | null = s.id ?? null;
+
+      if (sessionId && currentIds.has(sessionId)) {
+        await tx.eventSession.update({
+          where: { id: sessionId },
+          data: {
+            dateTimeStart: s.dateTimeStart,
+            durationMin: s.durationMin,
+            timezone: s.timezone,
+            venueName: s.venueName,
+            street: s.street,
+            number: s.number,
+            neighborhood: s.neighborhood ?? undefined,
+            city: s.city,
+            state: s.state,
+            zip: s.zip,
+            country: s.country,
+            ticketingType: s.ticketingType,
+          },
+        });
+      } else {
+        const session = await tx.eventSession.create({
+          data: {
+            eventId: ev.id,
+            slug: generateSessionSlug(ev.name, s.dateTimeStart),
+            dateTimeStart: s.dateTimeStart,
+            durationMin: s.durationMin,
+            timezone: s.timezone,
+            venueName: s.venueName,
+            street: s.street,
+            number: s.number,
+            neighborhood: s.neighborhood ?? "",
+            city: s.city,
+            state: s.state ?? "",
+            zip: s.zip ?? "",
+            country: s.country,
+            ticketingType: s.ticketingType,
+          },
+        });
+        sessionId = session.id;
+      }
+
+      if (!sessionId) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to resolve sessionId after creation.",
+        });
+      }
+
+      // Se for SEATED → cria setores, rows e seats
+      if (s.ticketingType === SessionTicketingType.SEATED && "sectors" in s) {
+        for (const sector of s.sectors) {
+          const createdSector = await tx.sector.create({
+            data: {
+              sessionId,
+              name: sector.name,
+              code: toSlug(sector.name),
+            },
+          });
+
+          for (const row of sector.rows) {
+            const createdRow = await tx.row.create({
+              data: {
+                sectorId: createdSector.id,
+                name: row.name,
+                order: 0,
+                eventSessionId: sessionId,
+              },
+            });
+
+            const seatsData = Array.from({ length: row.seatCount }, (_, i) => {
+              const seatNumber = i + 1;
+              return {
+                eventId: ev.id,
+                eventSessionId: sessionId as string,
+                sectorId: createdSector.id,
+                rowId: createdRow.id,
+                rowName: row.name,
+                number: seatNumber,
+                status: SeatStatus.AVAILABLE,
+                labelShort: `${row.name}${seatNumber}`,
+                labelFull: `${sector.name}-${row.name}${seatNumber}`,
+              };
+            });
+
+            await tx.seat.createMany({ data: seatsData });
+          }
+        }
+      }
+    }
+
+    return tx.event.findUniqueOrThrow({
+      where: { id: ev.id },
+      include: {
+        category: true,
+        organizer: true,
+        eventSessions: {
+          orderBy: { dateTimeStart: "asc" },
+          include: {
+            ticketCategories: {
+              select: {
+                id: true,
+                title: true,
+                price: true,
+                capacity: true,
+                currency: true,
+                createdAt: true,
+                updatedAt: true,
+                _count: { select: { tickets: true } },
+              },
+            },
+            artists: {
+              include: {
+                artist: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    bio: true,
+                    image: true,
+                  },
+                },
+              },
+            },
+            sectors: {
+              include: {
+                rows: {
+                  include: { seats: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  return updated;
+}
+
+/* =========================
+ * PUBLICAR / PAUSAR / CANCELAR
+ * ========================= */
+export async function publishEvent(eventId: string) {
+  const sessions = await prisma.eventSession.findMany({
+    where: { eventId },
+    include: { ticketCategories: true, seats: true },
+  });
+
+  if (sessions.length === 0) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "El evento no tiene sesiones configuradas.",
+    });
+  }
+
+  for (const s of sessions) {
+    if (s.ticketCategories.length === 0) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "La sesión no tiene categorías de entradas.",
+      });
+    }
+
+    if (s.ticketingType === SessionTicketingType.GENERAL) {
+      const totalCapacity = s.ticketCategories.reduce(
+        (acc, c) => acc + (c.capacity ?? 0),
+        0
+      );
+      if (totalCapacity <= 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "La sesión (General) no tiene capacidad disponible.",
+        });
+      }
+    } else if (s.ticketingType === SessionTicketingType.SEATED) {
+      const available = s.seats.filter(
+        (seat) => seat.status === SeatStatus.AVAILABLE
+      ).length;
+      if (available <= 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "La sesión (Seated) no tiene asientos disponibles.",
         });
       }
     }
+  }
 
-    return input.id;
-  });
-
-  return prisma.event.findUniqueOrThrow({
-    where: { id: updatedId },
+  return prisma.event.update({
+    where: { id: eventId },
+    data: { status: EventStatus.PUBLISHED, publishedAt: new Date() },
     include: {
       category: true,
       organizer: true,
-      eventSessions: true,
-      ticketCategories: { include: { seats: true } },
-      artists: { include: { artist: true } },
-    },
-  });
-};
-
-export const cancelEvent = (eventId: string) =>
-  prisma.event.update({ where: { id: eventId }, data: { status: EventStatus.FINISHED } });
-export const finishEvent = cancelEvent;
-
-export const getEventById = (input: GetEventByIdInput) =>
-  prisma.event.findUniqueOrThrow({
-    where: { id: input.id },
-    include: {
-      category: true,
-      organizer: true,
-      eventSessions: true,
-      ticketCategories: { include: { seats: true } },
-      artists: { include: { artist: true } },
-    },
-  });
-
-export const listEvents = (filter?: { status?: EventStatus }) =>
-  prisma.event.findMany({
-    where: { 
-      ...(filter?.status ? { status: filter.status } : {}),
-      publishedAt: { lte: new Date() },
-    },
-    orderBy: { createdAt: "asc" },
-    include: {
-      category: true,
-      organizer: true,
-      eventSessions: true,
-      ticketCategories: { include: { seats: true } },
-      artists: { include: { artist: true } },
-    },
-  });
-
-export const listEventsByDate = async (dateString: string) => {
-  const start = new Date(`${dateString}T00:00:00`);
-  const end = new Date(`${dateString}T23:59:59`);
-
-  const sessions = await prisma.eventSession.findMany({
-    where: { date: { gte: start, lte: end }, event: { status: EventStatus.OPEN } },
-    include: {
-      event: {
+      eventSessions: {
+        orderBy: { dateTimeStart: "asc" },
         include: {
-          category: true,
-          organizer: true,
-          eventSessions: true,
-          ticketCategories: { include: { seats: true } },
-          artists: { include: { artist: true } },
+          ticketCategories: {
+            select: {
+              id: true,
+              title: true,
+              price: true,
+              capacity: true,
+              currency: true,
+              createdAt: true,
+              updatedAt: true,
+              _count: { select: { tickets: true } },
+            },
+          },
+          seats: true,
+          artists: {
+            include: {
+              artist: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  bio: true,
+                  image: true,
+                },
+              },
+            },
+          },
+          sectors: {
+            include: {
+              rows: { include: { seats: true } },
+            },
+          },
         },
       },
     },
   });
-  
-  const unique = new Map<string, (typeof sessions)[number]["event"]>();
-  for (const s of sessions) if (s.event && !unique.has(s.event.id)) unique.set(s.event.id, s.event);
-  return Array.from(unique.values());
-};
+}
 
-export async function listActiveEventsWithStats(userId: string) {
-  const events = await prisma.event.findMany({
-    where: {
-      organizerId: userId,
-      status: "OPEN",
-      publishedAt: { lte: new Date() },
-    },
+export async function pauseEvent(eventId: string) {
+  await prisma.$transaction(async (tx) => {
+    const paidCount = await tx.order.count({
+      where: { eventId, status: OrderStatus.PAID },
+    });
+    if (paidCount > 0) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "El evento tiene órdenes pagadas y no puede pausarse.",
+      });
+    }
+
+    const pendingOrders = await tx.order.findMany({
+      where: { eventId, status: OrderStatus.PENDING },
+      select: { id: true },
+    });
+    if (pendingOrders.length) {
+      const orderIds = pendingOrders.map((o) => o.id);
+      await tx.order.updateMany({
+        where: { id: { in: orderIds } },
+        data: { status: OrderStatus.EXPIRED },
+      });
+      await tx.seat.updateMany({
+        where: { orderItems: { some: { orderId: { in: orderIds } } } },
+        data: { status: SeatStatus.AVAILABLE },
+      });
+      await tx.cartItem.deleteMany({ where: { eventId } });
+    }
+
+    await tx.event.update({
+      where: { id: eventId },
+      data: { status: EventStatus.PAUSED },
+    });
+  });
+
+  return { success: true };
+}
+
+export async function cancelEvent(eventId: string) {
+  const ev = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!ev) throw new TRPCError({ code: "NOT_FOUND" });
+
+  if (ev.status !== EventStatus.PAUSED) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "El evento solo puede cancelarse si está en pausa.",
+    });
+  }
+
+  const paidCount = await prisma.order.count({
+    where: { eventId, status: OrderStatus.PAID },
+  });
+  if (paidCount > 0) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "El evento tiene órdenes pagadas y no puede cancelarse.",
+    });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const pendingOrders = await tx.order.findMany({
+      where: { eventId, status: OrderStatus.PENDING },
+      select: { id: true },
+    });
+    if (pendingOrders.length) {
+      const orderIds = pendingOrders.map((o) => o.id);
+      await tx.order.updateMany({
+        where: { id: { in: orderIds } },
+        data: { status: OrderStatus.CANCELLED },
+      });
+      await tx.seat.updateMany({
+        where: { orderItems: { some: { orderId: { in: orderIds } } } },
+        data: { status: SeatStatus.AVAILABLE },
+      });
+      await tx.cartItem.deleteMany({ where: { eventId } });
+    }
+
+    await tx.event.update({
+      where: { id: eventId },
+      data: { status: EventStatus.CANCELLED },
+    });
+  });
+
+  return { success: true };
+}
+
+/* =========================
+ * QUERIES
+ * ========================= */
+export function getEventById(id: string) {
+  return prisma.event.findUniqueOrThrow({
+    where: { id },
     include: {
-      ticketCategories: true,
-      orders: {
-        where: { status: "PAID" },
-        include: { orderItems: true },
+      category: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+      organizer: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      eventSessions: {
+        orderBy: { dateTimeStart: "asc" },
+        include: {
+          ticketCategories: {
+            select: {
+              id: true,
+              title: true,
+              price: true,
+              capacity: true,
+              currency: true,
+            },
+          },
+          artists: {
+            select: {
+              artist: {
+                select: {
+                  id: true,
+                  name: true,
+                  image: true,
+                  slug: true,
+                },
+              },
+            },
+          },
+        },
       },
     },
   });
+}
 
-  return events.map((event) => {
-    const categories = event.ticketCategories.map((cat) => {
-      const sold = event.orders.reduce((acc, order) => {
-        return (
-          acc +
-          order.orderItems.filter((oi) => oi.ticketCategoryId === cat.id)
-            .reduce((sum, oi) => sum + oi.qty, 0)
-        );
-      }, 0);
-
-      return {
-        title: cat.title,
-        sold,
-        remaining: cat.capacity - sold,
-      };
-    });
-
-    const totalSold = categories.reduce((acc, c) => acc + c.sold, 0);
-    const totalCapacity = categories.reduce(
-      (acc, c) => acc + c.remaining + c.sold,
-      0
-    );
-
-    return {
-      id: event.id,
-      name: event.name,
-      totalSold,
-      totalCapacity,
-      categories,
-    };
+export function listEventsPublished() {
+  return prisma.event.findMany({
+    where: { status: EventStatus.PUBLISHED, publishedAt: { lte: new Date() } },
+    orderBy: { createdAt: "desc" },
+    include: {
+      category: true,
+      organizer: true,
+    },
   });
 }

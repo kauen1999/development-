@@ -1,71 +1,166 @@
-import {
-  router,
-  publicProcedure,
-  protectedProcedure,
-} from "@/server/trpc/trpc";
+// src/modules/event/event.router.ts
+import { router, publicProcedure, protectedProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-
 import {
   createEventSchema,
-  getEventByIdSchema,
+  idSchema,
   updateEventSchema,
+  updateEventWithGraphSchema,
 } from "./event.schema";
-
 import {
-  createEvent,
-  updateEvent,
   cancelEvent,
+  createEvent,
   getEventById,
-  listEvents,
-  listEventsByDate,
-  listActiveEventsWithStats,
+  listEventsPublished,
+  pauseEvent,
+  publishEvent,
+  updateEvent,
+  updateEventWithGraph,
 } from "./event.service";
-import { EventStatus } from "@prisma/client"; // Import enum do Prisma
+import { prisma } from "@/lib/prisma";
 
-// Centraliza a verificação de ADMIN
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.session.user.role !== "ADMIN") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
+    throw new TRPCError({ code: "FORBIDDEN", message: "No autorizado" });
   }
   return next();
 });
 
 export const eventRouter = router({
-  // ✅ ADMIN: Criar evento
-  create: adminProcedure
-    .input(createEventSchema)
-    .mutation(({ input }) => createEvent(input)),
+  /* =========================
+   * CRUD
+   * ========================= */
+  create: adminProcedure.input(createEventSchema).mutation(({ input }) =>
+    createEvent(input)
+  ),
 
-  // ✅ ADMIN: Atualizar evento
-  update: adminProcedure
-    .input(updateEventSchema)
-    .mutation(({ input }) => updateEvent(input)),
+  update: adminProcedure.input(updateEventSchema).mutation(({ input }) =>
+    updateEvent(input)
+  ),
 
-  // ✅ ADMIN: Cancelar evento (marcar como FINISHED)
-  cancel: adminProcedure
-    .input(getEventByIdSchema)
-    .mutation(({ input }) => cancelEvent(input.id)),
+  updateWithGraph: adminProcedure
+    .input(updateEventWithGraphSchema)
+    .mutation(({ input }) => updateEventWithGraph(input)),
 
-  // ✅ PÚBLICO: Buscar evento por ID
-  getById: publicProcedure
-    .input(getEventByIdSchema)
-    .query(({ input }) => getEventById(input)),
+  /* =========================
+   * STATUS
+   * ========================= */
+  publish: adminProcedure.input(idSchema).mutation(({ input }) =>
+    publishEvent(input.id)
+  ),
 
-  // ✅ PÚBLICO: Listar todos eventos OPEN
-  list: publicProcedure.query(() =>
-    listEvents({
-      status: EventStatus.OPEN, // Garante apenas eventos abertos na home
+  pause: adminProcedure.input(idSchema).mutation(({ input }) =>
+    pauseEvent(input.id)
+  ),
+
+  cancel: adminProcedure.input(idSchema).mutation(({ input }) =>
+    cancelEvent(input.id)
+  ),
+
+  /* =========================
+   * QUERIES PÚBLICAS
+   * ========================= */
+  getById: publicProcedure.input(idSchema).query(({ input }) =>
+    getEventById(input.id)
+  ),
+
+  listPublished: publicProcedure.query(() => listEventsPublished()),
+
+  list: publicProcedure.query(async () =>
+    prisma.event.findMany({
+      where: { status: "PUBLISHED" },
+      include: {
+        category: true,
+        eventSessions: {
+          include: {
+            ticketCategories: true,
+            artists: { include: { artist: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
     })
   ),
 
-  // ✅ PÚBLICO: Listar eventos por data de sessão (YYYY-MM-DD)
   listByDate: publicProcedure
-    .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
-    .query(({ input }) => listEventsByDate(input.date)),
+    .input(z.object({ date: z.string() }))
+    .query(async ({ input }) => {
+      const targetDate = new Date(input.date);
+      return prisma.event.findMany({
+        where: {
+          status: "PUBLISHED",
+          publishedAt: { lte: new Date() },
+          eventSessions: { some: { dateTimeStart: { gte: targetDate } } },
+        },
+        include: {
+          category: true,
+          eventSessions: {
+            include: {
+              ticketCategories: true,
+              artists: { include: { artist: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    }),
 
-  // ✅ ADMIN: Estatísticas
-  listActiveEventsWithStats: protectedProcedure.query(({ ctx }) =>
-    listActiveEventsWithStats(ctx.session.user.id)
+  /* =========================
+   * QUERIES ADMIN
+   * ========================= */
+  getForEdit: adminProcedure.input(idSchema).query(({ input }) =>
+    getEventById(input.id) // ✅ já retorna ticketCategories, artistas, setores, etc.
   ),
+
+  listActiveEventsWithStats: protectedProcedure.query(async ({ ctx }) => {
+    const events = await prisma.event.findMany({
+      where: { organizerId: ctx.session.user.id },
+      include: {
+        eventSessions: {
+          include: {
+            ticketCategories: {
+              include: { _count: { select: { tickets: true } } },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return events.map((ev) => {
+      const totalCapacity = ev.eventSessions.reduce(
+        (sum, s) =>
+          sum + s.ticketCategories.reduce((acc, c) => acc + (c.capacity ?? 0), 0),
+        0
+      );
+
+      const totalSold = ev.eventSessions.reduce(
+        (sum, s) =>
+          sum +
+          s.ticketCategories.reduce(
+            (acc, c) => acc + (c._count.tickets ?? 0),
+            0
+          ),
+        0
+      );
+
+      return {
+        id: ev.id,
+        name: ev.name,
+        status: ev.status,
+        totalCapacity,
+        totalSold,
+        categories: ev.eventSessions.flatMap((s) =>
+          s.ticketCategories.map((c) => ({
+            id: c.id,
+            title: c.title,
+            capacity: c.capacity,
+            sold: c._count.tickets,
+            remaining: Math.max(0, (c.capacity ?? 0) - (c._count.tickets ?? 0)),
+          }))
+        ),
+      };
+    });
+  }),
 });

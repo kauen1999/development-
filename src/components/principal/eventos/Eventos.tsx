@@ -1,18 +1,19 @@
 // src/components/principal/eventos/Eventos.tsx
 import React, { useState } from "react";
 import Card from "./EventoCard";
-import { AiOutlineSearch } from "react-icons/ai";
-import style from "./../header/Header.module.css";
 import { trpc } from "@/utils/trpc";
 import Spinner from "@/components/principal/loader/Spinner";
+import { useSearchStore } from "@/store/searchStore";
 
 const Eventos = () => {
   const [categoria, setCategoria] = useState("Todos");
+  const { query, city } = useSearchStore();
 
-  const { data: events = [], isLoading } = trpc.event.list.useQuery();
+  const { data, isLoading } = trpc.search.global.useQuery({ query, city });
   const { data: categoriasDb = [], isLoading: loadingCats } = trpc.category.list.useQuery();
 
   const categorias = ["Todos", ...categoriasDb.map((c) => c.title)];
+  const events = data?.events ?? [];
 
   const eventosFiltrados =
     categoria === "Todos"
@@ -26,6 +27,7 @@ const Eventos = () => {
       </div>
 
       <div className="mb-6 flex flex-nowrap items-center justify-between gap-4">
+        {/* Filtros de categoria */}
         <div className="flex flex-wrap gap-4">
           {loadingCats ? (
             <Spinner />
@@ -43,19 +45,9 @@ const Eventos = () => {
             ))
           )}
         </div>
-
-        <div className={`${style.search_bar} ${style.form_element}`}>
-          <input
-            type="text"
-            style={{ width: "400px" }}
-            className="mr-3 w-full appearance-none border-none bg-transparent py-1 px-2 leading-tight text-gray-700 outline-0 focus:outline-none"
-            name="search"
-            placeholder="Búsqueda por nombre, artista, ciudad, fecha..."
-          />
-          <AiOutlineSearch className={style.icon} />
-        </div>
       </div>
 
+      {/* Cards */}
       {isLoading ? (
         <div className="flex justify-center py-10">
           <Spinner />
@@ -65,25 +57,28 @@ const Eventos = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {eventosFiltrados.map((event) => (
-            <Card
-              key={event.id}
-              slug={event.slug}
-              artist={event.name}
-              fecha={
-                event.eventSessions?.[0]
-                  ? new Date(event.eventSessions[0].date).toLocaleDateString("es-AR", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })
-                  : "Sin fecha"
-              }
-              foto={event.image ?? ""}
-              ubicacion={event.venueName}
-              ciudad={event.city}
-            />
-          ))}
+          {eventosFiltrados.map((event) => {
+            const firstSession = event.eventSessions[0];
+            return (
+              <Card
+                key={event.id}
+                slug={event.slug}
+                artist={event.name}
+                fecha={
+                  firstSession
+                    ? new Date(firstSession.dateTimeStart).toLocaleDateString("es-AR", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "Sin fecha"
+                }
+                foto={event.image ?? ""}
+                ubicacion={firstSession?.venueName ?? ""}
+                ciudad={firstSession?.city ?? ""}
+              />
+            );
+          })}
         </div>
       )}
     </section>

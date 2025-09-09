@@ -18,9 +18,9 @@ export async function generateAndSaveTicket(orderItemId: string) {
     include: {
       order: {
         include: {
-          eventSession: true, 
+          EventSession: true, // <- relação correta (camel/pascal conforme schema)
           user: true,
-          event: true,
+          Event: true,        // <- relação correta
         },
       },
       seat: true,
@@ -38,7 +38,7 @@ export async function generateAndSaveTicket(orderItemId: string) {
   const ticket = await prisma.ticket.create({
     data: {
       seatId: orderItem.seatId,
-      eventSessionId: orderItem.order.eventSessionId, 
+      eventSessionId: orderItem.order.eventSessionId,
       orderItemId: orderItem.id,
       userId: orderItem.order.userId,
       eventId: orderItem.order.eventId,

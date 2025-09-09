@@ -20,12 +20,13 @@ export async function generateTicketAssets(
   const ticket = await prisma.ticket.findUnique({
     where: { id: ticketId },
     include: {
-      eventSession: true, 
-      seat: true,         
+      eventSession: true,      // ✅ EventSession (tem dateTimeStart, venueName, city)
+      seat: true,              // ✅ Seat (tem labelFull/labelShort)
       orderItem: {
         include: {
           order: {
-            include: { event: true, user: true },
+            // ✅ Em Order as relações geradas são `Event` e `user`
+            include: { Event: true, user: true },
           },
         },
       },
@@ -34,7 +35,8 @@ export async function generateTicketAssets(
 
   if (!ticket) throw new Error("Ticket not found");
 
-  const event = ticket.orderItem?.order?.event;
+  // ✅ acessar `Event` (maiúsculo) via orderItem.order.Event
+  const event = ticket.orderItem?.order?.Event;
   if (!event) throw new Error("Event not found for ticket");
 
   // Gera QR em buffer
@@ -49,14 +51,19 @@ export async function generateTicketAssets(
 
     doc.fontSize(20).text(`Evento: ${event.name}`);
     doc.moveDown();
-    doc.fontSize(12).text(`Local: ${event.venueName}, ${event.city}`);
 
-    // Usa eventSession.date
-    if (ticket.eventSession?.date) {
-      doc.text(`Data: ${ticket.eventSession.date.toLocaleString()}`);
+    // ✅ venueName/city vêm da sessão (EventSession), não do Event
+    const venueName = ticket.eventSession?.venueName ?? "—";
+    const city = ticket.eventSession?.city ?? "—";
+    doc.fontSize(12).text(`Local: ${venueName}, ${city}`);
+
+    // ✅ EventSession usa `dateTimeStart`
+    if (ticket.eventSession?.dateTimeStart) {
+      doc.text(`Data: ${ticket.eventSession.dateTimeStart.toLocaleString()}`);
     }
 
-    const seatLabel = ticket.seat?.label ?? "General";
+    // ✅ Seat usa `labelFull` (ou `labelShort`)
+    const seatLabel = ticket.seat?.labelFull ?? "General";
     doc.text(`Assento: ${seatLabel}`);
     doc.text(`Ticket ID: ${ticket.id}`);
     doc.moveDown();

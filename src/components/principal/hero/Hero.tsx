@@ -1,135 +1,75 @@
 // src/components/principal/hero/Hero.tsx
 import React from "react";
-
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
-import { Autoplay } from "swiper"; 
-import "swiper/css/autoplay"; 
-
+import { Autoplay } from "swiper";
+import "swiper/css/autoplay";
 
 import Card from "./Card";
-import duki from "../../../../public/images/duki.jpg";
-import chayanne from "../../../../public/images/chayanne.jpg";
-import trueno from "../../../../public/images/trueno.jpg";
 import Link from "next/link";
+import { trpc } from "@/utils/trpc";
+import { useSearchStore } from "@/store/searchStore";
 
 const Hero = () => {
+  const { query, city } = useSearchStore();
+  const { data, isLoading } = trpc.search.global.useQuery({ query, city });
+  const artists = data?.artists ?? [];
+
+  if (isLoading) {
+    return (
+      <section id="artistas" className="mt-5 bg-primary-100 py-5">
+        <p className="text-center text-white text-lg">Cargando artistas…</p>
+      </section>
+    );
+  }
+
   return (
-    <section className="mt-5 bg-primary-100 py-5">
+    <section id="artistas" className="mt-5 bg-primary-100 py-5">
       <Swiper
-        modules={[Autoplay]} 
+        modules={[Autoplay]}
         autoplay={{
-          delay: 2500, 
-          disableOnInteraction: false, 
+          delay: 2500,
+          disableOnInteraction: false,
+          pauseOnMouseEnter: true,
         }}
-        spaceBetween={10}
-        slidesPerView={1.2}
+        spaceBetween={12}
+        slidesPerView={3}
+        grabCursor={true}
         breakpoints={{
-          768: {
-            slidesPerView: 1.5,
-          },
-
-          1024: {
-            slidesPerView: 2.2,
-          },
+          0: { slidesPerView: 1, spaceBetween: 8 },
+          640: { slidesPerView: 2, spaceBetween: 10 },
+          1024: { slidesPerView: 3, spaceBetween: 12 },
         }}
+        className="!px-0"
       >
-        <SwiperSlide> {/* CARD 1 */}
-          <Link
-            href={{
-              pathname: "eventdetail/[id]",
-              query: {
-                id: "01",
-                picture: duki.src,
-                artist: "Jóse En Vivo",
-                date: "14 de Mayo",
-              },
-            }}
-          >
-            <div className="ml-2">
-              <Card foto={duki} nombre="Jóse En Vivo" fecha="14 de Mayo" />
-            </div>
-          </Link>
-        </SwiperSlide>
+        {artists.map((artist) => {
+          const firstSession = artist.appearances.find((app) => app.session);
 
-        <SwiperSlide> {/* CARD 2 */}
-          <Link
-            href={{
-              pathname: "eventdetail/[id]",
-              query: {
-                id: "01",
-                picture: chayanne.src,
-                artist: "Juan Lucas Martin",
-                date: "01 de Abril",
-              },
-            }}
-          >
-            <Card
-              foto={chayanne}
-              nombre="Juan Lucas Martin"
-              fecha="01 de Abril"
-            />
-          </Link>
-        </SwiperSlide>
-
-        <SwiperSlide> {/* CARD 3 */}
-          <Link
-            href={{
-              pathname: "eventdetail/[id]",
-              query: {
-                id: "01",
-                picture: trueno.src,
-                artist: "Chris Andrade En Vivo",
-                date: "14 de Abril",
-              },
-            }}
-          >
-            <Card
-              foto={trueno}
-              nombre="Chris Andrade En Vivo"
-              fecha="14 de Abril"
-            />
-          </Link>
-        </SwiperSlide>
-
-        <SwiperSlide> {/* CARD 4 */}
-          <Link
-            href={{
-              pathname: "eventdetail/[id]",
-              query: {
-                id: "01",
-                picture: chayanne.src,
-                artist: "Juan Lucas Martin",
-                date: "01 de Abril",
-              },
-            }}
-          >
-            <Card
-              foto={chayanne}
-              nombre="Juan Lucas Martin"
-              fecha="01 de Abril"
-            />
-          </Link>
-        </SwiperSlide>
-
-        <SwiperSlide> {/* CARD 5 */}
-          <Link
-            href={{
-              pathname: "eventdetail/[id]",
-              query: {
-                id: "01",
-                picture: duki.src,
-                artist: "Jóse En Vivo",
-                date: "14 de Mayo",
-              },
-            }}
-          >
-            <div className="ml-2">
-              <Card foto={duki} nombre="Jóse En Vivo" fecha="14 de Mayo" />
-            </div>
-          </Link>
-        </SwiperSlide>
-
+          return (
+            <SwiperSlide key={artist.id} className="!h-auto">
+              <Link href={`/artist/${artist.slug}`}>
+                <div className="h-full">
+                  <Card
+                    foto={artist.image || "/banner.jpg"}
+                    nombre={artist.name}
+                    fecha={
+                      firstSession?.session
+                        ? new Date(firstSession.session.dateTimeStart).toLocaleDateString(
+                            "es-AR",
+                            {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            }
+                          )
+                        : "Sin fecha"
+                    }
+                  />
+                </div>
+              </Link>
+            </SwiperSlide>
+          );
+        })}
       </Swiper>
     </section>
   );

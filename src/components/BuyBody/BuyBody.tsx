@@ -1,214 +1,310 @@
-import React, { useState } from "react";
-import { useSession } from "next-auth/react";
+// src/components/BuyBody/BuyBody.tsx
+import React, { useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import { EventMap } from "./EventMap";
-import { eventMaps } from "../../data/maps";
+import { useSession } from "next-auth/react";
 import { trpc } from "@/utils/trpc";
+import { EventMap } from "./EventMap";
+import type { EventMapConfig } from "./EventMap";
 
-interface Props {
-  event: {
+interface EventSeated {
+  id: string;
+  name: string;
+  image: string | null;
+  sessions: { id: string; date: string; venueName: string }[];
+  ticketCategories: {
     id: string;
-    name: string;
-    image: string | null;
-    sessions: {
+    title: string;
+    price: number;
+    seats: {
       id: string;
-      date: string;
-      venueName: string;
+      row: string | null;
+      number: number | null;
+      status: "AVAILABLE" | "RESERVED" | "SOLD";
     }[];
-    ticketCategories: {
-      id: string;
-      title: string;
-      price: number;
-      seats: {
-        id: string;
-        label: string;
-        row: string | null;
-        number: number | null;
-        status: "AVAILABLE" | "RESERVED" | "SOLD";
-      }[];
-    }[];
-  };
+  }[];
+  type: "SEATED";
 }
 
-type Seat = {
-  sector: string;
-  row: string;
-  seat: number;
+interface EventGeneral {
+  id: string;
+  name: string;
+  image: string | null;
+  eventSessionId: string;
+  categories: {
+    id: string;
+    title: string;
+    price: number;
+    capacity: number;
+  }[];
+  type: "GENERAL";
+}
+
+type Props = {
+  event: EventSeated | EventGeneral;
+};
+
+type SeatSelection = {
+  seatId?: string;
+  ticketCategoryId: string;
+  sectorName: string;
+  row?: string;
+  seat?: number;
+  quantity: number;
   price: number;
 };
 
 const BuyBody: React.FC<Props> = ({ event }) => {
   const router = useRouter();
   const { data: sessionData } = useSession();
-  const [selectedSeats, setSelectedSeats] = useState<Seat[]>([]);
+  const [selected, setSelected] = useState<SeatSelection[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
-  const totalPrice = selectedSeats.reduce((acc, s) => acc + s.price, 0);
-  const disabled = selectedSeats.length === 0;
+  const selectedSessionId =
+    event.type === "SEATED"
+      ? event.sessions?.[0]?.id ?? null
+      : event.eventSessionId;
 
-  const mapConfig = eventMaps["belgrano"];
-
-  const handleSelect = (sector: string, row: string, seat: number, price: number) => {
-    if (price === 0) return;
-
-    const isAlreadySelected = selectedSeats.some(
-      (s) => s.sector === sector && s.row === row && s.seat === seat
-    );
-
-    if (isAlreadySelected) {
-      setSelectedSeats((prev) =>
-        prev.filter((s) => !(s.sector === sector && s.row === row && s.seat === seat))
-      );
-    } else {
-      if (selectedSeats.length >= 5) return;
-      setSelectedSeats((prev) => [...prev, { sector, row, seat, price }]);
-    }
-  };
-
-  const createOrder = trpc.order.create.useMutation({
-    onSuccess: (order) => {
-      router.push(`/checkout/${order.id}`);
-    },
+  const addManyToCart = trpc.cart.addMany.useMutation({
+    onSuccess: () => router.push("/cart"),
     onError: (error) => {
-      console.error("Erro ao criar pedido:", error);
-      alert("Erro ao criar o pedido. Tente novamente.");
+      console.error("❌ Error al agregar al carrito:", error);
+      alert("No se pudo agregar al carrito.");
     },
   });
 
-  const handleBuy = () => {
-    if (!termsAccepted) {
-      alert("Você precisa aceitar os termos.");
+  // ---------- Map config (SEATED) ----------
+  const mapConfig: EventMapConfig | null = useMemo(() => {
+    if (event.type !== "SEATED") return null;
+    return {
+      name: event.name,
+      sectors: event.ticketCategories.map((tc) => ({
+        id: tc.id,
+        name: tc.title,
+        rows: [
+          {
+            name: tc.title,
+            seats: tc.seats
+              .filter((s) => s.number !== null)
+              .map((s) => ({
+                id: s.id,
+                number: s.number as number,
+                status: s.status,
+                price: tc.price,
+              })),
+          },
+        ],
+      })),
+    };
+  }, [event]);
+
+  // ---------- SEATED ----------
+  const handleSelectSeat = (
+    seatId: string,
+    sectorName: string,
+    row: string,
+    seat: number,
+    price: number
+  ) => {
+    const already = selected.some((s) => s.seatId === seatId);
+    if (already) {
+      setSelected((prev) => prev.filter((s) => s.seatId !== seatId));
       return;
     }
+    const selectedSeatCount = selected.filter((s) => s.seatId).length;
+    if (selectedSeatCount >= 5) return;
 
-    if (selectedSeats.length === 0) {
-      alert("Selecione pelo menos um assento.");
-      return;
-    }
+    const category =
+      event.type === "SEATED"
+        ? event.ticketCategories.find((tc) =>
+            tc.seats.some((ss) => ss.id === seatId)
+          )
+        : null;
 
-    const selectedLabels = selectedSeats.map((s) => `${s.row}-${s.seat}`);
-    const sessionId = event.sessions?.[0]?.id;
+    if (!category) return;
 
-    if (!sessionId) {
-      alert("Sessão não encontrada.");
-      return;
-    }
+    setSelected((prev) => [
+      ...prev,
+      {
+        seatId,
+        ticketCategoryId: category.id,
+        sectorName,
+        row,
+        seat,
+        quantity: 1,
+        price,
+      },
+    ]);
+  };
 
-    createOrder.mutate({
-      eventId: event.id,
-      sessionId,
-      selectedLabels,
+  // ---------- GENERAL ----------
+  const updateGeneralQty = (
+    ticketCategoryId: string,
+    title: string,
+    price: number,
+    delta: number,
+    capacity: number
+  ) => {
+    setSelected((prev) => {
+      const item = prev.find((s) => s.ticketCategoryId === ticketCategoryId && !s.seatId);
+      if (item) {
+        const nextQty = item.quantity + delta;
+        if (nextQty <= 0) {
+          return prev.filter((s) => !(s.ticketCategoryId === ticketCategoryId && !s.seatId));
+        }
+        if (nextQty > capacity) {
+          alert("No hay más entradas disponibles.");
+          return prev;
+        }
+        return prev.map((s) =>
+          s.ticketCategoryId === ticketCategoryId && !s.seatId
+            ? { ...s, quantity: nextQty }
+            : s
+        );
+      }
+      if (delta > 0) {
+        return [
+          ...prev,
+          { ticketCategoryId, sectorName: title, quantity: 1, price },
+        ];
+      }
+      return prev;
     });
   };
 
-  if (!mapConfig) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <span className="text-gray-500">Mapa do evento não encontrado.</span>
-      </div>
-    );
-  }
+  const getGeneralQty = (categoryId: string) =>
+    selected.find((s) => s.ticketCategoryId === categoryId && !s.seatId)?.quantity ?? 0;
 
+  // ---------- Add to Cart ----------
+  const handleAddToCart = async () => {
+    if (!termsAccepted) {
+      alert("Debes aceptar los términos.");
+      return;
+    }
+    if (!selectedSessionId) {
+      alert("Sesión no encontrada.");
+      return;
+    }
+    if (selected.length === 0) {
+      alert("Seleccione al menos un asiento o entrada.");
+      return;
+    }
+    await addManyToCart.mutateAsync({
+      eventId: event.id, // ✅ fix
+      eventSessionId: selectedSessionId,
+      items: selected.map((s) => ({
+        seatId: s.seatId,
+        ticketCategoryId: s.ticketCategoryId,
+        quantity: s.quantity,
+      })),
+    });
+  };
+
+  // ------------------ Render ------------------
   return (
-    <div className="mx-auto my-4 flex max-w-[1200px] flex-col gap-8 rounded-lg border border-gray-300 bg-white p-6 shadow-lg lg:flex-row">
-      <div className="flex w-full items-center justify-center lg:w-1/2">
+    <div className="mx-auto my-4 max-w-[800px] rounded-lg border border-gray-300 bg-white p-6 shadow-lg">
+      {event.type === "SEATED" && mapConfig ? (
         <EventMap
           mapConfig={mapConfig}
-          onSelect={handleSelect}
-          selectedSeats={selectedSeats}
-          maxReached={selectedSeats.length >= 5}
+          onSelect={handleSelectSeat}
+          selectedSeats={selected
+            .filter((s) => s.seatId)
+            .map((s) => ({
+              sectorId: s.ticketCategoryId,
+              row: s.row ?? "",
+              seat: s.seat ?? 0,
+            }))}
+          maxReached={selected.filter((s) => s.seatId).length >= 5}
+          soldSeatsIndex={new Set(
+            event.ticketCategories.flatMap((tc) =>
+              tc.seats
+                .filter((s) => s.status !== "AVAILABLE")
+                .map((s) => s.id)
+            )
+          )}
         />
+      ) : (
+        <div className="space-y-4">
+          {event.type === "GENERAL" &&
+            event.categories.map((tc) => {
+              const qty = getGeneralQty(tc.id);
+              return (
+                <div
+                  key={tc.id}
+                  className="flex items-center justify-between border-b pb-3"
+                >
+                  <div>
+                    <p className="font-semibold">{tc.title}</p>
+                    <p className="text-sm text-gray-500">${tc.price}.00</p>
+                    <p className="text-xs text-gray-400">Disponibles: {tc.capacity}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        updateGeneralQty(tc.id, tc.title, tc.price, -1, tc.capacity)
+                      }
+                      className="rounded bg-gray-200 px-3 py-1 text-black hover:bg-gray-300 disabled:opacity-50"
+                      disabled={qty === 0}
+                    >
+                      −
+                    </button>
+                    <span className="min-w-[2ch] text-center">{qty}</span>
+                    <button
+                      onClick={() =>
+                        updateGeneralQty(tc.id, tc.title, tc.price, +1, tc.capacity)
+                      }
+                      className="rounded bg-[#FF5F00] px-3 py-1 text-white hover:bg-[#ff6c14] disabled:opacity-50"
+                      disabled={qty >= tc.capacity}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      )}
+
+      {/* Terms + Botón */}
+      <div className="mt-6">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={termsAccepted}
+            onChange={(e) => setTermsAccepted(e.target.checked)}
+            className="accent-blue-600 focus:outline-none"
+          />
+          <span>
+            Acepto los{" "}
+            <a href="#" className="text-blue-600 underline">
+              términos y condiciones
+            </a>
+            .
+          </span>
+        </label>
       </div>
-      <div className="w-full lg:w-1/2">
-        <h2 className="w-fit rounded bg-gray-400 px-4 py-2 text-sm font-bold text-white">
-          DOM-06/JUL
-        </h2>
 
-        {selectedSeats.length > 0 ? (
-          <div className="mt-4 max-h-64 space-y-4 overflow-y-auto pr-2">
-            {selectedSeats.map((s, i) => (
-              <div key={i} className="border-b pb-2">
-                <div className="flex items-center justify-between">
-                  <p>Setor: Platea {s.sector}</p>
-                  <button className="rounded bg-gray-200 px-2 py-1 text-sm">1</button>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <p>
-                    Fila: {s.sector}
-                    {s.row} - Assento {s.seat}
-                  </p>
-                  <p className="font-semibold">$ {s.price}.00</p>
-                </div>
-              </div>
-            ))}
-          </div>
+      <div className="mt-6">
+        {!termsAccepted || selected.length === 0 ? (
+          <button
+            className="w-full cursor-not-allowed rounded-md bg-gray-300 py-3 px-6 font-semibold text-gray-600"
+            disabled
+          >
+            Añadir al carrito
+          </button>
+        ) : sessionData ? (
+          <button
+            onClick={handleAddToCart}
+            className="w-full rounded-md bg-[#FF5F00] py-3 px-6 font-semibold text-white transition hover:bg-[#ff6c14]"
+          >
+            Añadir al carrito
+          </button>
         ) : (
-          <p className="mt-4 text-gray-600">Selecione ao menos um assento</p>
-        )}
-
-        {selectedSeats.length > 0 && (
-          <>
-            <div className="mt-4 pt-4">
-              <h3 className="mb-4 text-lg font-semibold">Resumen de tu compra</h3>
-              {selectedSeats.map((s, i) => (
-                <div className="flex justify-between text-sm" key={i}>
-                  <span>
-                    Platea {s.sector}
-                    {s.row} - {s.seat}
-                  </span>
-                  <span>$ {s.price}.00</span>
-                </div>
-              ))}
-              <div className="mt-2 flex justify-between font-bold">
-                <span>Total de la compra</span>
-                <span>$ {totalPrice}.00</span>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={termsAccepted}
-                  onChange={(e) => setTermsAccepted(e.target.checked)}
-                  className="accent-blue-600 focus:outline-none"
-                />
-                <span>
-                  Acepto los{" "}
-                  <a href="#" className="text-blue-600 underline">
-                    términos y condiciones
-                  </a>
-                  .
-                </span>
-              </label>
-            </div>
-
-            <div className="mt-6">
-              {disabled || !termsAccepted ? (
-                <button
-                  className="w-full cursor-not-allowed rounded-md bg-gray-300 py-3 px-6 font-semibold text-gray-600"
-                  disabled
-                >
-                  Comprar ahora
-                </button>
-              ) : sessionData ? (
-                <button
-                  onClick={handleBuy}
-                  className="w-full rounded-md bg-[#FF5F00] py-3 px-6 font-semibold text-white transition hover:bg-[#FF5F00]"
-                >
-                  Comprar ahora
-                </button>
-              ) : (
-                <button
-                  onClick={() => router.push("/login")}
-                  className="w-full rounded-md bg-[#FF5F00] py-3 px-6 font-semibold text-white hover:bg-[#ff6c14]"
-                >
-                  Comprar ahora
-                </button>
-              )}
-            </div>
-          </>
+          <button
+            onClick={() => router.push("/login")}
+            className="w-full rounded-md bg-[#FF5F00] py-3 px-6 font-semibold text-white hover:bg-[#ff6c14]"
+          >
+            Añadir al carrito
+          </button>
         )}
       </div>
     </div>

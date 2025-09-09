@@ -1,100 +1,110 @@
+// src/modules/event/event.schema.ts
 import { z } from "zod";
-import { EventStatus, EventType } from "@prisma/client";
+import { EventStatus, SessionTicketingType } from "@prisma/client";
 
-const generateSeatsSchema = z.object({
-  rows: z.array(z.string().min(1)).min(1),
-  seatsPerRow: z.number().int().min(1),
+/* =========================
+ * CREATE / UPDATE BÁSICO
+ * ========================= */
+export const createEventSchema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio"),
+  description: z.string().min(1, "La descripción es obligatoria"),
+  image: z.string().url().optional(),
+  startDate: z.date().optional(),
+  endDate: z.date().optional(),
+  categoryId: z.string().cuid("Categoría inválida"),
+  userId: z.string().cuid("Usuario inválido"), // organizer
 });
 
-export const ticketCategorySchema = z.object({
+export type CreateEventInput = z.infer<typeof createEventSchema>;
+
+export const updateEventSchema = z.object({
+  id: z.string().cuid(),
+  name: z.string().optional(),
+  slug: z.string().optional(),
+  description: z.string().optional(),
+  image: z.string().url().optional(),
+  startDate: z.date().optional(),
+  endDate: z.date().optional(),
+  publishedAt: z.date().optional(),
+  categoryId: z.string().cuid().optional(),
+  userId: z.string().cuid().optional(),
+  status: z.nativeEnum(EventStatus).optional(),
+});
+
+export type UpdateEventInput = z.infer<typeof updateEventSchema>;
+
+export const idSchema = z.object({ id: z.string().cuid() });
+export type IdInput = z.infer<typeof idSchema>;
+
+/* =========================
+ * UPDATE COM SESSÕES (GRAFO)
+ * ========================= */
+
+// General (sem assentos)
+const generalCategorySchema = z.object({
   title: z.string().min(1),
-  price: z.number().min(0),
-  capacity: z.number().int().min(0),
-  generateSeats: generateSeatsSchema.optional(),
+  price: z.number().nonnegative(),
+  capacity: z.number().int().nonnegative(),
 });
 
-export const eventSessionSchema = z.object({
-  date: z.preprocess((val) => new Date(val as string), z.date()),
-  venueName: z.string().min(1),
-  city: z.string().min(1),
-});
-
-export const createEventFormSchema = z.object({
+// Seated (com assentos) — definimos setores e filas
+const seatedRowSchema = z.object({
   name: z.string().min(1),
-  description: z.string().min(1),
-  image: z.string().url("Invalid URL").optional(),
+  seatCount: z.number().int().nonnegative(), // quantidade de assentos na fila
+});
 
+const seatedSectorSchema = z.object({
+  name: z.string().min(1),
+  price: z.number().nonnegative(),
+  rows: z.array(seatedRowSchema).min(1, "El sector debe tener al menos una fila"),
+});
+
+const baseSessionUpdateSchema = z.object({
+  id: z.string().cuid().optional(), // se ausente -> cria nova sessão
+  dateTimeStart: z.date(),
+  durationMin: z.number().int().positive(),
+  timezone: z.string().min(1),
+  venueName: z.string().min(1),
   street: z.string().min(1),
   number: z.string().min(1),
-  neighborhood: z.string().min(1),
+  neighborhood: z.string().optional().nullable(),
   city: z.string().min(1),
   state: z.string().min(1),
-  zipCode: z.string().min(1),
-  venueName: z.string().min(1),
+  zip: z.string().min(1),
+  country: z.string().length(2), // ISO-2
+  artists: z.array(z.string().min(1)).default([]), // nomes dos artistas
+});
 
-  slug: z.string().min(1),
+const sessionUpdateSchema = z.discriminatedUnion("ticketingType", [
+  z
+    .object({
+      ticketingType: z.literal(SessionTicketingType.GENERAL),
+      categories: z.array(generalCategorySchema).min(1),
+    })
+    .merge(baseSessionUpdateSchema),
+  z
+    .object({
+      ticketingType: z.literal(SessionTicketingType.SEATED),
+      sectors: z.array(seatedSectorSchema).min(1),
+    })
+    .merge(baseSessionUpdateSchema),
+]);
+
+export const updateEventWithGraphSchema = z.object({
+  // Evento base
+  id: z.string().cuid(),
+  name: z.string().min(1),
+  description: z.string().min(1),
+  image: z.string().url().optional(),
+  startDate: z.date().optional(),
+  endDate: z.date().optional(),
   categoryId: z.string().cuid(),
 
-  eventType: z.nativeEnum(EventType),
+  // Para criar artistas locais, caso não existam por nome
+  createdByUserId: z.string().cuid().optional(),
 
-  ticketCategories: z.array(ticketCategorySchema).min(1),
-  capacity: z.number().int().min(1).max(100000),
-  eventSessions: z.array(eventSessionSchema).min(1),
-
-  artists: z.array(z.string().min(1)).optional(),
+  // Sessões (full replace por sessão)
+  sessions: z.array(sessionUpdateSchema).min(1, "Debe enviar al menos una sesión"),
 });
 
-const assertCategoryCapacityLTEEvent = (total: number, capacity: number) =>
-  total <= capacity;
-
-const sumCapacities = (arr: Array<z.infer<typeof ticketCategorySchema>>) =>
-  arr.reduce((acc: number, cat) => acc + cat.capacity, 0);
-
-const createEventSchemaBase = createEventFormSchema.extend({
-  userId: z.string().cuid(),
-  status: z.nativeEnum(EventStatus).optional(),
-  publishedAt: z.date().optional(),
-});
-
-export const createEventSchema = createEventSchemaBase.superRefine((data, ctx) => {
-  const total = sumCapacities(data.ticketCategories);
-  if (!assertCategoryCapacityLTEEvent(total, data.capacity)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["ticketCategories"],
-      message:
-        "A soma das capacidades das categorias não pode ultrapassar a capacidade total do evento",
-    });
-  }
-});
-
-export const updateEventSchema = createEventSchemaBase
-  .partial()
-  .extend({
-    id: z.string().cuid(),
-    eventType: z.nativeEnum(EventType).optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (typeof data.capacity === "number" && Array.isArray(data.ticketCategories)) {
-      const total = sumCapacities(
-        data.ticketCategories as Array<z.infer<typeof ticketCategorySchema>>
-      );
-      if (!assertCategoryCapacityLTEEvent(total, data.capacity)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["ticketCategories"],
-          message:
-            "A soma das capacidades das categorias não pode ultrapassar a capacidade total do evento",
-        });
-      }
-    }
-  });
-
-export const getEventByIdSchema = z.object({
-  id: z.string().cuid(),
-});
-
-export type CreateEventFormInput = z.infer<typeof createEventFormSchema>;
-export type CreateEventInput = z.infer<typeof createEventSchema>;
-export type UpdateEventInput = z.infer<typeof updateEventSchema>;
-export type GetEventByIdInput = z.infer<typeof getEventByIdSchema>;
+export type UpdateEventWithGraphInput = z.infer<typeof updateEventWithGraphSchema>;

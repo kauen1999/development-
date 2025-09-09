@@ -6,13 +6,13 @@ import { reconcileOrderByPaymentId } from "@/modules/pagotic/pagotic.reconcile";
 export const runtime = "nodejs";
 export const config = { api: { bodyParser: false } };
 
-// formato tolerante do CMS (todas opcionais)
 type CMSWebhookBody = {
   id?: string;
   payment_id?: string;
   paymentId?: string;
   external_transaction_id?: string;
   externalId?: string;
+  status?: string;
   [k: string]: unknown;
 };
 
@@ -30,9 +30,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const ct = String(req.headers["content-type"] ?? "");
     const raw = await readRaw(req);
+
+    console.log("[CMS][webhook] raw recebido:", raw);
+
     if (ct.includes("application/x-www-form-urlencoded")) {
       const parsed = qs.parse(raw);
-      // converte para CMSWebhookBody com string coercion segura
       body = Object.fromEntries(
         Object.entries(parsed).map(([k, v]) => [k, typeof v === "string" ? v : String(v)])
       ) as CMSWebhookBody;
@@ -44,25 +46,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error("[CMS][webhook] parse error:", (e as Error).message);
   }
 
-  // Extrai ID do pagamento / external_transaction_id
-  const paymentIdRaw =
-    body.id ?? body.payment_id ?? body.paymentId ?? "";
-  const paymentId = typeof paymentIdRaw === "string" && paymentIdRaw.trim()
-    ? paymentIdRaw.trim()
-    : undefined;
+  console.log("[CMS][webhook] body parseado:", body);
 
-  const externalRaw =
-    body.external_transaction_id ?? body.externalId ?? "";
+  const paymentIdRaw = body.id ?? body.payment_id ?? body.paymentId ?? "";
+  const paymentId =
+    typeof paymentIdRaw === "string" && paymentIdRaw.trim() ? paymentIdRaw.trim() : undefined;
+
+  const externalRaw = body.external_transaction_id ?? body.externalId ?? "";
   const external =
     typeof externalRaw === "string" && externalRaw.trim() ? externalRaw.trim() : undefined;
 
   try {
     if (paymentId) {
+      console.log("[CMS][webhook] reconciliando por paymentId:", paymentId);
       await reconcileOrderByPaymentId(paymentId);
     } else if (external) {
-      // Aqui não inferimos paymentId a partir do external; apenas registramos.
-      console.warn("[CMS][webhook] veio apenas external_transaction_id:", external);
-      // Se quiser mapear external->paymentId, faça via seu DB e então chame reconcileOrderByPaymentId(...)
+      console.warn("[CMS][webhook] veio apenas external_transaction_id (sem paymentId):", external);
+      // Se quiser, aqui você pode buscar a Order por external e, do seu DB, obter o paymentNumber e chamar o reconcile
     } else {
       console.warn("[CMS][webhook] não veio id nem external_transaction_id");
     }
@@ -70,6 +70,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error("[CMS][webhook] reconcile error:", (e as Error).message);
   }
 
-  // SEMPRE 200 para evitar retry storm
   return res.status(200).json({ ok: true });
 }
+

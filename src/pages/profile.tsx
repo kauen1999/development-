@@ -1,7 +1,6 @@
 // src/pages/profile.tsx
 import React, { useState, useEffect } from "react";
 import type { NextPage, GetServerSideProps } from "next";
-import Link from "next/link";
 import Header from "../components/principal/header/Header";
 import Footer from "../components/principal/footer/Footer";
 import { BiEdit } from "react-icons/bi";
@@ -34,7 +33,7 @@ interface EditInputs {
 }
 
 const Profile: NextPage = () => {
-  const { data: session, status, update } = useSession();
+  const { data: session, status } = useSession();
 
   // Estados para controlar edição
   const [edit, setEdit] = useState<EditInputs>({
@@ -56,8 +55,8 @@ const Profile: NextPage = () => {
   const [URL, setURL] = useState<string>("/imagens/perfil-de-usuario.webp");
 
   // Estados do banner de verificação
-  const [resendState, setResendState] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [resendMsg, setResendMsg] = useState<string>("");
+  const [] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [] = useState<string>("");
 
   // Obter userId do session (string vazia se não logado)
   const userId: string | undefined = session?.user?.id;
@@ -138,53 +137,7 @@ const Profile: NextPage = () => {
     setURL(typeof image === "string" ? image : "/imagens/perfil-de-usuario.webp");
   }, [session?.user?.image]);
 
-  // 🔄 Polling para refletir verificação de e-mail em tempo real
-  useEffect(() => {
-    if (!userId) return;
-    if (session?.user?.emailVerified) return;
 
-    let active = true;
-    const interval = setInterval(async () => {
-      if (!active) return;
-      // Aqui o "user" vem do TRPC getUserById: ele NÃO tem emailVerified.
-      // Se você quiser encerrar o polling baseado nisso, deixe o polling só até o link /verify-email confirmar e o usuário recarregar.
-      // Caso você tenha estendido o getUserById para retornar emailVerified, troque abaixo:
-      // if (refreshed.data?.emailVerified) { ... }
-    }, 5000);
-
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, [userId, session?.user?.emailVerified, refetch]);
-
-  // Reenviar verificação
-  async function handleResendVerification() {
-    if (!user?.email) return;
-    setResendState("loading");
-    setResendMsg("");
-    try {
-      const res = await fetch("/api/email/resend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setResendMsg(data?.message || "Falha ao reenviar. Tente novamente.");
-        setResendState("error");
-        return;
-      }
-      setResendState("success");
-      setResendMsg("Se esse e-mail existir, enviaremos um link em instantes.");
-      // Opcional: atualiza a sessão sem usar `any`
-      const patch: Record<string, unknown> = { emailVerified: false }; // mantemos false aqui; o verdadeiro vem após clique no link
-      await update(patch);
-    } catch {
-      setResendMsg("Falha de rede. Tente novamente.");
-      setResendState("error");
-    }
-  }
 
   if (status === "loading" || isLoading) {
     return (
@@ -197,53 +150,6 @@ const Profile: NextPage = () => {
   return (
     <>
       <Header home buyPage={false} />
-
-      {/* Banner de verificação de e-mail (user não tem emailVerified no schema atual, então mostramos sempre o botão se quiser) */}
-      {!!user && (
-        <div className="mx-6 mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="font-medium">Confirme seu e-mail para habilitar todos os recursos.</p>
-              <p className="text-sm text-amber-800">
-                Verifique sua caixa de entrada ou reenvie um novo link.
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleResendVerification}
-                disabled={resendState === "loading"}
-                className="rounded-xl bg-black px-4 py-2 text-white transition hover:opacity-90 disabled:opacity-60"
-              >
-                {resendState === "loading" ? "Enviando..." : "Reenviar verificação"}
-              </button>
-
-              {/* ✅ Usa Link do Next.js para o lint parar de reclamar */}
-              <Link
-                href="/verify-email/resend-verification"
-                className="rounded-xl border border-gray-300 px-4 py-2 hover:bg-gray-100"
-              >
-                Usar página de reenviar
-              </Link>
-            </div>
-          </div>
-
-          {resendState !== "idle" && (
-            <div
-              className={`mt-3 rounded-lg border p-3 ${
-                resendState === "success"
-                  ? "border-green-200 bg-green-50 text-green-800"
-                  : resendState === "error"
-                  ? "border-red-200 bg-red-50 text-red-800"
-                  : "border-gray-200 bg-white"
-              }`}
-            >
-              {resendMsg}
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="mt-6 flex w-full flex-col bg-gray-200 lg:flex-row">
         <div className="card rounded-box m-6 grid flex-grow place-items-center bg-white shadow-md">
           {URL && (

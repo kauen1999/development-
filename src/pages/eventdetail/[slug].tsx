@@ -1,3 +1,4 @@
+// src/pages/eventdetail/[slug].tsx
 import type { GetServerSideProps, NextPage } from "next";
 import { prisma } from "@/lib/prisma";
 import Footer from "@/components/principal/footer/Footer";
@@ -6,6 +7,7 @@ import Details from "@/components/details/details/Details";
 
 interface SessionDTO {
   id: string;
+  slug: string;
   date: string;
   venueName: string;
   city: string;
@@ -18,11 +20,9 @@ interface PageProps {
     slug: string;
     image: string | null;
     description: string;
-    city: string;
-    venueName: string;
 
     dateISO: string | null;
-    nextSessionId: string;
+    nextSessionSlug: string;
     nextVenueName: string | null;
     nextCity: string | null;
 
@@ -56,19 +56,18 @@ const EventDetailPage: NextPage<PageProps> = ({ event }) => {
         date={heroDate}
         description={event.description}
         timeStart={timeStart}
-        venueName={event.nextVenueName ?? event.venueName}
-        city={event.nextCity ?? event.city}
+        venueName={event.nextVenueName ?? ""}
+        city={event.nextCity ?? ""}
         price={event.minPrice ?? undefined}
-        buyId={event.nextSessionId} // sempre vem preenchido agora
-        />
+        buyId={event.nextSessionSlug}
+        minimalHeader 
+      />
       <Details
         artist={event.name}
-        slug={event.slug}
-        image={event.image ?? "/banner.jpg"}
         sessions={event.sessions}
         description={event.description}
-        venueName={event.venueName}
-        city={event.city}
+        venueName={event.nextVenueName ?? ""}
+        city={event.nextCity ?? ""}
       />
       <Footer />
     </>
@@ -82,7 +81,9 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   const event = await prisma.event.findUnique({
     where: { slug },
     include: {
-      eventSessions: { orderBy: { date: "asc" } },
+      eventSessions: {
+        orderBy: { dateTimeStart: "asc" },
+      },
       ticketCategories: true,
     },
   });
@@ -91,7 +92,8 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   const now = new Date();
   const nextSession =
-    event.eventSessions.find((s) => s.date >= now) ?? event.eventSessions[0];
+    event.eventSessions.find((s) => s.dateTimeStart >= now) ??
+    event.eventSessions[0];
 
   if (!nextSession) {
     return { notFound: true };
@@ -110,16 +112,15 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
         slug: event.slug,
         image: event.image,
         description: event.description ?? "",
-        city: event.city,
-        venueName: event.venueName,
-        dateISO: nextSession.date.toISOString(),
-        nextSessionId: nextSession.id, // sempre válido
+        dateISO: nextSession.dateTimeStart.toISOString(),
+        nextSessionSlug: nextSession.slug,
         nextVenueName: nextSession.venueName,
         nextCity: nextSession.city,
         minPrice,
         sessions: event.eventSessions.map((s) => ({
           id: s.id,
-          date: s.date.toISOString(),
+          slug: s.slug,
+          date: s.dateTimeStart.toISOString(),
           venueName: s.venueName,
           city: s.city,
         })),

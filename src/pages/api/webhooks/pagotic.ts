@@ -80,32 +80,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const body = await parseNotification(req);
 
-    // Collector opcional: se vier diferente, só loga/ignora (não 4xx)
+    // Collector opcional
     const expectedCollector = process.env.PAGOTIC_COLLECTOR_ID;
     const collectorGot = body.collector ?? null;
     if (expectedCollector && collectorGot && collectorGot !== expectedCollector) {
-      // eslint-disable-next-line no-console
       console.warn("[PagoTIC][Webhook] Collector diferente", { got: collectorGot, expected: expectedCollector });
       return res.status(200).json({ ok: true });
     }
 
     const ext = body.external_transaction_id ?? "";
     if (!ext) {
-      // eslint-disable-next-line no-console
       console.error("[PagoTIC][Webhook] external_transaction_id ausente");
       return res.status(200).json({ ok: true });
     }
 
     const orderId = resolveOrderIdFromExternal(ext);
     const nextStatus = normalizeOrderStatus(body.status);
-    const paymentId = body.id ?? (typeof body.payment_number === "string" ? body.payment_number : String(body.payment_number ?? ""));
+    const paymentId =
+      body.id ?? (typeof body.payment_number === "string" ? body.payment_number : String(body.payment_number ?? ""));
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { user: true, event: true },
+      include: { user: true, Event: true }, // <-- relação correta é 'Event'
     });
     if (!order) {
-      // eslint-disable-next-line no-console
       console.error("[PagoTIC][Webhook] Order não encontrada:", orderId);
       return res.status(200).json({ ok: true });
     }
@@ -121,7 +119,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         externalTransactionId: ext,
         paymentNumber: paymentId || order.paymentNumber,
       },
-      include: { user: true, event: true },
+      include: { user: true, Event: true }, // <-- manter 'Event' aqui também
     });
 
     if (nextStatus === "PAID") {
@@ -129,17 +127,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const ticketsAll = await generateTicketsFromOrder(updated.id);
         const tickets = (ticketsAll as Ticket[]).filter((t) => Boolean(t));
         if (updated.user?.email) {
-          await sendTicketEmail(updated.user, updated.event, tickets);
+          // <-- usar 'Event' (maiúsculo)
+          await sendTicketEmail(updated.user, updated.Event, tickets);
         }
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error("[PagoTIC][Webhook] Pós-pagamento falhou:", e instanceof Error ? e.message : String(e));
+        console.error(
+          "[PagoTIC][Webhook] Pós-pagamento falhou:",
+          e instanceof Error ? e.message : String(e)
+        );
       }
     }
 
     return res.status(200).json({ ok: true });
   } catch (e) {
-    // eslint-disable-next-line no-console
     console.error("[PagoTIC][Webhook] Erro:", e instanceof Error ? e.message : String(e));
     return res.status(200).json({ ok: true });
   }

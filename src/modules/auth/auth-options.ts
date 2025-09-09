@@ -1,4 +1,3 @@
-// src/modules/auth/auth-options.ts
 import type { NextAuthOptions, User } from "next-auth";
 import type { Provider } from "next-auth/providers";
 import Credentials from "next-auth/providers/credentials";
@@ -8,6 +7,7 @@ import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import type { JWT } from "next-auth/jwt";
 
+// Perfil completo?
 function isProfileComplete(user: {
   name?: string | null;
   email?: string | null;
@@ -16,9 +16,17 @@ function isProfileComplete(user: {
   phone?: string | null;
   birthdate?: Date | string | null;
 }): boolean {
-  return Boolean(user?.name && user?.email && user?.dniName && user?.dni && user?.phone && user?.birthdate);
+  return Boolean(
+    user?.name &&
+      user?.email &&
+      user?.dniName &&
+      user?.dni &&
+      user?.phone &&
+      user?.birthdate
+  );
 }
 
+// Carrega dados mínimos para preencher JWT/Session
 async function getUserData(email: string) {
   return prisma.user.findUnique({
     where: { email },
@@ -48,22 +56,30 @@ function getProviders(): Provider[] {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await prisma.user.findUnique({ where: { email: credentials.email } });
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+        });
         if (!user || !user.password) return null;
 
         const valid = await bcrypt.compare(credentials.password, user.password);
         if (!valid) return null;
 
-        const result: User = {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-          role: user.role as Role,
-          profileCompleted: isProfileComplete(user),
-          emailVerified: !!user.emailVerified,
-        };
+        // 🚨 Bloqueia login se o e-mail não estiver verificado (mensagem em ES)
+        if (!user.emailVerified) {
+          throw new Error(
+            "Tu correo aún no ha sido verificado. Revisa tu bandeja de entrada o haz clic en «Reenviar verificación» para continuar."
+          );
+        }
 
+        const result: User = {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+            role: user.role as Role,
+            profileCompleted: isProfileComplete(user),
+            emailVerified: !!user.emailVerified,
+        };
         return result;
       },
     }),
@@ -86,7 +102,7 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   callbacks: {
     async signIn({ user, account }) {
-      // Google login flow: considere e-mail verificado
+      // Google: considerar e-mail verificado
       if (account?.provider === "google" && user?.email) {
         let dbUser = await prisma.user.findUnique({ where: { email: user.email } });
 

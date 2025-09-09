@@ -1,4 +1,3 @@
-// src/pages/checkout/[id].tsx
 import type { GetServerSideProps, NextPage } from "next";
 import Header from "@/components/principal/header/Header";
 import Footer from "@/components/principal/footer/Footer";
@@ -7,33 +6,42 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/modules/auth/auth-options";
 import { prisma } from "@/lib/prisma";
 
-interface Props {
+/** Linha do resumo no checkout */
+export interface CheckoutLineItem {
+  id: string;
   title: string;
-  price: number;
-  sector: string;
-  cant: number;
-  picture: string;
-  orderId: string;
+  picture: string | null;
+  sessionDateTime: string | null; // ISO serializável
+  venueName: string | null;
+  city: string | null;
+  type: "GENERAL" | "SEATED";
+  categoryTitle: string;
+  qty: number;
+  unitAmount: number;
+  subtotal: number;
 }
 
-const CheckoutPage: NextPage<Props> = ({
-  title,
-  price,
-  sector,
-  cant,
-  picture,
+export interface PageProps {
+  orderId: string;
+  items: CheckoutLineItem[];
+  orderTotal: number;
+  pictureFallback: string;
+}
+
+const CheckoutPage: NextPage<PageProps> = ({
   orderId,
+  items,
+  orderTotal,
+  pictureFallback,
 }) => {
   return (
     <>
-      <Header buyPage home />
+      <Header minimal />
       <CheckoutContent
-        title={title}
-        price={price}
-        sector={sector}
-        cant={cant}
-        picture={picture}
         orderId={orderId}
+        items={items}
+        orderTotal={orderTotal}
+        pictureFallback={pictureFallback}
       />
       <Footer />
     </>
@@ -42,7 +50,7 @@ const CheckoutPage: NextPage<Props> = ({
 
 export default CheckoutPage;
 
-export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => {
   const session = await getServerSession(ctx.req, ctx.res, authOptions);
   const orderId = ctx.params?.id as string | undefined;
 
@@ -56,42 +64,82 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      event: true,
+      // Relações do pedido (nomes das relações conforme o schema)
+      Event: true,
+      EventSession: true,
       orderItems: {
         include: {
-          seat: { include: { ticketCategory: true } }, // SEATED
-          ticketCategory: true,                         // GENERAL
+          seat: {
+            include: {
+              ticketCategory: true,
+              event: true,
+              eventSession: true,
+            },
+          },
+          ticketCategory: {
+            include: {
+              Event: true,
+              session: { include: { event: true } },
+            },
+          },
         },
       },
     },
   });
 
-  if (!order || !order.event) {
+  if (!order || (order.orderItems?.length ?? 0) === 0) {
     return { notFound: true };
   }
 
-  const hasItems = (order.orderItems?.length ?? 0) > 0;
-  if (!hasItems) {
-    return { notFound: true };
-  }
+  // Esse arquivo deve existir em /public/images/
+  const pictureFallback = "/images/default-event.jpg";
 
-  const firstItem = order.orderItems[0]; // pode ser undefined para o TS — tratamos abaixo
+  const items: CheckoutLineItem[] = order.orderItems.map((it) => {
+    const qty = Math.max(1, Number(it.qty ?? 1));
+    const lineAmount = Number(it.amount ?? 0); // total da linha
+    const unitAmount = qty > 0 ? lineAmount / qty : 0;
 
-  const sector =
-    firstItem?.seat?.ticketCategory?.title ??
-    firstItem?.ticketCategory?.title ??
-    "General";
+    // Sessão do item (com fallback para a sessão do pedido)
+    const session =
+      it.seat?.eventSession ??
+      it.ticketCategory?.session ??
+      order.EventSession ??
+      null;
 
-  const cant = order.orderItems.length;
+    // Evento do item (com fallbacks em cascata)
+    const ev =
+      it.seat?.event ??
+      it.ticketCategory?.session?.event ??
+      it.ticketCategory?.Event ??
+      order.Event ??
+      null;
+
+    return {
+      id: it.id,
+      title: ev?.name ?? "Evento",
+      picture: ev?.image || pictureFallback,
+      sessionDateTime: session?.dateTimeStart
+        ? session.dateTimeStart.toISOString()
+        : null,
+      venueName: session?.venueName ?? null,
+      city: session?.city ?? null,
+      type: it.seatId ? "SEATED" : "GENERAL",
+      categoryTitle:
+        it.seat?.ticketCategory?.title ??
+        it.ticketCategory?.title ??
+        "General",
+      qty,
+      unitAmount,
+      subtotal: lineAmount,
+    };
+  });
 
   return {
     props: {
-      title: order.event.name,
-      price: Number(order.total ?? 0),
-      cant,
-      sector,
-      picture: order.event.image || "/banner.jpg",
       orderId,
+      items,
+      orderTotal: Number(order.total ?? 0),
+      pictureFallback,
     },
   };
 };

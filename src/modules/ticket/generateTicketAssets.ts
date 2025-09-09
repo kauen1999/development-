@@ -11,10 +11,10 @@ export async function generateTicketAssets(ticketId: string): Promise<void> {
     where: { id: ticketId },
     include: {
       eventSession: true,
-      seat: true, 
+      seat: true,
       orderItem: {
         include: {
-          order: { include: { event: true } },
+          order: { include: { Event: true } }, // <- relação correta (Event, maiúsculo)
         },
       },
     },
@@ -22,7 +22,7 @@ export async function generateTicketAssets(ticketId: string): Promise<void> {
 
   if (!ticket) throw new Error("Ticket not found");
 
-  const event = ticket.orderItem.order.event;
+  const event = ticket.orderItem.order.Event; // <- acesso correto (Event)
 
   const qrValue = `ticket:${ticket.id}`;
   const qrFilename = `qr-${ticket.id}.png`;
@@ -46,13 +46,17 @@ export async function generateTicketAssets(ticketId: string): Promise<void> {
 
   doc.fontSize(20).text(`Event: ${event.name}`);
   doc.moveDown();
-  doc.fontSize(14).text(`Location: ${event.venueName}, ${event.city}`);
+  // venueName e city pertencem à EventSession no seu schema
+  doc.fontSize(14).text(
+    `Location: ${ticket.eventSession?.venueName}, ${ticket.eventSession?.city}`
+  );
+  // campo de data na EventSession é dateTimeStart no seu schema
   doc.text(
-    `Date: ${ticket.eventSession?.date.toLocaleString() ?? "No date"}`
+    `Date: ${ticket.eventSession?.dateTimeStart.toLocaleString() ?? "No date"}`
   );
 
-  // seat pode ser null → usa fallback
-  const seatLabel = ticket.seat?.label ?? "General";
+  // Seat tem labelFull/labelShort no seu schema (não "label")
+  const seatLabel = ticket.seat?.labelFull ?? ticket.seat?.labelShort ?? "General";
   doc.text(`Seat: ${seatLabel}`);
 
   doc.text(`Ticket ID: ${ticket.id}`);

@@ -2,15 +2,14 @@
 import Header from "../../components/principal/header/Header";
 import Footer from "../../components/principal/footer/Footer";
 import BuyHero from "../../components/buydetailsComponent/BuyHero/BuyHero";
-import BuyBody from "../../components/buydetailsComponent/BuyBody/BuyBody"; // SEATED
-import BuyBodyGeneral from "../../components/buydetailsComponent/BuyBodyGeneral/BuyBodyGeneral"; // GENERAL
+import BuyBody from "../../components/BuyBody/BuyBody"; // ✅ agora só 1
 
 import type { GetServerSidePropsContext, NextPage } from "next";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/modules/auth/auth-options";
 import { prisma } from "@/lib/prisma";
+import { SessionTicketingType, OrderStatus } from "@prisma/client";
 
-// ----- Types -----
 type SeatStatusDTO = "AVAILABLE" | "RESERVED" | "SOLD";
 
 interface SeatDTO {
@@ -28,9 +27,10 @@ interface EventSeated {
   date: string;
   city: string;
   venueName: string;
-  eventSessions: { id: string; date: string; venueName: string }[];
+  sessions: { id: string; slug: string; date: string; venueName: string }[]; // ✅ sessions
   ticketCategories: { id: string; title: string; price: number; seats: SeatDTO[] }[];
   category: { id: string; name: string };
+  type: "SEATED"; // ✅ discriminador
 }
 
 interface GeneralCategory {
@@ -49,6 +49,7 @@ interface EventGeneral {
   eventSessionId: string;
   sessionDateISO?: string;
   categories: GeneralCategory[];
+  type: "GENERAL"; // ✅ discriminador
 }
 
 type PageProps =
@@ -81,7 +82,7 @@ const BuyDetails: NextPage<PageProps> = (props) => {
 
   return (
     <>
-      <Header buyPage={true} home={true} />
+      <Header minimal />
       <section>
         <BuyHero
           foto={common.img ?? "/banner.jpg"}
@@ -91,12 +92,7 @@ const BuyDetails: NextPage<PageProps> = (props) => {
           ubicacion={common.venueName}
           ciudad={common.city}
         />
-
-        {props.kind === "SEATED" ? (
-          <BuyBody event={props.event} />
-        ) : (
-          <BuyBodyGeneral event={props.event} />
-        )}
+        <BuyBody event={props.event} />
       </section>
       <Footer />
     </>
@@ -105,6 +101,9 @@ const BuyDetails: NextPage<PageProps> = (props) => {
 
 export default BuyDetails;
 
+// ==========================
+// getServerSideProps ajustado
+// ==========================
 export async function getServerSideProps(context: GetServerSidePropsContext) {
   const session = await getServerSession(context.req, context.res, authOptions);
   if (!session) {
@@ -114,81 +113,109 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
   const slug = context.query.slug as string;
   if (!slug) return { notFound: true };
 
-  const base = await prisma.event.findUnique({
+  let base = await prisma.event.findUnique({
     where: { slug },
     include: {
-      eventSessions: { orderBy: { date: "asc" } },
-      ticketCategories: true,
       category: true,
+      eventSessions: {
+        orderBy: { dateTimeStart: "asc" },
+      },
     },
   });
 
-  if (!base || base.eventSessions.length === 0) return { notFound: true };
+  let firstSession;
 
-  const [firstEventSession] = base.eventSessions;
-  if (!firstEventSession) return { notFound: true };
-  const firstDateISO = firstEventSession.date.toISOString();
-
-  // 🔹 SEATED event → entrega ticketCategories + seats completos
-  if (base.eventType === "SEATED") {
-    const withSeats = await prisma.event.findUnique({
+  if (base) {
+    firstSession = base.eventSessions[0];
+  } else {
+    const sessionDetail = await prisma.eventSession.findUnique({
       where: { slug },
-      include: { ticketCategories: { include: { seats: true } } }, // pega seats com row/number/status
+      include: {
+        event: { include: { category: true, eventSessions: true } },
+        ticketCategories: true,
+        seats: true,
+      },
     });
+    if (!sessionDetail) return { notFound: true };
+    base = sessionDetail.event;
+    firstSession = sessionDetail;
+  }
 
-    const ticketCategories =
-      withSeats?.ticketCategories.map((tc) => ({
-        id: tc.id,
-        title: tc.title,
-        price: tc.price,
-        seats: tc.seats.map((s) => ({
-          id: s.id,
-          label: s.label,
-          row: s.row,
-          number: s.number,
-          status: s.status,
-        })),
-      })) ?? [];
+  if (!base || !firstSession) return { notFound: true };
+
+  const isSeated = firstSession.ticketingType === SessionTicketingType.SEATED;
+
+  if (isSeated) {
+    const sessionDetail = await prisma.eventSession.findUnique({
+      where: { id: firstSession.id },
+      include: { ticketCategories: true, seats: true },
+    });
+    if (!sessionDetail) return { notFound: true };
+
+    const seatsByCategory = new Map<string, SeatDTO[]>();
+    for (const s of sessionDetail.seats) {
+      const catId = s.ticketCategoryId ?? "UNASSIGNED";
+      const list = seatsByCategory.get(catId) ?? [];
+      list.push({
+        id: s.id,
+        label: s.labelFull,
+        row: s.rowName,
+        number: s.number ?? null,
+        status: s.status as SeatStatusDTO,
+      });
+      seatsByCategory.set(catId, list);
+    }
+
+    const ticketCategories = sessionDetail.ticketCategories.map((tc) => ({
+      id: tc.id,
+      title: tc.title,
+      price: tc.price,
+      seats: seatsByCategory.get(tc.id) ?? [],
+    }));
 
     const eventSeated: EventSeated = {
       id: base.id,
       name: base.name,
       image: base.image ?? null,
-      date: firstDateISO,
-      city: base.city,
-      venueName: base.venueName,
-      eventSessions: base.eventSessions.map((s) => ({
+      date: firstSession.dateTimeStart.toISOString(),
+      city: firstSession.city,
+      venueName: firstSession.venueName,
+      sessions: base.eventSessions.map((s) => ({
         id: s.id,
-        date: s.date.toISOString(),
+        slug: s.slug,
+        date: s.dateTimeStart.toISOString(),
         venueName: s.venueName,
       })),
       ticketCategories,
-      category: {
-        id: base.category.id,
-        name: base.category.title,
-      },
+      category: { id: base.category.id, name: base.category.title },
+      type: "SEATED", // ✅
     };
 
     return { props: { kind: "SEATED", event: eventSeated } as PageProps };
   }
 
-  // 🔹 GENERAL event (INALTERADO)
+  const sessionWithCats = await prisma.eventSession.findUnique({
+    where: { id: firstSession.id },
+    include: { ticketCategories: true },
+  });
+  if (!sessionWithCats) return { notFound: true };
+
   const categories: GeneralCategory[] = await Promise.all(
-    base.ticketCategories.map(async (tc) => {
-      const usedCount = await prisma.orderItem.aggregate({
+    sessionWithCats.ticketCategories.map(async (tc) => {
+      const usedAgg = await prisma.orderItem.aggregate({
         where: {
           ticketCategoryId: tc.id,
           order: {
             eventId: base.id,
-            eventSessionId: firstEventSession.id,
-            status: { in: ["PENDING", "PAID"] },
+            eventSessionId: firstSession.id,
+            status: { in: [OrderStatus.PENDING, OrderStatus.PAID] },
           },
         },
         _sum: { qty: true },
       });
 
-      const vendidosOuPendentes = usedCount._sum.qty ?? 0;
-      const disponivel = Math.max(0, tc.capacity - vendidosOuPendentes);
+      const vendidosOuPendentes = usedAgg._sum.qty ?? 0;
+      const disponivel = Math.max(0, (tc.capacity ?? 0) - vendidosOuPendentes);
 
       return {
         id: tc.id,
@@ -203,11 +230,12 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     id: base.id,
     name: base.name,
     image: base.image ?? null,
-    city: base.city,
-    venueName: base.venueName,
-    eventSessionId: firstEventSession.id,
-    sessionDateISO: firstDateISO,
+    city: firstSession.city,
+    venueName: firstSession.venueName,
+    eventSessionId: firstSession.id,
+    sessionDateISO: firstSession.dateTimeStart.toISOString(),
     categories,
+    type: "GENERAL",
   };
 
   return { props: { kind: "GENERAL", event: eventGeneral } as PageProps };

@@ -1,4 +1,3 @@
-// src/modules/order/order.router.ts
 import { router, protectedProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
 import {
@@ -14,6 +13,7 @@ import {
   cancelOrderService,
   createOrderGeneralService,
   createOrderSeatedService,
+  createOrderFromCartService,
 } from "./order.service";
 
 function requireUser(ctx: unknown): string {
@@ -23,7 +23,6 @@ function requireUser(ctx: unknown): string {
 }
 
 export const orderRouter = router({
-  // usado em eventos "GENERAL"
   createGeneral: protectedProcedure
     .input(createOrderGeneralInput)
     .mutation(async ({ input, ctx }) => {
@@ -32,11 +31,10 @@ export const orderRouter = router({
         userId,
         input.eventId,
         input.eventSessionId,
-        input.items
+        input.items,
       );
     }),
 
-  // usado em eventos "SEATED"
   createSeated: protectedProcedure
     .input(createOrderSeatedInput)
     .mutation(async ({ input, ctx }) => {
@@ -45,8 +43,14 @@ export const orderRouter = router({
         userId,
         input.eventId,
         input.eventSessionId,
-        input.seatIds
+        input.seatIds,
       );
+    }),
+
+  createFromCart: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      const userId = requireUser(ctx);
+      return createOrderFromCartService(userId);
     }),
 
   getOrder: protectedProcedure

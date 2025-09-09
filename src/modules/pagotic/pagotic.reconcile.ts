@@ -17,74 +17,91 @@ function normalizeStatus(s?: string): "PAID" | "PENDING" | "CANCELLED" {
   return "PENDING";
 }
 
-/** Lê external_transaction_id sem usar any */
+/** Tenta obter external_transaction_id do payload (campo raiz ou dentro de metadata) */
 function getExternalTransactionId(p: PagoticPaymentResponse): string | undefined {
-  // campo direto, se existir no tipo
-  const direct = (p as Partial<Record<"external_transaction_id", unknown>>).external_transaction_id;
-  if (typeof direct === "string" && direct.trim()) return direct.trim();
+  // 1) alguns ambientes trazem este campo na raiz (não tipado oficialmente)
+  const root = (p as unknown as Record<string, unknown>)["external_transaction_id"];
+  if (typeof root === "string" && root.trim()) return root.trim();
 
-  // às vezes vem em metadata
+  // 2) às vezes vem em metadata
   const meta = p.metadata as unknown;
-  if (meta && typeof meta === "object" && meta !== null) {
-    const m = meta as Record<string, unknown>;
-    const mExt = m.external_transaction_id;
-    if (typeof mExt === "string" && mExt.trim()) return mExt.trim();
+  if (meta && typeof meta === "object") {
+    const ext = (meta as Record<string, unknown>)["external_transaction_id"];
+    if (typeof ext === "string" && ext.trim()) return ext.trim();
   }
   return undefined;
 }
 
 export async function reconcileOrderByPaymentId(paymentId: string) {
-  const p = await svc.getPaymentById(paymentId);
-  const next = normalizeStatus(p.status);
+  const pay: PagoticPaymentResponse = await svc.getPaymentById(paymentId);
+  const next = normalizeStatus(pay.status);
 
-  // Descobre orderId a partir do external_transaction_id (formato "order_<id>")
-  const ext = getExternalTransactionId(p);
+  const extFromRoot =
+    (pay as unknown as Record<string, unknown>)["external_transaction_id"];
+  const extFromMeta =
+    typeof pay.metadata === "object" && pay.metadata
+      ? (pay.metadata as Record<string, unknown>)["external_transaction_id"]
+      : undefined;
+
+  console.log("[PagoTIC][reconcile] pagamento recebido:", {
+    paymentId: pay.id,
+    status: pay.status,
+    normalized: next,
+    external_root: typeof extFromRoot === "string" ? extFromRoot : undefined,
+    external_meta: typeof extFromMeta === "string" ? extFromMeta : undefined,
+  });
+
+  const external = getExternalTransactionId(pay);
   const orderId =
-    typeof ext === "string" && ext.toLowerCase().startsWith("order_")
-      ? ext.slice(6)
+    external && external.toLowerCase().startsWith("order_")
+      ? external.slice(6)
       : undefined;
 
   if (!orderId) {
-    console.error("[PagoTIC][reconcile] external_transaction_id ausente no pagamento:", paymentId);
+    console.error("[PagoTIC][reconcile] external_transaction_id ausente;", { paymentId });
     return { ok: false as const };
   }
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { user: true, event: true },
+    include: { user: true, Event: true }, // ✅ relação correta é 'Event'
   });
   if (!order) {
     console.error("[PagoTIC][reconcile] order não encontrada:", orderId);
     return { ok: false as const };
   }
 
-  // idempotência
-  if (order.status === "PAID" && next === "PAID") return { ok: true as const };
+  if (order.status === next) {
+    console.log("[PagoTIC][reconcile] status inalterado (idempotente):", { orderId, status: next });
+    return { ok: true as const };
+  }
 
   const updated = await prisma.order.update({
     where: { id: orderId },
     data: {
       status: next,
-      externalTransactionId: ext ?? order.externalTransactionId,
-      paymentNumber: p.id ?? order.paymentNumber,
+      externalTransactionId: external ?? order.externalTransactionId,
+      paymentNumber: pay.id ?? order.paymentNumber,
     },
-    include: { user: true, event: true },
+    include: { user: true, Event: true }, // ✅ manter 'Event'
   });
 
   if (next === "PAID") {
     try {
       const raw = await generateTicketsFromOrder(updated.id);
-      const tickets = (raw as Array<Ticket | undefined>).filter(
-        (t): t is Ticket => Boolean(t)
-      );
+      const tickets = (raw as Array<Ticket | undefined>).filter((t): t is Ticket => Boolean(t));
 
       if (updated.user?.email) {
-        await sendTicketEmail(updated.user, updated.event, tickets);
+        await sendTicketEmail(updated.user, updated.Event, tickets); // ✅ acessar 'Event'
       }
-      console.log("[PagoTIC][reconcile] tickets emitidos:", tickets.map((t) => t.id));
+      console.log("[PagoTIC][reconcile] tickets emitidos:", tickets.map(t => t.id));
     } catch (e) {
       console.error("[PagoTIC][reconcile] pós-pagamento falhou:", (e as Error).message);
     }
+  }
+
+  if (next === "CANCELLED") {
+    console.warn("[PagoTIC][reconcile] pagamento rejeitado/cancelado:", { orderId: updated.id });
   }
 
   return { ok: true as const };
