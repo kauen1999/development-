@@ -46,3 +46,4 @@ npx prisma generate
 npm run dev
 
 Acesse: http://localhost:3000
+

@@ -15,33 +15,35 @@ type PagoTicNotification = {
   currency?: string;
   collector?: string;
   external_transaction_id?: string;
-  metadata?: string | Record<string, string | number | boolean | null>;
+  metadata?: string | Record<string, unknown>;
   payment_number?: string | number | null;
 };
 
-function toStr(v: string | string[] | number | undefined | null): string | undefined {
+function toStr(v: unknown): string | undefined {
   if (typeof v === "string") return v;
-  if (Array.isArray(v)) return v[0];
+  if (Array.isArray(v)) return typeof v[0] === "string" ? v[0] : undefined;
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
   return undefined;
 }
 
-function resolveOrderIdFromExternal(externalId: string): string {
-  return externalId.toLowerCase().startsWith("order_") ? externalId.slice(6) : externalId;
+// Remove o prefixo "order_" se vier no external_transaction_id
+function stripOrderPrefix(external: string | undefined) {
+  const raw = (external ?? "").trim();
+  if (!raw) return { raw: "", orderId: "" };
+  const orderId = raw.toLowerCase().startsWith("order_") ? raw.slice(6) : raw;
+  return { raw, orderId };
 }
 
-function normalizeOrderStatus(statusRaw: string | undefined): "PAID" | "PENDING" | "CANCELLED" {
-  const s = (statusRaw ?? "").trim().toLowerCase();
-  const approved = new Set(["approved", "accredited", "paid", "aprobado", "pagado"]);
-  if (approved.has(s)) return "PAID";
-  const cancelled = new Set(["rejected", "cancelled", "canceled"]);
-  if (cancelled.has(s)) return "CANCELLED";
+function normalizeOrderStatus(s?: string): "PAID" | "PENDING" | "CANCELLED" {
+  const x = (s ?? "").trim().toLowerCase();
+  if (["approved", "accredited", "paid", "aprobado", "pagado"].includes(x)) return "PAID";
+  if (["rejected", "cancelled", "canceled"].includes(x)) return "CANCELLED";
   return "PENDING";
 }
 
-async function readRawBody(req: NextApiRequest): Promise<string> {
+async function readRawBody(req: NextApiRequest) {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  for await (const c of req) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
   return Buffer.concat(chunks).toString("utf8");
 }
 
@@ -50,97 +52,109 @@ async function parseNotification(req: NextApiRequest): Promise<PagoTicNotificati
   const raw = await readRawBody(req);
 
   if (ct.includes("application/x-www-form-urlencoded")) {
-    const parsed = qs.parse(raw);
+    const p = qs.parse(raw);
     return {
-      id: toStr(parsed.id as string | string[] | undefined),
-      status: toStr(parsed.status as string | string[] | undefined),
-      final_amount: parsed.final_amount ? Number(parsed.final_amount) : undefined,
-      currency: toStr(parsed.currency as string | string[] | undefined),
-      collector: toStr(parsed.collector as string | string[] | undefined),
-      external_transaction_id: toStr(parsed.external_transaction_id as string | string[] | undefined),
-      payment_number: toStr(parsed.payment_number as string | string[] | undefined),
-      metadata: toStr(parsed.metadata as string | string[] | undefined) ?? {},
+      id: toStr(p.id),
+      status: toStr(p.status),
+      final_amount: p.final_amount ? Number(p.final_amount) : undefined,
+      currency: toStr(p.currency),
+      collector: toStr(p.collector),
+      external_transaction_id: toStr(p.external_transaction_id),
+      payment_number: toStr(p.payment_number),
+      metadata: toStr(p.metadata) ?? {},
     };
   }
 
   try {
-    const json = JSON.parse(raw) as PagoTicNotification;
-    return json;
+    return JSON.parse(raw) as PagoTicNotification;
   } catch {
     return {};
   }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Sempre 200 para evitar retry storm, mesmo em GET/erros não-críticos
-  if (req.method !== "POST") {
-    return res.status(200).json({ ok: true, method: req.method });
-  }
+  // Sempre 200 para evitar storm de retries
+  if (req.method !== "POST") return res.status(200).json({ ok: true, method: req.method });
 
   try {
     const body = await parseNotification(req);
 
-    // Collector opcional
+    // (Opcional) Validação do collector
     const expectedCollector = process.env.PAGOTIC_COLLECTOR_ID;
-    const collectorGot = body.collector ?? null;
-    if (expectedCollector && collectorGot && collectorGot !== expectedCollector) {
-      console.warn("[PagoTIC][Webhook] Collector diferente", { got: collectorGot, expected: expectedCollector });
+    if (expectedCollector && body.collector && body.collector !== expectedCollector) {
+      console.warn("[PagoTIC] Collector divergente:", { got: body.collector, expected: expectedCollector });
       return res.status(200).json({ ok: true });
     }
 
-    const ext = body.external_transaction_id ?? "";
-    if (!ext) {
-      console.error("[PagoTIC][Webhook] external_transaction_id ausente");
+    // Resolve orderId sem prefixo e mantém o valor bruto para fallback
+    const { raw: externalRaw, orderId } = stripOrderPrefix(body.external_transaction_id);
+    if (!externalRaw && !orderId) {
+      console.error("[PagoTIC] external_transaction_id ausente.");
       return res.status(200).json({ ok: true });
     }
 
-    const orderId = resolveOrderIdFromExternal(ext);
-    const nextStatus = normalizeOrderStatus(body.status);
+    // paymentId: usa 'id' ou 'payment_number'
     const paymentId =
-      body.id ?? (typeof body.payment_number === "string" ? body.payment_number : String(body.payment_number ?? ""));
+      body.id ??
+      (typeof body.payment_number === "string"
+        ? body.payment_number
+        : String(body.payment_number ?? "")) ??
+      "";
 
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: { user: true, Event: true }, // <-- relação correta é 'Event'
-    });
+    const nextStatus = normalizeOrderStatus(body.status);
+
+    // 1) tenta por id (sem prefixo)
+    let order =
+      orderId
+        ? await prisma.order.findUnique({
+            where: { id: orderId },
+            include: { user: true, Event: true },
+          })
+        : null;
+
+    // 2) fallback por externalTransactionId (valor como veio do gateway)
+    if (!order && externalRaw) {
+      order = await prisma.order.findFirst({
+        where: { externalTransactionId: externalRaw },
+        include: { user: true, Event: true },
+      });
+    }
+
     if (!order) {
-      console.error("[PagoTIC][Webhook] Order não encontrada:", orderId);
+      console.error("[PagoTIC] Order não encontrada. orderId(resolvido)=", orderId, " externalRaw=", externalRaw);
       return res.status(200).json({ ok: true });
     }
 
+    // Idempotência simples
     if (order.status === "PAID" && nextStatus === "PAID") {
-      return res.status(200).json({ ok: true, message: "Already PAID" });
+      return res.status(200).json({ ok: true, message: "already paid" });
     }
 
     const updated = await prisma.order.update({
-      where: { id: orderId },
+      where: { id: order.id },
       data: {
         status: nextStatus,
-        externalTransactionId: ext,
+        externalTransactionId: externalRaw || order.externalTransactionId,
         paymentNumber: paymentId || order.paymentNumber,
       },
-      include: { user: true, Event: true }, // <-- manter 'Event' aqui também
+      include: { user: true, Event: true },
     });
 
     if (nextStatus === "PAID") {
       try {
         const ticketsAll = await generateTicketsFromOrder(updated.id);
-        const tickets = (ticketsAll as Ticket[]).filter((t) => Boolean(t));
+        const tickets = (ticketsAll as Ticket[]).filter(Boolean);
         if (updated.user?.email) {
-          // <-- usar 'Event' (maiúsculo)
           await sendTicketEmail(updated.user, updated.Event, tickets);
         }
       } catch (e) {
-        console.error(
-          "[PagoTIC][Webhook] Pós-pagamento falhou:",
-          e instanceof Error ? e.message : String(e)
-        );
+        console.error("[PagoTIC] Pós-pagamento falhou:", e);
       }
     }
 
     return res.status(200).json({ ok: true });
   } catch (e) {
-    console.error("[PagoTIC][Webhook] Erro:", e instanceof Error ? e.message : String(e));
+    console.error("[PagoTIC] Webhook erro:", e);
     return res.status(200).json({ ok: true });
   }
 }

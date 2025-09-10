@@ -149,7 +149,7 @@ const Profile: NextPage = () => {
 
   return (
     <>
-      <Header home buyPage={false} />
+      <Header minimal />
       <div className="mt-6 flex w-full flex-col bg-gray-200 lg:flex-row">
         <div className="card rounded-box m-6 grid flex-grow place-items-center bg-white shadow-md">
           {URL && (
