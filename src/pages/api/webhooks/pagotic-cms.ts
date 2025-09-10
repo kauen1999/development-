@@ -2,6 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as qs from "querystring";
 import { reconcileOrderByPaymentId } from "@/modules/pagotic/pagotic.reconcile";
+import { PagoticService } from "@/modules/pagotic/pagotic.service";
 
 export const runtime = "nodejs";
 export const config = { api: { bodyParser: false } };
@@ -61,20 +62,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log("[CMS][webhook] reconciliando por paymentId:", paymentId);
       await reconcileOrderByPaymentId(paymentId);
 
-      // 🔹 Dispara notify interno do PagoTIC
+      // 🔹 força o reenvio oficial do notify via API pública
       try {
-        const rsp = await fetch("https://app.cmsargentina.com/api/acquisition/v2/notify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: paymentId, external_transaction_id: external }),
-        });
-        console.log("[CMS][webhook] notify interno PagoTIC status:", rsp.status);
+        const svc = new PagoticService();
+        const resp = await svc.resendNotification(paymentId);
+        console.log("[CMS][webhook] resendNotification enviado:", resp);
       } catch (err) {
-        console.error("[CMS][webhook] erro ao chamar notify interno:", (err as Error).message);
+        console.error("[CMS][webhook] erro ao chamar resendNotification:", (err as Error).message);
       }
     } else if (external) {
       console.warn("[CMS][webhook] veio apenas external_transaction_id (sem paymentId):", external);
-      // Aqui você pode também disparar notify interno se quiser
     } else {
       console.warn("[CMS][webhook] não veio id nem external_transaction_id");
     }
