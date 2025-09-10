@@ -60,9 +60,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (paymentId) {
       console.log("[CMS][webhook] reconciliando por paymentId:", paymentId);
       await reconcileOrderByPaymentId(paymentId);
+
+      // 🔹 Dispara notify interno do PagoTIC
+      try {
+        const rsp = await fetch("https://app.cmsargentina.com/api/acquisition/v2/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: paymentId, external_transaction_id: external }),
+        });
+        console.log("[CMS][webhook] notify interno PagoTIC status:", rsp.status);
+      } catch (err) {
+        console.error("[CMS][webhook] erro ao chamar notify interno:", (err as Error).message);
+      }
     } else if (external) {
       console.warn("[CMS][webhook] veio apenas external_transaction_id (sem paymentId):", external);
-      // Se quiser, aqui você pode buscar a Order por external e, do seu DB, obter o paymentNumber e chamar o reconcile
+      // Aqui você pode também disparar notify interno se quiser
     } else {
       console.warn("[CMS][webhook] não veio id nem external_transaction_id");
     }
@@ -72,4 +84,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   return res.status(200).json({ ok: true });
 }
-
