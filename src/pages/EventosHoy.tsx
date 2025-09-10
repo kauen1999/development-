@@ -14,10 +14,12 @@ import "swiper/css/pagination";
 export default function EventosHoy() {
   useScrollToHash();
 
-  const today = new Date().toISOString().split("T")[0] ?? "";
+  // ✅ garante que today é sempre string
+  const [todayRaw] = new Date().toISOString().split("T");
+  const today: string = todayRaw ?? "";
 
   const { data: eventos = [], isLoading } = trpc.event.listByDate.useQuery({
-    date: today || "",
+    date: today,
   });
 
   return (
@@ -49,52 +51,11 @@ export default function EventosHoy() {
             1024: { slidesPerView: 3 },
           }}
         >
-          {eventos.map((event) => {
-            // Pegando a primeira session de eventSessions
-            const rawDate = event.eventSessions?.[0]?.date
-              ? new Date(event.eventSessions[0].date)
-              : null;
-
-            // Formatar data no padrão "7 ago 2025"
-            const fecha = rawDate
-              ? new Date(
-                  rawDate.getFullYear(),
-                  rawDate.getMonth(),
-                  rawDate.getDate()
-                )
-                  .toLocaleDateString("es-AR", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })
-                  .replace(".", "")
-              : "Sin fecha";
-
-            // Formatar hora em 24h
-            const hora = rawDate
-              ? rawDate.toLocaleTimeString("es-AR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })
-              : "—";
-
-            return (
-              <SwiperSlide key={event.id}>
-                <HoyCard
-                  slug={event.slug}
-                  image={event.image ?? null}
-                  titulo={event.name}
-                  horas={hora}
-                  fecha={fecha}
-                  precio={`$${event.ticketCategories?.[0]?.price ?? 0}`}
-                  duracion={"2 horas"}
-                  ubicacion={event.venueName}
-                  ciudad={event.city}
-                  categoria={event.category?.title ?? "General"}
-                />
-              </SwiperSlide>
-            );
-          })}
+          {eventos.map((event) => (
+            <SwiperSlide key={event.id}>
+              <HoyCard event={event} />
+            </SwiperSlide>
+          ))}
         </Swiper>
       )}
     </section>
