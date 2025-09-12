@@ -6,11 +6,14 @@ import Header from "@/components/principal/header/Header";
 const QrScanner = dynamic(() => import("react-qr-scanner"), {
   ssr: false,
 }) as React.FC<{
-  onScan?: (data: string | null) => void;
+  onScan?: (data: QrScannerResult) => void;
   onError?: (error: unknown) => void;
   style?: React.CSSProperties;
   constraints?: MediaStreamConstraints;
 }>;
+
+// Tipo do retorno do QrScanner
+type QrScannerResult = string | { text: string } | null;
 
 interface ValidationResult {
   status: string;
@@ -59,7 +62,7 @@ export default function ScannerPage() {
       setLoading(true);
 
       try {
-        // 🔑 Envia qrId (não mais qrCode)
+        // 🔑 Envia qrId para a API
         const res = await fetch("/api/tickets/validate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -100,8 +103,13 @@ export default function ScannerPage() {
 
         <div className="w-full max-w-md rounded-lg bg-white p-2 shadow">
           <QrScanner
-            onScan={(res) => {
-              if (res) handleScan(res);
+            onScan={(res: QrScannerResult) => {
+              if (!res) return;
+              if (typeof res === "string") {
+                handleScan(res);
+              } else if ("text" in res && typeof res.text === "string") {
+                handleScan(res.text);
+              }
             }}
             onError={handleError}
             style={{ width: "100%" }}
