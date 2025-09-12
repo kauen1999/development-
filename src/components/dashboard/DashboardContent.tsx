@@ -1,4 +1,3 @@
-// src/components/dashboard/DashboardContent.tsx
 import React from "react";
 import Header from "../principal/header/Header";
 import Footer from "../principal/footer/Footer";
@@ -15,7 +14,7 @@ const DashboardContent = () => {
   return (
     <div>
       <div>
-        <Header home buyPage={false} />
+        <Header minimal />
         <div className="flex overflow-hidden bg-white pt-5">
           <div
             id="main-content"
@@ -23,13 +22,20 @@ const DashboardContent = () => {
           >
             <main>
               <div className="px-4">
-                {/* Create Event Button */}
-                <div className="mb-6 flex justify-end">
+                {/* Create Event + Scanner Buttons */}
+                <div className="mb-6 flex justify-end gap-3">
                   <Link
                     href="/event/create"
                     className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white transition duration-200 hover:bg-blue-700"
                   >
                     Crear evento
+                  </Link>
+
+                  <Link
+                    href="/scanner"
+                    className="rounded-lg bg-green-600 px-4 py-2 font-semibold text-white transition duration-200 hover:bg-green-700"
+                  >
+                    Validar Tickets
                   </Link>
                 </div>
 

@@ -1,14 +1,14 @@
 // src/modules/ticket/ticket.schema.ts
 import { z } from "zod";
 
-// Criar ticket manual (não usado no fluxo automático)
+// create ticket manually (not used in automatic flow)
 export const createTicketSchema = z.object({
   orderItemId: z.string().cuid("Invalid orderItemId"),
   qrCodeUrl: z.string().url("Invalid QR code URL"),
   pdfUrl: z.string().url("Invalid PDF URL").optional(),
 });
 
-// Buscar tickets por OrderItem
+// get tickets by orderItem
 export const getTicketsByOrderItemSchema = z.object({
   orderItemId: z.string().cuid("Invalid orderItemId"),
 });
@@ -17,8 +17,10 @@ export const markTicketAsUsedSchema = z.object({
   ticketId: z.string().cuid("Invalid ticket ID"),
 });
 
+// validate ticket by QR
 export const validateTicketSchema = z.object({
-  qrCodeId: z.string().min(8, "QR Code must be at least 8 characters"),
+  qrCode: z.string().min(8, "QR Code must be at least 8 characters"),
+  device: z.string().optional(),
 });
 
 // Types

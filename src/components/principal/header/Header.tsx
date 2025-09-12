@@ -10,7 +10,6 @@ import { FiFacebook } from "react-icons/fi";
 import {
   AiOutlineClose,
   AiOutlineInstagram,
-  AiOutlineSearch,
 } from "react-icons/ai";
 import { MdNotificationsNone } from "react-icons/md";
 import { HiMenuAlt3 } from "react-icons/hi";
@@ -125,31 +124,123 @@ const HeaderComponent = ({ home = false, buyPage = false, minimal = false }: Pro
             </div>
 
             {/* Nav e search */}
-            {!minimal && !buyPage && (
+            {!minimal && buyPage && (
               <>
-                {router.pathname === "/" && (
-                  <nav className={style.navigation}>
-                    <Link href="#inicio">Inicio</Link>
-                    <Link href="#artistas">Artistas</Link>
-                    <Link href="#eventos-hoy">Eventos hoy</Link>
-                    <Link href="#categorias">Categorías</Link>
-                    <Link href="#eventos">Eventos</Link>
-                  </nav>
-                )}
-                <div className="hidden sm:block">
-                  <div className={`${style.search_bar} ${style.form_element}`}>
-                    <input
-                      type="text"
-                      placeholder="Empezá a buscar tus eventos..."
-                      className="mr-3 w-full border-none bg-transparent py-1 px-2 leading-tight text-gray-700 outline-0 focus:outline-none"
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
+                <div onClick={handleNav} className="z-50 hidden lg:block">
+                  {nav ? (
+                    <>
+                      <div className="h-[33px] w-[33px]"></div>
+                      <AiOutlineClose
+                        className="fixed top-[70px] left-[40px] cursor-pointer"
+                        size={30}
+                        style={{ color: `black` }}
+                      />
+                    </>
+                  ) : (
+                    <HiMenuAlt3
+                      className={`cursor-pointer ${style.hamburger}`}
+                      size={33}
+                      style={{ color: `${textColor}` }}
                     />
-                    <AiOutlineSearch className={style.icon} />
-                  </div>
+                  )}
                 </div>
+
+                {/* Sidebar Mobile */}
+                {nav && !minimal && (
+                  <div className="fixed inset-0 z-50 flex">
+                    {/* Overlay */}
+                    <div
+                      className="fixed inset-0 bg-black bg-opacity-50"
+                      onClick={() => setNav(false)}
+                    ></div>
+
+                    {/* Conteúdo do sidebar */}
+                    <div className="relative z-50 w-3/4 max-w-xs h-full bg-white p-6 shadow-lg overflow-y-auto">
+                      {/* Botão fechar */}
+                      <button
+                        onClick={() => setNav(false)}
+                        className="absolute top-4 right-4 text-gray-800"
+                      >
+                        <AiOutlineClose size={28} />
+                      </button>
+
+                      {/* Logo */}
+                      <div className="flex justify-center mb-6">
+                        <Link href="/" onClick={() => setNav(false)}>
+                          <Image src={logo} alt="logo" className="h-10 w-auto cursor-pointer" />
+                        </Link>
+                      </div>
+
+                      {/* Navegação */}
+                      {router.pathname === "/" && (
+                        <nav className="flex flex-col gap-4 text-lg font-medium mb-6">
+                          <Link href="#inicio" onClick={() => setNav(false)}>Inicio</Link>
+                          <Link href="#artistas" onClick={() => setNav(false)}>Artistas</Link>
+                          <Link href="#eventos-hoy" onClick={() => setNav(false)}>Eventos hoy</Link>
+                          <Link href="#categorias" onClick={() => setNav(false)}>Categorías</Link>
+                          <Link href="#eventos" onClick={() => setNav(false)}>Eventos</Link>
+                        </nav>
+                      )}
+
+                      {/* Busca */}
+                      <div className="mb-6">
+                        <input
+                          type="text"
+                          placeholder="Buscar eventos..."
+                          className="w-full border rounded px-3 py-2 text-gray-700"
+                          value={query}
+                          onChange={(e) => setQuery(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Cidades */}
+                      <div className="mb-6">
+                        <select
+                          value={city}
+                          onChange={(e) => setCity(e.target.value)}
+                          className="w-full border rounded px-3 py-2 text-gray-700"
+                        >
+                          <option value="">Todas las ciudades</option>
+                          {cities.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Redes sociais */}
+                      <div className="flex gap-4 mb-6">
+                        <a href="#"><FiFacebook size={20} /></a>
+                        <a href="#"><AiOutlineInstagram size={20} /></a>
+                      </div>
+
+                      {/* Sessão */}
+                      {!session ? (
+                        <Link
+                          href="/login"
+                          onClick={() => setNav(false)}
+                          className="block mt-6 font-bold text-blue-600"
+                        >
+                          Iniciar Sesión
+                        </Link>
+                      ) : (
+                        <div>
+                          <p className="font-bold mb-4">{session?.user?.name}</p>
+                          <Link href="/profile" onClick={() => setNav(false)}>Perfil</Link><br />
+                          <Link href="/cart" onClick={() => setNav(false)}>🛒 Mi Carrito</Link><br />
+                          <button
+                            onClick={() => signOut()}
+                            className="mt-4 text-red-500"
+                          >
+                            Cerrar Sesión
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </>
             )}
+
 
             {!minimal && (
               <select

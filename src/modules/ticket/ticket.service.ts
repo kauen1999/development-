@@ -4,23 +4,21 @@ import { TRPCError } from "@trpc/server";
 import { generateTicketAssets } from "./ticketGeneration.service";
 
 export async function generateAndSaveTicket(orderItemId: string) {
-  // Evita duplicado: verifica se já existe ticket para este orderItem
+  // check if ticket already exists
   const existing = await prisma.ticket.findUnique({
     where: { orderItemId },
   });
+  if (existing) return existing;
 
-  if (existing) {
-    return existing;
-  }
-
+  // find orderItem with relations
   const orderItem = await prisma.orderItem.findUnique({
     where: { id: orderItemId },
     include: {
       order: {
         include: {
-          EventSession: true, // <- relação correta (camel/pascal conforme schema)
+          EventSession: true,
           user: true,
-          Event: true,        // <- relação correta
+          Event: true,
         },
       },
       seat: true,
@@ -28,13 +26,10 @@ export async function generateAndSaveTicket(orderItemId: string) {
   });
 
   if (!orderItem) {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Order item not found",
-    });
+    throw new TRPCError({ code: "NOT_FOUND", message: "Order item not found" });
   }
 
-  // Cria ticket sem URLs
+  // create ticket without assets
   const ticket = await prisma.ticket.create({
     data: {
       seatId: orderItem.seatId,
@@ -47,21 +42,18 @@ export async function generateAndSaveTicket(orderItemId: string) {
     },
   });
 
-  // Gera e atualiza assets
+  // generate QR + PDF
   await generateTicketAssets(ticket.id);
 
-  // Retorna ticket atualizado com URLs
   return prisma.ticket.findUnique({ where: { id: ticket.id } });
 }
 
 export async function generateTicketsFromOrder(orderId: string) {
+  // find order with items
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: {
-      orderItems: true,
-    },
+    include: { orderItems: true },
   });
-
   if (!order) throw new Error("Order not found");
 
   const tickets = [];
@@ -73,9 +65,7 @@ export async function generateTicketsFromOrder(orderId: string) {
 }
 
 export async function getTicketsByOrderItemService(orderItemId: string) {
-  return prisma.ticket.findMany({
-    where: { orderItemId },
-  });
+  return prisma.ticket.findMany({ where: { orderItemId } });
 }
 
 export async function markTicketAsUsedService(ticketId: string) {
@@ -85,29 +75,18 @@ export async function markTicketAsUsedService(ticketId: string) {
   });
 }
 
+// legacy validation (kept for backward compatibility)
 export async function validateTicketByQrService(qrCodeId: string) {
   const ticket = await prisma.ticket.findFirst({
-    where: {
-      qrCodeUrl: { contains: qrCodeId },
-    },
-    include: {
-      event: true,
-      user: true,
-    },
+    where: { qrCodeUrl: { contains: qrCodeId } },
+    include: { event: true, user: true },
   });
 
   if (!ticket) {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Ticket not found.",
-    });
+    throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found." });
   }
-
   if (ticket.usedAt) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Ticket has already been used.",
-    });
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Ticket already used." });
   }
 
   const usedAt = new Date();
@@ -121,6 +100,44 @@ export async function validateTicketByQrService(qrCodeId: string) {
     status: "valid",
     usedAt,
     ticketId: ticket.id,
+    eventName: ticket.event.name,
+    userEmail: ticket.user.email,
+  };
+}
+
+// new validation using schema (qrCode + device + logs)
+export async function validateTicketService(
+  qrCode: string,
+  validatorId: string,
+  device?: string
+) {
+  const ticket = await prisma.ticket.findFirst({
+    where: { qrCodeUrl: qrCode },
+    include: { event: true, user: true },
+  });
+
+  if (!ticket) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found." });
+  }
+  if (ticket.usedAt) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Ticket already used." });
+  }
+
+  const usedAt = new Date();
+
+  const updated = await prisma.ticket.update({
+    where: { id: ticket.id },
+    data: { usedAt, validatorId, device },
+  });
+
+  await prisma.validationLog.create({
+    data: { ticketId: ticket.id, validatorId, device },
+  });
+
+  return {
+    status: "valid",
+    usedAt,
+    ticketId: updated.id,
     eventName: ticket.event.name,
     userEmail: ticket.user.email,
   };
