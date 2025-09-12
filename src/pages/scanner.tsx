@@ -16,6 +16,7 @@ interface ValidationResult {
   status: string;
   usedAt: string;
   ticketId: string;
+  qrId: string;
   eventName: string;
   userEmail: string;
 }
@@ -58,13 +59,14 @@ export default function ScannerPage() {
       setLoading(true);
 
       try {
+        // 🔑 Envia qrId (não mais qrCode)
         const res = await fetch("/api/tickets/validate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ qrCode: data, device: "pwa-scanner" }),
+          body: JSON.stringify({ qrId: data, device: "pwa-scanner" }),
         });
 
-        const json = await res.json();
+        const json: ValidationResult & { error?: string } = await res.json();
         if (!res.ok) {
           throw new Error(json.error || "Validation failed");
         }
@@ -119,6 +121,9 @@ export default function ScannerPage() {
             </p>
             <p>
               <strong>Usuário:</strong> {result.userEmail}
+            </p>
+            <p>
+              <strong>QR ID:</strong> {result.qrId}
             </p>
             <p>
               <strong>Validado em:</strong>{" "}

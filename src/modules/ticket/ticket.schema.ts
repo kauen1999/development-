@@ -17,9 +17,9 @@ export const markTicketAsUsedSchema = z.object({
   ticketId: z.string().cuid("Invalid ticket ID"),
 });
 
-// validate ticket by QR
+// ✅ validate ticket by QR → agora usando qrId
 export const validateTicketSchema = z.object({
-  qrCode: z.string().min(8, "QR Code must be at least 8 characters"),
+  qrId: z.string().min(8, "QR ID must be at least 8 characters"),
   device: z.string().optional(),
 });
 

@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import { TRPCError } from "@trpc/server";
 import { generateTicketAssets } from "./ticketGeneration.service";
+import crypto from "crypto";
 
 export async function generateAndSaveTicket(orderItemId: string) {
   // check if ticket already exists
@@ -29,7 +30,7 @@ export async function generateAndSaveTicket(orderItemId: string) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Order item not found" });
   }
 
-  // create ticket without assets
+  // create ticket with qrId
   const ticket = await prisma.ticket.create({
     data: {
       seatId: orderItem.seatId,
@@ -37,19 +38,19 @@ export async function generateAndSaveTicket(orderItemId: string) {
       orderItemId: orderItem.id,
       userId: orderItem.order.userId,
       eventId: orderItem.order.eventId,
+      qrId: crypto.randomUUID(), // ✅ string UUID
       qrCodeUrl: "",
       pdfUrl: "",
     },
   });
 
-  // generate QR + PDF
+  // generate QR + PDF com base no qrId
   await generateTicketAssets(ticket.id);
 
   return prisma.ticket.findUnique({ where: { id: ticket.id } });
 }
 
 export async function generateTicketsFromOrder(orderId: string) {
-  // find order with items
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { orderItems: true },
@@ -75,44 +76,14 @@ export async function markTicketAsUsedService(ticketId: string) {
   });
 }
 
-// legacy validation (kept for backward compatibility)
-export async function validateTicketByQrService(qrCodeId: string) {
-  const ticket = await prisma.ticket.findFirst({
-    where: { qrCodeUrl: { contains: qrCodeId } },
-    include: { event: true, user: true },
-  });
-
-  if (!ticket) {
-    throw new TRPCError({ code: "NOT_FOUND", message: "Ticket not found." });
-  }
-  if (ticket.usedAt) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "Ticket already used." });
-  }
-
-  const usedAt = new Date();
-
-  await prisma.ticket.update({
-    where: { id: ticket.id },
-    data: { usedAt },
-  });
-
-  return {
-    status: "valid",
-    usedAt,
-    ticketId: ticket.id,
-    eventName: ticket.event.name,
-    userEmail: ticket.user.email,
-  };
-}
-
-// new validation using schema (qrCode + device + logs)
+// nova validação com logs
 export async function validateTicketService(
-  qrCode: string,
+  qrId: string,
   validatorId: string,
   device?: string
 ) {
-  const ticket = await prisma.ticket.findFirst({
-    where: { qrCodeUrl: qrCode },
+  const ticket = await prisma.ticket.findUnique({
+    where: { qrId }, // ✅ busca por qrId
     include: { event: true, user: true },
   });
 
@@ -136,8 +107,9 @@ export async function validateTicketService(
 
   return {
     status: "valid",
-    usedAt,
+    usedAt: usedAt.toISOString(), // ✅ string
     ticketId: updated.id,
+    qrId: updated.qrId, // ✅ string
     eventName: ticket.event.name,
     userEmail: ticket.user.email,
   };

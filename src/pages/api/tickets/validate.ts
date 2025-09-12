@@ -11,24 +11,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // ensure user is authenticated
     const session = await getServerSession(req, res, authOptions);
     if (!session?.user?.id) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // validate input with zod
     const parsed = validateTicketSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.errors });
+      return res.status(400).json({
+        error: parsed.error.errors.map((e) => e.message).join(", "),
+      });
     }
 
-    const { qrCode, device } = parsed.data;
+    const { qrId, device } = parsed.data;
 
-    // call service
-    const result = await validateTicketService(qrCode, session.user.id, device);
+    const result = await validateTicketService(qrId, session.user.id, device);
 
-    return res.status(200).json(result);
+    // ✅ retorna somente strings e dados planos
+    return res.status(200).json({
+      ok: true,
+      status: result.status,
+      qrId: result.qrId,
+      event: result.eventName,
+      user: result.userEmail,
+      usedAt: result.usedAt,
+    });
   } catch (err) {
     console.error("Ticket validation error:", err);
     return res.status(400).json({

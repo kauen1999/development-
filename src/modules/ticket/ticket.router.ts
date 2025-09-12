@@ -35,10 +35,10 @@ export const ticketRouter = router({
       return { ok: true, ticketId: updated.id, usedAt: updated.usedAt };
     }),
 
-  // validate by QR Code (new flow)
+  // ✅ validate by QR ID (new flow)
   validateByQr: protectedProcedure
     .input(validateTicketSchema)
     .mutation(async ({ input, ctx }) => {
-      return validateTicketService(input.qrCode, ctx.session.user.id, input.device);
+      return validateTicketService(input.qrId, ctx.session.user.id, input.device);
     }),
 });

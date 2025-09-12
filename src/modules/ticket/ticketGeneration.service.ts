@@ -20,12 +20,11 @@ export async function generateTicketAssets(
   const ticket = await prisma.ticket.findUnique({
     where: { id: ticketId },
     include: {
-      eventSession: true,      // ✅ EventSession (tem dateTimeStart, venueName, city)
-      seat: true,              // ✅ Seat (tem labelFull/labelShort)
+      eventSession: true,
+      seat: true,
       orderItem: {
         include: {
           order: {
-            // ✅ Em Order as relações geradas são `Event` e `user`
             include: { Event: true, user: true },
           },
         },
@@ -34,15 +33,16 @@ export async function generateTicketAssets(
   });
 
   if (!ticket) throw new Error("Ticket not found");
+  if (!ticket.qrId) throw new Error("Ticket.qrId not found");
 
-  // ✅ acessar `Event` (maiúsculo) via orderItem.order.Event
   const event = ticket.orderItem?.order?.Event;
   if (!event) throw new Error("Event not found for ticket");
 
-  // Gera QR em buffer
-  const qrBuffer = await QRCode.toBuffer(`ticket:${ticket.id}`);
+  // ✅ gera QR só com qrId
+  const qrPayload = ticket.qrId;
+  const qrBuffer = await QRCode.toBuffer(qrPayload);
 
-  // Gera PDF em buffer
+  // PDF em buffer
   const pdfBuffer = await new Promise<Buffer>((resolve) => {
     const doc = new PDFDocument({ size: "A4", margin: 50 });
     const chunks: Buffer[] = [];
@@ -52,55 +52,50 @@ export async function generateTicketAssets(
     doc.fontSize(20).text(`Evento: ${event.name}`);
     doc.moveDown();
 
-    // ✅ venueName/city vêm da sessão (EventSession), não do Event
     const venueName = ticket.eventSession?.venueName ?? "—";
     const city = ticket.eventSession?.city ?? "—";
     doc.fontSize(12).text(`Local: ${venueName}, ${city}`);
 
-    // ✅ EventSession usa `dateTimeStart`
     if (ticket.eventSession?.dateTimeStart) {
       doc.text(`Data: ${ticket.eventSession.dateTimeStart.toLocaleString()}`);
     }
 
-    // ✅ Seat usa `labelFull` (ou `labelShort`)
     const seatLabel = ticket.seat?.labelFull ?? "General";
     doc.text(`Assento: ${seatLabel}`);
-    doc.text(`Ticket ID: ${ticket.id}`);
+    doc.text(`Ticket QR ID: ${ticket.qrId}`);
     doc.moveDown();
 
     doc.image(qrBuffer, { width: 180, align: "center" });
     doc.end();
   });
 
-  const qrFilename = `tickets/qr-${ticket.id}.png`;
-  const pdfFilename = `tickets/ticket-${ticket.id}.pdf`;
+  const qrFilename = `tickets/qr-${ticket.qrId}.png`;
+  const pdfFilename = `tickets/ticket-${ticket.qrId}.pdf`;
 
-  // Upload QR para Supabase Storage
+  // Upload QR
   const { error: qrError } = await supabase.storage
     .from("tickets")
     .upload(qrFilename, qrBuffer, {
       contentType: "image/png",
       upsert: true,
     });
-  if (qrError) throw new Error(`Erro ao enviar QR para Supabase: ${qrError.message}`);
+  if (qrError) throw new Error(`Erro ao enviar QR: ${qrError.message}`);
 
-  // Upload PDF para Supabase Storage
+  // Upload PDF
   const { error: pdfError } = await supabase.storage
     .from("tickets")
     .upload(pdfFilename, pdfBuffer, {
       contentType: "application/pdf",
       upsert: true,
     });
-  if (pdfError) throw new Error(`Erro ao enviar PDF para Supabase: ${pdfError.message}`);
+  if (pdfError) throw new Error(`Erro ao enviar PDF: ${pdfError.message}`);
 
-  // URLs públicas
   const { data: qrData } = supabase.storage.from("tickets").getPublicUrl(qrFilename);
   const { data: pdfData } = supabase.storage.from("tickets").getPublicUrl(pdfFilename);
 
   const qrCodeUrl = qrData.publicUrl;
   const pdfUrl = pdfData.publicUrl;
 
-  // Atualiza ticket no banco
   await prisma.ticket.update({
     where: { id: ticket.id },
     data: { qrCodeUrl, pdfUrl },
@@ -108,3 +103,4 @@ export async function generateTicketAssets(
 
   return { qrCodeUrl, pdfUrl };
 }
+

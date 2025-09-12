@@ -279,7 +279,7 @@ model CartItem {
   createdAt      DateTime  @default(now())
   expiresAt      DateTime?
   userId         String
-  eventId         String
+  eventId        String
   eventSessionId String
 
   seatId           String?
@@ -342,6 +342,7 @@ model OrderItem {
 
 model Ticket {
   id               String          @id @default(cuid())
+  qrId             String          @unique @default(cuid())
   qrCodeUrl        String
   pdfUrl           String?
   usedAt           DateTime?
