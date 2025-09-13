@@ -134,9 +134,9 @@ export default function ScannerPage() {
               ✅ Ticket válido
             </h2>
             <p><strong>Evento:</strong> {result.eventName}</p>
-            <p><strong>Usuário:</strong> {result.userEmail}</p>
-            <p><strong>QR ID:</strong> {result.qrId}</p>
-            <p><strong>Validado em:</strong> {new Date(result.usedAt).toLocaleString()}</p>
+          <p><strong>Usuário:</strong> {result.userEmail}</p>
+          <p><strong>QR ID:</strong> {result.qrId}</p>
+          <p><strong>Validado em:</strong> {new Date(result.usedAt).toLocaleString()}</p>
           </div>
         )}
 
