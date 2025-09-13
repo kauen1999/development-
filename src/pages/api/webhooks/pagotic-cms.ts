@@ -2,7 +2,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as qs from "querystring";
 import { reconcileOrderByPaymentId } from "@/modules/pagotic/pagotic.reconcile";
-import { PagoticService } from "@/modules/pagotic/pagotic.service";
 
 export const runtime = "nodejs";
 export const config = { api: { bodyParser: false } };
@@ -32,8 +31,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const ct = String(req.headers["content-type"] ?? "");
     const raw = await readRaw(req);
 
-    console.log("[CMS][webhook] raw recebido:", raw);
-
     if (ct.includes("application/x-www-form-urlencoded")) {
       const parsed = qs.parse(raw);
       body = Object.fromEntries(
@@ -47,8 +44,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error("[CMS][webhook] parse error:", (e as Error).message);
   }
 
-  console.log("[CMS][webhook] body parseado:", body);
-
   const paymentIdRaw = body.id ?? body.payment_id ?? body.paymentId ?? "";
   const paymentId =
     typeof paymentIdRaw === "string" && paymentIdRaw.trim() ? paymentIdRaw.trim() : undefined;
@@ -59,14 +54,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     if (paymentId) {
-      console.log("[CMS][webhook] reconciliando por paymentId:", paymentId);
       await reconcileOrderByPaymentId(paymentId);
 
       // 🔹 força o reenvio oficial do notify via API pública
       try {
-        const svc = new PagoticService();
-        const resp = await svc.resendNotification(paymentId);
-        console.log("[CMS][webhook] resendNotification enviado:", resp);
       } catch (err) {
         console.error("[CMS][webhook] erro ao chamar resendNotification:", (err as Error).message);
       }

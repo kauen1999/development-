@@ -14,7 +14,6 @@ import {
 import { PagoticService } from "./pagotic.service";
 import { mapPayment } from "./pagotic.mappers";
 import { prisma } from "@/lib/prisma";
-import { sanitizeForLog } from "./pagotic.utils";
 
 const svc = new PagoticService();
 
@@ -143,7 +142,6 @@ export const pagoticRouter = router({
       const resp = await svc.createPayment(cleaned);
       const mapped = mapPayment(resp);
 
-      console.log("[PagoTIC][router.createPayment] response:", sanitizeForLog(mapped));
 
       // 4) espelha na Order (sem bloquear UX em caso de falha)
       await prisma.order.update({

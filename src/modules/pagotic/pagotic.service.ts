@@ -5,7 +5,6 @@ import {
   buildFiltersQuery,
   buildSortsQuery,
   parseJSON,
-  sanitizeForLog,
   withTimeout,
 } from "./pagotic.utils";
 import type {
@@ -112,7 +111,7 @@ export class PagoticService {
       notification_url,
     };
 
-    console.log("[PagoTIC][createPayment] body.preview", sanitizeForLog(body));
+   
 
     const rsp = await this.authedFetch(PAGOTIC_ENDPOINTS.pagos, {
       method: "POST",
@@ -120,7 +119,7 @@ export class PagoticService {
     });
 
     const json = await parseJSON<PagoticPaymentResponse>(rsp);
-    console.log("[PagoTIC][createPayment] parsed:", rsp.status, sanitizeForLog(json));
+    
 
     if (!rsp.ok) throw await toPagoticError(rsp);
     return json;
@@ -129,7 +128,7 @@ export class PagoticService {
   async getPaymentById(id: string): Promise<PagoticPaymentResponse> {
     const rsp = await this.authedFetch(PAGOTIC_ENDPOINTS.pagosById(id));
     const json = await parseJSON<PagoticPaymentResponse>(rsp);
-    console.log("[PagoTIC][getPaymentById] parsed:", rsp.status, sanitizeForLog(json));
+    
 
     if (!rsp.ok) throw await toPagoticError(rsp);
     return json;
@@ -148,7 +147,7 @@ export class PagoticService {
 
     const rsp = await this.authedFetch(`${PAGOTIC_ENDPOINTS.pagos}?${q.toString()}`);
     const json = await parseJSON<PagoticListResponse<PagoticPaymentResponse>>(rsp);
-    console.log("[PagoTIC][listPayments] parsed:", rsp.status, sanitizeForLog(json));
+    
 
     if (!rsp.ok) throw await toPagoticError(rsp);
     return json;
@@ -160,7 +159,7 @@ export class PagoticService {
       body: JSON.stringify(status_detail ? { status_detail } : {}),
     });
     const json = await parseJSON<PagoticPaymentResponse>(rsp);
-    console.log("[PagoTIC][cancelPayment] parsed:", rsp.status, sanitizeForLog(json));
+    
 
     if (!rsp.ok) throw await toPagoticError(rsp);
     return json;
@@ -175,7 +174,7 @@ export class PagoticService {
       body: JSON.stringify(body),
     });
     const json = await parseJSON<Record<string, unknown>>(rsp);
-    console.log("[PagoTIC][refundPayment] parsed:", rsp.status, sanitizeForLog(json));
+    
 
     if (!rsp.ok) throw await toPagoticError(rsp);
     return json;
@@ -187,7 +186,7 @@ export class PagoticService {
       body: JSON.stringify(req.paymentIds),
     });
     const json = await parseJSON<Record<string, unknown>>(rsp);
-    console.log("[PagoTIC][groupPayments] parsed:", rsp.status, sanitizeForLog(json));
+    
 
     if (!rsp.ok) throw await toPagoticError(rsp);
     return json;
@@ -199,7 +198,7 @@ export class PagoticService {
       body: JSON.stringify({ group_id: groupId }),
     });
     const json = await parseJSON<Record<string, unknown>>(rsp);
-    console.log("[PagoTIC][ungroupPayments] parsed:", rsp.status, sanitizeForLog(json));
+    
 
     if (!rsp.ok) throw await toPagoticError(rsp);
     return json;
@@ -211,7 +210,6 @@ export class PagoticService {
       body: JSON.stringify(req),
     });
     const json = await parseJSON<Record<string, unknown>>(rsp);
-    console.log("[PagoTIC][distributePayment] parsed:", rsp.status, sanitizeForLog(json));
 
     if (!rsp.ok) throw await toPagoticError(rsp);
     return json;
@@ -223,8 +221,7 @@ export class PagoticService {
       { method: "POST" },
     );
     const json = await parseJSON<Record<string, unknown>>(rsp);
-    console.log("[PagoTIC][resendNotification] parsed:", rsp.status, sanitizeForLog(json));
-
+    
     if (!rsp.ok) throw await toPagoticError(rsp);
     return json;
   }

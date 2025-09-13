@@ -36,20 +36,8 @@ export async function reconcileOrderByPaymentId(paymentId: string) {
   const pay: PagoticPaymentResponse = await svc.getPaymentById(paymentId);
   const next = normalizeStatus(pay.status);
 
-  const extFromRoot =
-    (pay as unknown as Record<string, unknown>)["external_transaction_id"];
-  const extFromMeta =
-    typeof pay.metadata === "object" && pay.metadata
-      ? (pay.metadata as Record<string, unknown>)["external_transaction_id"]
-      : undefined;
 
-  console.log("[PagoTIC][reconcile] pagamento recebido:", {
-    paymentId: pay.id,
-    status: pay.status,
-    normalized: next,
-    external_root: typeof extFromRoot === "string" ? extFromRoot : undefined,
-    external_meta: typeof extFromMeta === "string" ? extFromMeta : undefined,
-  });
+  
 
   const external = getExternalTransactionId(pay);
   const orderId =
@@ -72,7 +60,6 @@ export async function reconcileOrderByPaymentId(paymentId: string) {
   }
 
   if (order.status === next) {
-    console.log("[PagoTIC][reconcile] status inalterado (idempotente):", { orderId, status: next });
     return { ok: true as const };
   }
 
@@ -94,8 +81,7 @@ export async function reconcileOrderByPaymentId(paymentId: string) {
       if (updated.user?.email) {
         await sendTicketEmail(updated.user, updated.Event, tickets); // ✅ acessar 'Event'
       }
-      console.log("[PagoTIC][reconcile] tickets emitidos:", tickets.map(t => t.id));
-    } catch (e) {
+      } catch (e) {
       console.error("[PagoTIC][reconcile] pós-pagamento falhou:", (e as Error).message);
     }
   }

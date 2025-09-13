@@ -65,10 +65,7 @@ export default function EditEventPage() {
     if (process.env.NODE_ENV === "production") return;
     console.group("[DEBUG] EditEventPage data");
     if (!event) {
-      console.log("Event ainda não carregado (estado inicial).");
     } else {
-      console.log("Event (raw TRPC):", event);
-      console.log("FormEvent (normalized):", formEvent);
       (event.eventSessions ?? []).forEach((s, i) => {
         console.log(`[Session ${i + 1}]`, {
           id: s.id,
