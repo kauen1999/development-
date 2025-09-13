@@ -29,19 +29,26 @@ function getCatOrThrow<T extends { id: string }>(
   return v;
 }
 
-// ---------- helper comum p/ pagamento ----------
+// --- helper comum p/ pagamento ---
 async function initPaymentAndUpdate(
   order: Order & { orderItems: OrderItem[] },
   userId: string,
 ) {
   const externalId = generateExternalTransactionId(order.id);
 
-  const details = order.orderItems.map((i) => ({
-    external_reference: i.externalReference ?? `${order.id}-${i.id}`,
-    concept_id: ORDER_RULES.CONCEPT_ID, // 🔹 fixo
-    concept_description: i.title,
-    amount: i.amount,
-  }));
+  // Sufixo único por tentativa (garante diferenciação no adquirente/emissor)
+  const attemptTag = Date.now().toString(36);
+
+  const details = order.orderItems.map((i, idx) => {
+    const base = i.externalReference ?? `${order.id}-${i.id}-${idx + 1}`;
+    return {
+      // ex.: <base>-a<ts>  => mantém base estável, mas muda a “tentativa”
+      external_reference: `${base}-a${attemptTag}`,
+      concept_id: ORDER_RULES.CONCEPT_ID,
+      concept_description: i.title,
+      amount: i.amount,
+    };
+  });
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -49,13 +56,19 @@ async function initPaymentAndUpdate(
   });
 
   const payment = await pagotic.createPayment({
-    external_transaction_id: externalId,
+    external_transaction_id: externalId,                   // mantém fixo por Order
     currency_id: process.env.PAGOTIC_CURRENCY_ID ?? "ARS",
     details,
     payer: {
       external_reference: userId,
       email: user?.email || undefined,
       name: user?.name || undefined,
+    },
+    // útil para observabilidade e depuração no provedor
+    metadata: {
+      appOrderId: order.id,
+      appUserId: userId,
+      attemptTag,
     },
   });
 

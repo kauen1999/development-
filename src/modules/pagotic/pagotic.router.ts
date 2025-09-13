@@ -14,6 +14,7 @@ import {
 import { PagoticService } from "./pagotic.service";
 import { mapPayment } from "./pagotic.mappers";
 import { prisma } from "@/lib/prisma";
+import { sanitizeForLog } from "./pagotic.utils";
 
 const svc = new PagoticService();
 
@@ -80,9 +81,10 @@ export const pagoticRouter = router({
     .mutation(async ({ input, ctx }) => {
       // 1) deriva orderId
       const orderIdFromCtx = extractOrderId(ctx);
-      const orderIdFromMeta = typeof input.metadata?.appOrderId === "string" && input.metadata.appOrderId
-        ? input.metadata.appOrderId
-        : undefined;
+      const orderIdFromMeta =
+        typeof input.metadata?.appOrderId === "string" && input.metadata.appOrderId
+          ? input.metadata.appOrderId
+          : undefined;
       const orderIdFromExt = input.external_transaction_id?.toLowerCase().startsWith("order_")
         ? input.external_transaction_id.slice(6)
         : undefined;
@@ -97,7 +99,8 @@ export const pagoticRouter = router({
         where: { id: orderId },
         select: { paymentNumber: true, formUrl: true, status: true },
       });
-      if (existing?.paymentNumber && existing.formUrl) {
+
+      if (existing?.paymentNumber && existing.formUrl && existing.status === "PENDING") {
         return {
           id: existing.paymentNumber,
           status: existing.status,
@@ -107,7 +110,20 @@ export const pagoticRouter = router({
           requestDate: null,
           details: [],
           raw: {},
+          reused: true, // 🔹 indica reaproveitamento
         };
+      }
+
+      // Se já havia pagamento mas status != PENDING, tenta cancelar
+      if (existing?.paymentNumber && existing.status !== "PENDING") {
+        try {
+          await svc.cancelPayment(existing.paymentNumber, "Superseded by new attempt");
+        } catch (e) {
+          console.warn(
+            "[PagoTIC][router.createPayment] cancel previous payment failed:",
+            e instanceof Error ? e.message : String(e)
+          );
+        }
       }
 
       // 3) normalize URLs vindas do client
@@ -127,6 +143,8 @@ export const pagoticRouter = router({
       const resp = await svc.createPayment(cleaned);
       const mapped = mapPayment(resp);
 
+      console.log("[PagoTIC][router.createPayment] response:", sanitizeForLog(mapped));
+
       // 4) espelha na Order (sem bloquear UX em caso de falha)
       await prisma.order.update({
         where: { id: orderId },
@@ -136,11 +154,13 @@ export const pagoticRouter = router({
           externalTransactionId: `order_${orderId}`,
         },
       }).catch((e: unknown) => {
-        // eslint-disable-next-line no-console
-        console.error("[PagoTIC][router.createPayment] Persist error:", e instanceof Error ? e.message : String(e));
+        console.error(
+          "[PagoTIC][router.createPayment] Persist error:",
+          e instanceof Error ? e.message : String(e)
+        );
       });
 
-      return mapped;
+      return { ...mapped, reused: false }; // 🔹 pagamento novo
     }),
 
   getPaymentById: protectedProcedure
