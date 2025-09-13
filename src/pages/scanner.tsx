@@ -69,14 +69,23 @@ export default function ScannerPage() {
           body: JSON.stringify({ qrId: data, device: "pwa-scanner" }),
         });
 
-        const json: ValidationResult & { error?: string } = await res.json();
+        const json = await res.json();
+
         if (!res.ok) {
           throw new Error(json.error || "Validation failed");
         }
 
+        //  Normaliza o resultado antes de salvar
+        setResult({
+          status: String(json.status),
+          usedAt: String(json.usedAt),
+          ticketId: String(json.ticketId ?? ""),
+          qrId: String(json.qrId),
+          eventName: String(json.eventName), 
+          userEmail: String(json.userEmail),  
+        });
         playBeep();
         vibrate();
-        setResult(json);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
@@ -124,19 +133,10 @@ export default function ScannerPage() {
             <h2 className="mb-2 text-lg font-bold text-green-700">
               ✅ Ticket válido
             </h2>
-            <p>
-              <strong>Evento:</strong> {result.eventName}
-            </p>
-            <p>
-              <strong>Usuário:</strong> {result.userEmail}
-            </p>
-            <p>
-              <strong>QR ID:</strong> {result.qrId}
-            </p>
-            <p>
-              <strong>Validado em:</strong>{" "}
-              {new Date(result.usedAt).toLocaleString()}
-            </p>
+            <p><strong>Evento:</strong> {result.eventName}</p>
+            <p><strong>Usuário:</strong> {result.userEmail}</p>
+            <p><strong>QR ID:</strong> {result.qrId}</p>
+            <p><strong>Validado em:</strong> {new Date(result.usedAt).toLocaleString()}</p>
           </div>
         )}
 

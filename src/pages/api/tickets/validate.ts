@@ -32,9 +32,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ok: true,
       status: result.status,
       qrId: result.qrId,
-      event: result.eventName,
-      user: result.userEmail,
+      eventName: result.eventName,   // 👈 consistente
+      userEmail: result.userEmail,   // 👈 consistente
       usedAt: result.usedAt,
+      ticketId: result.ticketId,
     });
   } catch (err) {
     console.error("Ticket validation error:", err);
