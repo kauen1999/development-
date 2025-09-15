@@ -8,7 +8,10 @@ import type { Ticket } from "@prisma/client";
 import { reconcileOrderByPaymentId } from "@/modules/pagotic/pagotic.reconcile";
 import { normalizePagoticStatus, withTimeout } from "@/modules/pagotic/pagotic.utils";
 
-export const config = { api: { bodyParser: false } };
+export const config = {
+  api: { bodyParser: false },
+  regions: ["gru1"], // 🔹 força execução no Brasil para evitar bloqueio/timeout
+};
 
 type PagoTicNotification = {
   id?: string;
