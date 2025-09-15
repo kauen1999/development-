@@ -1,10 +1,10 @@
-// src/pages/api/webhooks/pagotic.ts
 import type { NextApiRequest, NextApiResponse } from "next";
+import * as qs from "querystring";
 import { prisma } from "@/lib/prisma";
 import { generateTicketsFromOrder } from "@/modules/ticket/ticket.service";
 import { sendTicketEmail } from "@/modules/sendmail/mailer";
 import type { Ticket } from "@prisma/client";
-import * as qs from "querystring";
+import { reconcileOrderByPaymentId } from "@/modules/pagotic/pagotic.reconcile";
 
 export const config = { api: { bodyParser: false } };
 
@@ -18,6 +18,10 @@ type PagoTicNotification = {
   metadata?: string | Record<string, string | number | boolean | null>;
   payment_number?: string | number | null;
 };
+
+// ------------------------
+// Helpers
+// ------------------------
 
 function toStr(v: string | string[] | number | undefined | null): string | undefined {
   if (typeof v === "string") return v;
@@ -71,26 +75,43 @@ async function parseNotification(req: NextApiRequest): Promise<PagoTicNotificati
   }
 }
 
+// ------------------------
+// Handler principal
+// ------------------------
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Sempre 200 para evitar retry storm, mesmo em GET/erros não-críticos
   if (req.method !== "POST") {
     return res.status(200).json({ ok: true, method: req.method });
   }
 
   try {
+    const rawBody = await readRawBody(req);
+
+    // 🔹 1) Repassa para o CMS (garante email oficial do PagoTIC)
+    try {
+      await fetch("https://app.cmsargentina.com/acquisition/v2/notify", {
+        method: "POST",
+        headers: { "Content-Type": req.headers["content-type"] || "application/json" },
+        body: rawBody,
+      });
+    } catch (err) {
+      console.error("[PagoTIC][Proxy] erro ao reenviar para CMS:", err);
+    }
+
+    // 🔹 2) Processa localmente (como no pagotic.ts / pagotic-cms.ts)
     const body = await parseNotification(req);
 
-    // Collector opcional
+    // valida collector se configurado
     const expectedCollector = process.env.PAGOTIC_COLLECTOR_ID;
     const collectorGot = body.collector ?? null;
     if (expectedCollector && collectorGot && collectorGot !== expectedCollector) {
-      console.warn("[PagoTIC][Webhook] Collector diferente", { got: collectorGot, expected: expectedCollector });
+      console.warn("[PagoTIC][Proxy] Collector diferente", { got: collectorGot, expected: expectedCollector });
       return res.status(200).json({ ok: true });
     }
 
     const ext = body.external_transaction_id ?? "";
     if (!ext) {
-      console.error("[PagoTIC][Webhook] external_transaction_id ausente");
+      console.error("[PagoTIC][Proxy] external_transaction_id ausente");
       return res.status(200).json({ ok: true });
     }
 
@@ -99,12 +120,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const paymentId =
       body.id ?? (typeof body.payment_number === "string" ? body.payment_number : String(body.payment_number ?? ""));
 
+    // tenta buscar pedido
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { user: true, Event: true }, // <-- relação correta é 'Event'
+      include: { user: true, Event: true },
     });
     if (!order) {
-      console.error("[PagoTIC][Webhook] Order não encontrada:", orderId);
+      console.error("[PagoTIC][Proxy] Order não encontrada:", orderId);
       return res.status(200).json({ ok: true });
     }
 
@@ -112,6 +134,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ ok: true, message: "Already PAID" });
     }
 
+    // atualiza status no banco
     const updated = await prisma.order.update({
       where: { id: orderId },
       data: {
@@ -119,28 +142,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         externalTransactionId: ext,
         paymentNumber: paymentId || order.paymentNumber,
       },
-      include: { user: true, Event: true }, // <-- manter 'Event' aqui também
+      include: { user: true, Event: true },
     });
 
+    // se pago → gera tickets + envia email
     if (nextStatus === "PAID") {
       try {
         const ticketsAll = await generateTicketsFromOrder(updated.id);
         const tickets = (ticketsAll as Ticket[]).filter((t) => Boolean(t));
         if (updated.user?.email) {
-          // <-- usar 'Event' (maiúsculo)
           await sendTicketEmail(updated.user, updated.Event, tickets);
         }
       } catch (e) {
-        console.error(
-          "[PagoTIC][Webhook] Pós-pagamento falhou:",
-          e instanceof Error ? e.message : String(e)
-        );
+        console.error("[PagoTIC][Proxy] pós-pagamento falhou:", e instanceof Error ? e.message : String(e));
+      }
+    }
+
+    // 🔹 3) Reconciliação adicional (como no pagotic-cms.ts)
+    if (paymentId) {
+      try {
+        await reconcileOrderByPaymentId(paymentId);
+      } catch (err) {
+        console.error("[PagoTIC][Proxy] reconcile error:", err);
       }
     }
 
     return res.status(200).json({ ok: true });
   } catch (e) {
-    console.error("[PagoTIC][Webhook] Erro:", e instanceof Error ? e.message : String(e));
+    console.error("[PagoTIC][Proxy] erro inesperado:", e instanceof Error ? e.message : String(e));
     return res.status(200).json({ ok: true });
   }
 }
