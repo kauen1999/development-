@@ -7,6 +7,7 @@ import { sendTicketEmail } from "@/modules/sendmail/mailer";
 import type { Ticket } from "@prisma/client";
 import { reconcileOrderByPaymentId } from "@/modules/pagotic/pagotic.reconcile";
 import { normalizePagoticStatus } from "@/modules/pagotic/pagotic.utils";
+import { withTimeout } from "@/modules/pagotic/pagotic.utils";
 
 export const config = { api: { bodyParser: false } };
 
@@ -96,14 +97,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 🔹 1) Repassa para o CMS (garante email oficial do PagoTIC)
     try {
-      await fetch("https://app.cmsargentina.com/acquisition/v2/notify", {
+    await fetch("https://app.cmsargentina.com/acquisition/v2/notify", {
         method: "POST",
         headers: { "Content-Type": req.headers["content-type"] || "application/json" },
         body: rawBody,
-      });
+        signal: withTimeout(30000), // ⏱ aumenta para 30 segundos
+    });
     } catch (err) {
-      console.error("[PagoTIC][Proxy] erro ao reenviar para CMS:", err);
+    console.error("[PagoTIC][Proxy] erro ao reenviar para CMS (timeout 30s):", err);
     }
+
 
     // 🔹 2) Processa localmente
     const body = await parseNotification(req);
