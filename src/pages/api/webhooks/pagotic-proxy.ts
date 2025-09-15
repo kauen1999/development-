@@ -84,7 +84,7 @@ async function parseNotification(req: NextApiRequest): Promise<PagoTicNotificati
 
 // Retry para reenvio CMS
 async function resendCms(rawBody: string, contentType: string | undefined) {
-  const url = "https://app.cmsargentina.com/acquisition/v2/notify";
+  const url = "https://app.cmsargentina.com/api/acquisition/v2/notify";
   const maxAttempts = 3;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
