@@ -6,8 +6,7 @@ import { generateTicketsFromOrder } from "@/modules/ticket/ticket.service";
 import { sendTicketEmail } from "@/modules/sendmail/mailer";
 import type { Ticket } from "@prisma/client";
 import { reconcileOrderByPaymentId } from "@/modules/pagotic/pagotic.reconcile";
-import { normalizePagoticStatus } from "@/modules/pagotic/pagotic.utils";
-import { withTimeout } from "@/modules/pagotic/pagotic.utils";
+import { normalizePagoticStatus, withTimeout } from "@/modules/pagotic/pagotic.utils";
 
 export const config = { api: { bodyParser: false } };
 
@@ -83,6 +82,29 @@ async function parseNotification(req: NextApiRequest): Promise<PagoTicNotificati
   }
 }
 
+// Retry para reenvio CMS
+async function resendCms(rawBody: string, contentType: string | undefined) {
+  const url = "https://app.cmsargentina.com/acquisition/v2/notify";
+  const maxAttempts = 3;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": contentType || "application/json" },
+        body: rawBody,
+        signal: withTimeout(30000), // espera até 30s
+      });
+      return true;
+    } catch (err) {
+      console.error(`[PagoTIC][Proxy] Falha CMS (tentativa ${attempt}/${maxAttempts}):`, err);
+      if (attempt === maxAttempts) throw err;
+      await new Promise((r) => setTimeout(r, attempt * 2000)); // espera 2s, depois 4s, depois 6s...
+    }
+  }
+  return false;
+}
+
 // ------------------------
 // Handler principal
 // ------------------------
@@ -97,16 +119,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 🔹 1) Repassa para o CMS (garante email oficial do PagoTIC)
     try {
-    await fetch("https://app.cmsargentina.com/acquisition/v2/notify", {
-        method: "POST",
-        headers: { "Content-Type": req.headers["content-type"] || "application/json" },
-        body: rawBody,
-        signal: withTimeout(30000), // ⏱ aumenta para 30 segundos
-    });
+      await resendCms(rawBody, req.headers["content-type"] as string | undefined);
     } catch (err) {
-    console.error("[PagoTIC][Proxy] erro ao reenviar para CMS (timeout 30s):", err);
+      console.error("[PagoTIC][Proxy] Erro crítico: não foi possível reenviar para CMS após 3 tentativas.", err);
     }
-
 
     // 🔹 2) Processa localmente
     const body = await parseNotification(req);
@@ -121,7 +137,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const ext = body.external_transaction_id ?? "";
     if (!ext) {
-      console.error("[PagoTIC][Proxy] external_transaction_id ausente");
+      console.warn("[PagoTIC][Proxy] Pagamento rejeitado (sem external_transaction_id, pedido segue pendente)");
       return res.status(200).json({ ok: true });
     }
 
