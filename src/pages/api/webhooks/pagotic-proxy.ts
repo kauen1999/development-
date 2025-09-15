@@ -82,19 +82,24 @@ async function parseNotification(req: NextApiRequest): Promise<PagoTicNotificati
   }
 }
 
+// ------------------------
 // Retry para reenvio CMS
+// ------------------------
 async function resendCms(rawBody: string, contentType: string | undefined) {
-  const url = "https://app.cmsargentina.com/api/acquisition/v2/notify";
+  const url = "https://app.cmsargentina.com/acquisition/v2/notify";
   const maxAttempts = 3;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
+      console.info(`[PagoTIC][Proxy] Reenviando notificação CMS → ${url} (tentativa ${attempt}/${maxAttempts})`);
+
       await fetch(url, {
         method: "POST",
         headers: { "Content-Type": contentType || "application/json" },
         body: rawBody,
         signal: withTimeout(30000), // espera até 30s
       });
+
       return true;
     } catch (err) {
       console.error(`[PagoTIC][Proxy] Falha CMS (tentativa ${attempt}/${maxAttempts}):`, err);
@@ -102,13 +107,13 @@ async function resendCms(rawBody: string, contentType: string | undefined) {
       await new Promise((r) => setTimeout(r, attempt * 2000)); // espera 2s, depois 4s, depois 6s...
     }
   }
+
   return false;
 }
 
 // ------------------------
 // Handler principal
 // ------------------------
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(200).json({ ok: true, method: req.method });
