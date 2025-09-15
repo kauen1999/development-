@@ -6,23 +6,38 @@ const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
+    // Fallbacks para external_transaction_id
     const ext =
       (req.query?.external_transaction_id as string | undefined) ??
+      (req.query?.externalId as string | undefined) ??
+      (req.query?.ext_id as string | undefined) ??
       (typeof req.body === "object" && req.body
-        ? (req.body as Record<string, string>).external_transaction_id
+        ? (
+            (req.body as Record<string, string>).external_transaction_id ||
+            (req.body as Record<string, string>).externalId ||
+            (req.body as Record<string, string>).ext_id
+          )
         : undefined);
 
+    // Fallbacks para status
     const statusRaw =
       (req.query?.status as string | undefined) ??
+      (req.query?.statusCode as string | undefined) ??
+      (req.query?.state as string | undefined) ??
       (typeof req.body === "object" && req.body
-        ? (req.body as Record<string, string>).status
+        ? (
+            (req.body as Record<string, string>).status ||
+            (req.body as Record<string, string>).statusCode ||
+            (req.body as Record<string, string>).state
+          )
         : undefined);
 
+    // Resolve orderId
     const orderId = ext?.toLowerCase().startsWith("order_")
       ? ext.slice(6)
       : undefined;
 
-    // Usa função unificada
+    // Normaliza status com função unificada
     const normalized = normalizePagoticStatus(statusRaw);
 
     let url: string;

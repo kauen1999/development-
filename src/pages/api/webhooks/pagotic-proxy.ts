@@ -12,11 +12,15 @@ export const config = { api: { bodyParser: false } };
 
 type PagoTicNotification = {
   id?: string;
+  payment_id?: string;
+  paymentId?: string;
   status?: string;
   final_amount?: number;
   currency?: string;
   collector?: string;
   external_transaction_id?: string;
+  externalId?: string;
+  ext_id?: string;
   metadata?: string | Record<string, string | number | boolean | null>;
   payment_number?: string | number | null;
 };
@@ -49,12 +53,18 @@ async function parseNotification(req: NextApiRequest): Promise<PagoTicNotificati
   if (ct.includes("application/x-www-form-urlencoded")) {
     const parsed = qs.parse(raw);
     return {
-      id: toStr(parsed.id as string | string[] | undefined),
+      id:
+        toStr(parsed.id as string | string[] | undefined) ??
+        toStr(parsed.payment_id as string | string[] | undefined) ??
+        toStr(parsed.paymentId as string | string[] | undefined),
       status: toStr(parsed.status as string | string[] | undefined),
       final_amount: parsed.final_amount ? Number(parsed.final_amount) : undefined,
       currency: toStr(parsed.currency as string | string[] | undefined),
       collector: toStr(parsed.collector as string | string[] | undefined),
-      external_transaction_id: toStr(parsed.external_transaction_id as string | string[] | undefined),
+      external_transaction_id:
+        toStr(parsed.external_transaction_id as string | string[] | undefined) ??
+        toStr(parsed.externalId as string | string[] | undefined) ??
+        toStr(parsed.ext_id as string | string[] | undefined),
       payment_number: toStr(parsed.payment_number as string | string[] | undefined),
       metadata: toStr(parsed.metadata as string | string[] | undefined) ?? {},
     };
@@ -62,7 +72,11 @@ async function parseNotification(req: NextApiRequest): Promise<PagoTicNotificati
 
   try {
     const json = JSON.parse(raw) as PagoTicNotification;
-    return json;
+    return {
+      ...json,
+      id: json.id ?? json.payment_id ?? json.paymentId,
+      external_transaction_id: json.external_transaction_id ?? json.externalId ?? json.ext_id,
+    };
   } catch {
     return {};
   }
