@@ -83,3 +83,21 @@ export function isPublicHttpUrl(value?: string): value is string {
 export function normalizeInputUrl(v?: string): string | undefined {
   return isPublicHttpUrl(v) ? v : undefined;
 }
+
+/** Status normalizado vindo do PagoTIC */
+export type NormalizedStatus = "PAID" | "PENDING" | "CANCELLED";
+
+/** 
+ * Converte o status cru do PagoTIC para um valor normalizado.
+ * Mantém coerência entre webhook (proxy) e return.
+ */
+export function normalizePagoticStatus(statusRaw: string | undefined): NormalizedStatus {
+  const s = (statusRaw ?? "").trim().toLowerCase();
+
+  const approved = new Set(["approved", "accredited", "paid", "aprobado", "pagado", "success"]);
+  const cancelled = new Set(["rejected", "cancelled", "canceled", "failed"]);
+
+  if (approved.has(s)) return "PAID";
+  if (cancelled.has(s)) return "CANCELLED";
+  return "PENDING";
+}

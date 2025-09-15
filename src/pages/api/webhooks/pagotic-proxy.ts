@@ -1,3 +1,4 @@
+// src/pages/api/webhooks/pagotic-proxy.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as qs from "querystring";
 import { prisma } from "@/lib/prisma";
@@ -5,6 +6,7 @@ import { generateTicketsFromOrder } from "@/modules/ticket/ticket.service";
 import { sendTicketEmail } from "@/modules/sendmail/mailer";
 import type { Ticket } from "@prisma/client";
 import { reconcileOrderByPaymentId } from "@/modules/pagotic/pagotic.reconcile";
+import { normalizePagoticStatus } from "@/modules/pagotic/pagotic.utils";
 
 export const config = { api: { bodyParser: false } };
 
@@ -32,15 +34,6 @@ function toStr(v: string | string[] | number | undefined | null): string | undef
 
 function resolveOrderIdFromExternal(externalId: string): string {
   return externalId.toLowerCase().startsWith("order_") ? externalId.slice(6) : externalId;
-}
-
-function normalizeOrderStatus(statusRaw: string | undefined): "PAID" | "PENDING" | "CANCELLED" {
-  const s = (statusRaw ?? "").trim().toLowerCase();
-  const approved = new Set(["approved", "accredited", "paid", "aprobado", "pagado"]);
-  if (approved.has(s)) return "PAID";
-  const cancelled = new Set(["rejected", "cancelled", "canceled"]);
-  if (cancelled.has(s)) return "CANCELLED";
-  return "PENDING";
 }
 
 async function readRawBody(req: NextApiRequest): Promise<string> {
@@ -98,7 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.error("[PagoTIC][Proxy] erro ao reenviar para CMS:", err);
     }
 
-    // 🔹 2) Processa localmente (como no pagotic.ts / pagotic-cms.ts)
+    // 🔹 2) Processa localmente
     const body = await parseNotification(req);
 
     // valida collector se configurado
@@ -116,7 +109,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const orderId = resolveOrderIdFromExternal(ext);
-    const nextStatus = normalizeOrderStatus(body.status);
+    const nextStatus = normalizePagoticStatus(body.status);
     const paymentId =
       body.id ?? (typeof body.payment_number === "string" ? body.payment_number : String(body.payment_number ?? ""));
 
@@ -158,7 +151,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // 🔹 3) Reconciliação adicional (como no pagotic-cms.ts)
+    // 🔹 3) Reconciliação adicional
     if (paymentId) {
       try {
         await reconcileOrderByPaymentId(paymentId);
