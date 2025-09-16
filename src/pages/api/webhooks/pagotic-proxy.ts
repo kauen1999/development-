@@ -10,7 +10,7 @@ import { normalizePagoticStatus, withTimeout } from "@/modules/pagotic/pagotic.u
 
 export const config = {
   api: { bodyParser: false },
-  regions: ["gru1"], // força execução no Brasil
+  regions: ["gru1"], // executa no Brasil
 };
 
 type PagoTicNotification = {
@@ -48,9 +48,22 @@ async function readRawBody(req: NextApiRequest): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-async function parseNotification(raw: string, ct: string): Promise<PagoTicNotification> {
+async function parseNotification(req: NextApiRequest): Promise<PagoTicNotification> {
+  const ct = String(req.headers["content-type"] ?? "");
+  const raw = await readRawBody(req);
+
   if (ct.includes("application/x-www-form-urlencoded")) {
     const parsed = qs.parse(raw);
+
+    let metadata: string | Record<string, string | number | boolean | null> | undefined;
+    if (Array.isArray(parsed.metadata)) {
+      metadata = parsed.metadata[0]; // se vier como array, pega o primeiro item
+    } else if (typeof parsed.metadata === "string") {
+      metadata = parsed.metadata;
+    } else if (typeof parsed.metadata === "object" && parsed.metadata !== null) {
+      metadata = parsed.metadata as Record<string, string | number | boolean | null>;
+    }
+
     return {
       id:
         toStr(parsed.id as string | string[] | undefined) ??
@@ -65,7 +78,7 @@ async function parseNotification(raw: string, ct: string): Promise<PagoTicNotifi
         toStr(parsed.externalId as string | string[] | undefined) ??
         toStr(parsed.ext_id as string | string[] | undefined),
       payment_number: toStr(parsed.payment_number as string | string[] | undefined),
-      metadata: toStr(parsed.metadata as string | string[] | undefined) ?? {},
+      metadata,
     };
   }
 
@@ -115,90 +128,82 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ ok: true, method: req.method });
   }
 
-  // 🔹 responde imediatamente para evitar timeout
-  res.status(200).json({ ok: true });
+  try {
+    const rawBody = await readRawBody(req);
 
-  // 🔹 processa notificação em background
-  (async () => {
+    // 🔹 1) Repassa para o CMS
     try {
-      const rawBody = await readRawBody(req);
-      const ct = String(req.headers["content-type"] ?? "");
-      const body = await parseNotification(rawBody, ct);
-
-      // 1) repassa para CMS sem bloquear
-      resendCms(rawBody, ct).catch((err) =>
-        console.error("[PagoTIC][Proxy] CMS erro:", err),
-      );
-
-      // 2) valida collector
-      const expectedCollector = process.env.PAGOTIC_COLLECTOR_ID;
-      if (expectedCollector && body.collector && body.collector !== expectedCollector) {
-        console.warn("[PagoTIC][Proxy] Collector inválido", {
-          got: body.collector,
-          expected: expectedCollector,
-        });
-        return;
-      }
-
-      // 3) extrai dados
-      const ext = body.external_transaction_id ?? "";
-      if (!ext) {
-        console.warn("[PagoTIC][Proxy] sem external_transaction_id, pedido segue pendente");
-        return;
-      }
-      const orderId = resolveOrderIdFromExternal(ext);
-      const nextStatus = normalizePagoticStatus(body.status);
-      const paymentId =
-        body.id ??
-        (typeof body.payment_number === "string"
-          ? body.payment_number
-          : String(body.payment_number ?? ""));
-
-      // 4) busca order
-      const order = await prisma.order.findUnique({
-        where: { id: orderId },
-        include: { user: true, Event: true },
-      });
-      if (!order) {
-        console.error("[PagoTIC][Proxy] Order não encontrada:", orderId);
-        return;
-      }
-
-      // 5) idempotência
-      if (order.status === "PAID" && nextStatus === "PAID") return;
-
-      // 6) atualiza status
-      const updated = await prisma.order.update({
-        where: { id: orderId },
-        data: {
-          status: nextStatus,
-          externalTransactionId: ext,
-          paymentNumber: paymentId || order.paymentNumber,
-        },
-        include: { user: true, Event: true },
-      });
-
-      // 7) se pago → gera tickets e envia email
-      if (nextStatus === "PAID") {
-        try {
-          const ticketsAll = await generateTicketsFromOrder(updated.id);
-          const tickets = (ticketsAll as Ticket[]).filter(Boolean);
-          if (updated.user?.email) {
-            await sendTicketEmail(updated.user, updated.Event, tickets);
-          }
-        } catch (e) {
-          console.error("[PagoTIC][Proxy] pós-pagamento falhou:", e);
-        }
-      }
-
-      // 8) reconcile como segurança
-      if (paymentId) {
-        reconcileOrderByPaymentId(paymentId).catch((err) =>
-          console.error("[PagoTIC][Proxy] reconcile error:", err),
-        );
-      }
-    } catch (e) {
-      console.error("[PagoTIC][Proxy] erro inesperado:", e);
+      await resendCms(rawBody, req.headers["content-type"] as string | undefined);
+    } catch (err) {
+      console.error("[PagoTIC][Proxy] Erro crítico: não foi possível reenviar para CMS após 3 tentativas.", err);
     }
-  })();
+
+    // 🔹 2) Processa localmente
+    const body = await parseNotification(req);
+
+    const expectedCollector = process.env.PAGOTIC_COLLECTOR_ID;
+    if (expectedCollector && body.collector && body.collector !== expectedCollector) {
+      console.warn("[PagoTIC][Proxy] Collector diferente", { got: body.collector, expected: expectedCollector });
+      return res.status(200).json({ ok: true });
+    }
+
+    const ext = body.external_transaction_id ?? "";
+    if (!ext) {
+      console.warn("[PagoTIC][Proxy] Pagamento rejeitado (sem external_transaction_id, pedido segue pendente)");
+      return res.status(200).json({ ok: true });
+    }
+
+    const orderId = resolveOrderIdFromExternal(ext);
+    const nextStatus = normalizePagoticStatus(body.status);
+    const paymentId =
+      body.id ?? (typeof body.payment_number === "string" ? body.payment_number : String(body.payment_number ?? ""));
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { user: true, Event: true },
+    });
+    if (!order) {
+      console.error("[PagoTIC][Proxy] Order não encontrada:", orderId);
+      return res.status(200).json({ ok: true });
+    }
+
+    if (order.status === "PAID" && nextStatus === "PAID") {
+      return res.status(200).json({ ok: true, message: "Already PAID" });
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: nextStatus,
+        externalTransactionId: ext,
+        paymentNumber: paymentId || order.paymentNumber,
+      },
+      include: { user: true, Event: true },
+    });
+
+    if (nextStatus === "PAID") {
+      try {
+        const ticketsAll = await generateTicketsFromOrder(updated.id);
+        const tickets = (ticketsAll as Ticket[]).filter(Boolean);
+        if (updated.user?.email) {
+          await sendTicketEmail(updated.user, updated.Event, tickets);
+        }
+      } catch (e) {
+        console.error("[PagoTIC][Proxy] pós-pagamento falhou:", e);
+      }
+    }
+
+    if (paymentId) {
+      try {
+        await reconcileOrderByPaymentId(paymentId);
+      } catch (err) {
+        console.error("[PagoTIC][Proxy] reconcile error:", err);
+      }
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (e) {
+    console.error("[PagoTIC][Proxy] erro inesperado:", e);
+    return res.status(200).json({ ok: true });
+  }
 }
