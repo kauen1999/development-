@@ -302,8 +302,8 @@ model Order {
   total                 Float
   createdAt             DateTime     @default(now())
   expiresAt             DateTime?
-  externalTransactionId String?      @unique
-  paymentNumber         String?      @unique
+  externalTransactionId String?      
+  paymentNumber         String?     
   formUrl               String?
   userId                String
   eventSessionId        String

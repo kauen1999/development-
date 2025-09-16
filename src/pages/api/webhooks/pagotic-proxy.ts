@@ -6,6 +6,7 @@ import { generateTicketsFromOrder } from "@/modules/ticket/ticket.service";
 import { sendTicketEmail } from "@/modules/sendmail/mailer";
 import type { Ticket } from "@prisma/client";
 import { normalizePagoticStatus, withTimeout } from "@/modules/pagotic/pagotic.utils";
+import { reconcileOrderByPaymentId } from "@/modules/pagotic/pagotic.reconcile";
 
 export const config = {
   api: { bodyParser: false },
@@ -70,9 +71,9 @@ async function parseNotification(raw: string, ct: string): Promise<PagoTicNotifi
           ? parsed.metadata[0]
           : typeof parsed.metadata === "string"
           ? parsed.metadata
-          : (typeof parsed.metadata === "object" && parsed.metadata !== null
-              ? (parsed.metadata as Record<string, string | number | boolean | null>)
-              : undefined),
+          : typeof parsed.metadata === "object" && parsed.metadata !== null
+          ? (parsed.metadata as Record<string, string | number | boolean | null>)
+          : undefined,
     };
   }
 
@@ -123,10 +124,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ ok: true, method: req.method });
   }
 
-  // 🔹 responde imediatamente para evitar timeout no PagoTIC
+  // 🔹 Responde imediatamente para evitar timeout no PagoTIC
   res.status(200).json({ ok: true });
 
-  // 🔹 processamento em background
+  // 🔹 Processa notificação em background
   (async () => {
     try {
       const rawBody = await readRawBody(req);
@@ -135,12 +136,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       console.log("[PagoTIC][Proxy] Notificação recebida:", body);
 
-      // 1) reenvio CMS
+      // 1) Reenvio CMS (não bloqueia fluxo local)
       resendCms(rawBody, ct).catch((err) =>
         console.error("[PagoTIC][Proxy] CMS erro:", err),
       );
 
-      // 2) valida collector
+      // 2) Valida collector
       const expectedCollector = process.env.PAGOTIC_COLLECTOR_ID;
       if (expectedCollector && body.collector && body.collector !== expectedCollector) {
         console.warn("[PagoTIC][Proxy] Collector inválido", {
@@ -150,7 +151,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return;
       }
 
-      // 3) extrai dados
+      // 3) Extrai dados
       const ext = body.external_transaction_id ?? "";
       if (!ext) {
         console.warn("[PagoTIC][Proxy] sem external_transaction_id, pedido segue pendente");
@@ -171,7 +172,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentId,
       });
 
-      // 4) busca order
+      // 4) Busca order
       const order = await prisma.order.findUnique({
         where: { id: orderId },
         include: { user: true, Event: true },
@@ -181,13 +182,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return;
       }
 
-      // 5) idempotência
+      // 5) Idempotência
       if (order.status === "PAID" && nextStatus === "PAID") {
         console.log("[PagoTIC][Proxy] Pedido já está pago:", orderId);
         return;
       }
 
-      // 6) atualiza status
+      // 6) Atualiza status no banco
       const updated = await prisma.order.update({
         where: { id: orderId },
         data: {
@@ -204,7 +205,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentNumber: updated.paymentNumber,
       });
 
-      // 7) se pago → gera tickets + envia email
+      // 7) Se pago → gera tickets e envia email
       if (nextStatus === "PAID") {
         try {
           const ticketsAll = await generateTicketsFromOrder(updated.id);
@@ -217,6 +218,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         } catch (e) {
           console.error("[PagoTIC][Proxy] pós-pagamento falhou:", e);
         }
+      }
+
+      // 8) Reconciliação extra como fallback
+      if (paymentId) {
+        reconcileOrderByPaymentId(paymentId).catch((err) =>
+          console.error("[PagoTIC][Proxy] reconcile error:", err),
+        );
       }
     } catch (e) {
       console.error("[PagoTIC][Proxy] erro inesperado:", e);
