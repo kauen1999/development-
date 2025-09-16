@@ -10,7 +10,7 @@ import { normalizePagoticStatus, withTimeout } from "@/modules/pagotic/pagotic.u
 
 export const config = {
   api: { bodyParser: false },
-  regions: ["gru1"],
+  regions: ["gru1"], // força execução no Brasil
 };
 
 type PagoTicNotification = {
@@ -82,7 +82,7 @@ async function parseNotification(raw: string, ct: string): Promise<PagoTicNotifi
 }
 
 // ------------------------
-// Reenvio CMS (não bloqueia resposta)
+// Retry para reenvio CMS
 // ------------------------
 async function resendCms(rawBody: string, contentType: string | undefined) {
   const url = "https://app.cmsargentina.com/acquisition/v2/notify";
@@ -115,19 +115,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ ok: true, method: req.method });
   }
 
-  // 🔹 responde imediatamente para o provedor
+  // 🔹 responde imediatamente para evitar timeout
   res.status(200).json({ ok: true });
 
-  // 🔹 processa em background
+  // 🔹 processa notificação em background
   (async () => {
     try {
       const rawBody = await readRawBody(req);
       const ct = String(req.headers["content-type"] ?? "");
       const body = await parseNotification(rawBody, ct);
 
-      // 1) Repassa para CMS (não bloqueia fluxo)
+      // 1) repassa para CMS sem bloquear
       resendCms(rawBody, ct).catch((err) =>
-        console.error("[PagoTIC][Proxy] Erro CMS em background:", err),
+        console.error("[PagoTIC][Proxy] CMS erro:", err),
       );
 
       // 2) valida collector
@@ -143,7 +143,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // 3) extrai dados
       const ext = body.external_transaction_id ?? "";
       if (!ext) {
-        console.warn("[PagoTIC][Proxy] Sem external_transaction_id, pedido segue pendente");
+        console.warn("[PagoTIC][Proxy] sem external_transaction_id, pedido segue pendente");
         return;
       }
       const orderId = resolveOrderIdFromExternal(ext);
@@ -178,7 +178,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         include: { user: true, Event: true },
       });
 
-      // 7) pós-pagamento
+      // 7) se pago → gera tickets e envia email
       if (nextStatus === "PAID") {
         try {
           const ticketsAll = await generateTicketsFromOrder(updated.id);
@@ -191,7 +191,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
-      // 8) reconcile (segurança extra)
+      // 8) reconcile como segurança
       if (paymentId) {
         reconcileOrderByPaymentId(paymentId).catch((err) =>
           console.error("[PagoTIC][Proxy] reconcile error:", err),
