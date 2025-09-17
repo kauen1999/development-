@@ -294,6 +294,7 @@ model CartItem {
   @@unique([userId, seatId])
   @@unique([userId, ticketCategoryId])
   @@index([eventSessionId])
+  @@index([expiresAt])
 }
 
 model Order {
@@ -334,7 +335,7 @@ model OrderItem {
   order             Order           @relation(fields: [orderId], references: [id])
   seat              Seat?           @relation(fields: [seatId], references: [id])
   ticketCategory    TicketCategory? @relation(fields: [ticketCategoryId], references: [id])
-  ticket            Ticket?
+  tickets           Ticket[]
 
   @@unique([orderId, seatId])
   @@index([ticketCategoryId])
@@ -350,7 +351,7 @@ model Ticket {
   createdAt        DateTime        @default(now())
   eventSessionId   String
   seatId           String?         @unique
-  orderItemId      String          @unique
+  orderItemId      String
   userId           String
   eventId          String
   validatorId      String?
@@ -366,6 +367,7 @@ model Ticket {
 
   @@index([qrCodeUrl])
   @@index([eventSessionId])
+  @@index([userId])
 }
 
 model Payment {
@@ -377,7 +379,21 @@ model Payment {
   rawResponse Json?
   createdAt   DateTime        @default(now())
   orderId     String          @unique
-  order       Order           @relation(fields: [orderId], references: [id])
+  order       Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  attempts    PaymentAttempt[]
+}
+
+model PaymentAttempt {
+  id          String          @id @default(cuid())
+  createdAt   DateTime        @default(now())
+  status      PaymentStatus
+  detail      String?         // ex: "Do not Honour", "Fraud Suspicion", "Timeout"
+  rawResponse Json?
+  paymentId   String
+  payment     Payment         @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([status])
 }
 
 model ValidationLog {

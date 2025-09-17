@@ -2,6 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as qs from "querystring";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client"; // aqui sim tem os tipos
 import { generateTicketsFromOrder } from "@/modules/ticket/ticket.service";
 import { sendTicketEmail } from "@/modules/sendmail/mailer";
 import type { Ticket } from "@prisma/client";
@@ -18,6 +19,7 @@ type PagoTicNotification = {
   payment_id?: string;
   paymentId?: string;
   status?: string;
+  status_detail?: string;
   final_amount?: number;
   currency?: string;
   collector?: string;
@@ -58,6 +60,7 @@ async function parseNotification(raw: string, ct: string): Promise<PagoTicNotifi
         toStr(parsed.payment_id as string | string[] | undefined) ??
         toStr(parsed.paymentId as string | string[] | undefined),
       status: toStr(parsed.status as string | string[] | undefined),
+      status_detail: toStr(parsed.status_detail as string | string[] | undefined),
       final_amount: parsed.final_amount ? Number(parsed.final_amount) : undefined,
       currency: toStr(parsed.currency as string | string[] | undefined),
       collector: toStr(parsed.collector as string | string[] | undefined),
@@ -204,6 +207,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         status: updated.status,
         paymentNumber: updated.paymentNumber,
       });
+
+      // 6.1) Registra PaymentAttempt
+      if (paymentId) {
+        try {
+          await prisma.paymentAttempt.create({
+            data: {
+              payment: {
+                connectOrCreate: {
+                  where: { orderId: orderId },
+                  create: {
+                    orderId: orderId,
+                    provider: "PAGOTIC",
+                    status:
+                      nextStatus === "PAID"
+                        ? "APPROVED"
+                        : nextStatus === "CANCELLED"
+                        ? "FAILED"
+                        : "PENDING",
+                    amount: body.final_amount ?? order.total,
+                    rawResponse: body as Prisma.InputJsonValue, // ✅ tipagem correta
+                  },
+                },
+              },
+              status:
+                nextStatus === "PAID"
+                  ? "APPROVED"
+                  : nextStatus === "CANCELLED"
+                  ? "FAILED"
+                  : "PENDING",
+              detail: body.status_detail ?? null,
+              rawResponse: body as Prisma.InputJsonValue, // ✅ tipagem correta
+            },
+          });
+          console.log("[PagoTIC][Proxy] PaymentAttempt salvo:", {
+            orderId,
+            status: nextStatus,
+            detail: body.status_detail,
+          });
+        } catch (err) {
+          console.error("[PagoTIC][Proxy] Falha ao salvar PaymentAttempt:", err);
+        }
+      }
 
       // 7) Se pago → gera tickets e envia email
       if (nextStatus === "PAID") {
