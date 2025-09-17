@@ -1,4 +1,4 @@
-// src/moduls/pagotic/pagotic.router.ts
+// src/modules/pagotic/pagotic.router.ts
 import { router, protectedProcedure, publicProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -14,6 +14,7 @@ import {
 import { PagoticService } from "./pagotic.service";
 import { mapPayment } from "./pagotic.mappers";
 import { prisma } from "@/lib/prisma";
+import type { NextApiRequest } from "next";
 
 const svc = new PagoticService();
 
@@ -78,7 +79,7 @@ export const pagoticRouter = router({
   createPayment: protectedProcedure
     .input(createPaymentInput)
     .mutation(async ({ input, ctx }) => {
-      // 1) deriva orderId
+      // 1) Deriva orderId
       const orderIdFromCtx = extractOrderId(ctx);
       const orderIdFromMeta =
         typeof input.metadata?.appOrderId === "string" && input.metadata.appOrderId
@@ -93,7 +94,7 @@ export const pagoticRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Missing order id to build external_transaction_id" });
       }
 
-      // 2) idempotência — se já temos payment para a Order, retorna
+      // 2) Idempotência — se já temos payment para a Order, retorna
       const existing = await prisma.order.findUnique({
         where: { id: orderId },
         select: { paymentNumber: true, formUrl: true, status: true },
@@ -109,7 +110,7 @@ export const pagoticRouter = router({
           requestDate: null,
           details: [],
           raw: {},
-          reused: true, // 🔹 indica reaproveitamento
+          reused: true,
         };
       }
 
@@ -125,31 +126,73 @@ export const pagoticRouter = router({
         }
       }
 
-      // 3) normalize URLs vindas do client
-      const cleaned: typeof input = {
+      // 3) Normaliza payer e payment_methods
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { user: true },
+      });
+      if (!order || !order.user) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Order or User not found" });
+      }
+
+      const payer = {
+        name: order.user.name ?? undefined,
+        email: order.user.email ?? undefined,
+        identification: order.user.dni
+          ? { type: "DNI", number: order.user.dni, country: "ARG" }
+          : undefined,
+        phones: order.user.phone
+          ? [
+              {
+                description: "mobile",
+                number: Number(order.user.phone.replace(/\D/g, "")) || undefined,
+              },
+            ]
+          : undefined,
+      };
+
+      const payment_methods = input.payment_methods?.map((pm) => ({
+        ...pm,
+        holder: {
+          name: order.user?.name ?? undefined, // 🔹 corrige null → undefined
+          identification: payer.identification,
+        },
+      }));
+
+      // Extrai IP do request (se disponível)
+      const req = (ctx as { req?: NextApiRequest }).req;
+      const ipAddress = req?.headers?.["x-forwarded-for"] as string | undefined;
+
+      // external_transaction_id único por tentativa
+      const externalId = `order_${orderId}_${Date.now()}`;
+
+      // 4) Monta body final
+      const cleaned = {
         ...input,
-        external_transaction_id: `order_${orderId}`,
+        external_transaction_id: externalId,
         return_url: normalizeInputUrl(input.return_url),
         back_url: normalizeInputUrl(input.back_url),
         notification_url: normalizeInputUrl(input.notification_url),
+        payer,
+        payment_methods,
         metadata: {
           ...(input.metadata ?? {}),
           appOrderId: orderId,
           appUserId: ctx.session?.user?.id ?? undefined,
+          ipAddress,
         },
       };
 
       const resp = await svc.createPayment(cleaned);
       const mapped = mapPayment(resp);
 
-
-      // 4) espelha na Order (sem bloquear UX em caso de falha)
+      // 5) Espelha na Order
       await prisma.order.update({
         where: { id: orderId },
         data: {
           paymentNumber: mapped.id,
           formUrl: mapped.formUrl ?? null,
-          externalTransactionId: `order_${orderId}`,
+          externalTransactionId: externalId,
         },
       }).catch((e: unknown) => {
         console.error(
@@ -158,7 +201,7 @@ export const pagoticRouter = router({
         );
       });
 
-      return { ...mapped, reused: false }; // 🔹 pagamento novo
+      return { ...mapped, reused: false };
     }),
 
   getPaymentById: protectedProcedure
