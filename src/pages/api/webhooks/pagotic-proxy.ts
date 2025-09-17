@@ -2,7 +2,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as qs from "querystring";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client"; // aqui sim tem os tipos
+import type { Prisma } from "@prisma/client";
 import { generateTicketsFromOrder } from "@/modules/ticket/ticket.service";
 import { sendTicketEmail } from "@/modules/sendmail/mailer";
 import type { Ticket } from "@prisma/client";
@@ -94,7 +94,7 @@ async function parseNotification(raw: string, ct: string): Promise<PagoTicNotifi
 }
 
 // ------------------------
-// Reenvio CMS
+// Reenvio CMS (executa só no final do fluxo local)
 // ------------------------
 async function resendCms(rawBody: string, contentType: string | undefined) {
   const url = "https://app.cmsargentina.com/acquisition/v2/notify";
@@ -139,12 +139,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       console.log("[PagoTIC][Proxy] Notificação recebida:", body);
 
-      // 1) Reenvio CMS (não bloqueia fluxo local)
-      resendCms(rawBody, ct).catch((err) =>
-        console.error("[PagoTIC][Proxy] CMS erro:", err),
-      );
-
-      // 2) Valida collector
+      // 1) Valida collector
       const expectedCollector = process.env.PAGOTIC_COLLECTOR_ID;
       if (expectedCollector && body.collector && body.collector !== expectedCollector) {
         console.warn("[PagoTIC][Proxy] Collector inválido", {
@@ -154,7 +149,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return;
       }
 
-      // 3) Extrai dados
+      // 2) Extrai dados
       const ext = body.external_transaction_id ?? "";
       if (!ext) {
         console.warn("[PagoTIC][Proxy] sem external_transaction_id, pedido segue pendente");
@@ -175,7 +170,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentId,
       });
 
-      // 4) Busca order
+      // 3) Busca order
       const order = await prisma.order.findUnique({
         where: { id: orderId },
         include: { user: true, Event: true },
@@ -185,13 +180,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return;
       }
 
-      // 5) Idempotência
+      // 4) Idempotência
       if (order.status === "PAID" && nextStatus === "PAID") {
         console.log("[PagoTIC][Proxy] Pedido já está pago:", orderId);
         return;
       }
 
-      // 6) Atualiza status no banco
+      // 5) Atualiza status no banco
       const updated = await prisma.order.update({
         where: { id: orderId },
         data: {
@@ -208,7 +203,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentNumber: updated.paymentNumber,
       });
 
-      // 6.1) Registra PaymentAttempt
+      // 6) Registra PaymentAttempt
       if (paymentId) {
         try {
           await prisma.paymentAttempt.create({
@@ -226,7 +221,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                         ? "FAILED"
                         : "PENDING",
                     amount: body.final_amount ?? order.total,
-                    rawResponse: body as Prisma.InputJsonValue, // ✅ tipagem correta
+                    rawResponse: body as Prisma.InputJsonValue,
                   },
                 },
               },
@@ -237,7 +232,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   ? "FAILED"
                   : "PENDING",
               detail: body.status_detail ?? null,
-              rawResponse: body as Prisma.InputJsonValue, // ✅ tipagem correta
+              rawResponse: body as Prisma.InputJsonValue,
             },
           });
           console.log("[PagoTIC][Proxy] PaymentAttempt salvo:", {
@@ -271,6 +266,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           console.error("[PagoTIC][Proxy] reconcile error:", err),
         );
       }
+
+      // 9) 🔹 Reenvio CMS só após o fluxo local concluir
+      resendCms(rawBody, ct).catch((err) =>
+        console.error("[PagoTIC][Proxy] CMS erro:", err),
+      );
     } catch (e) {
       console.error("[PagoTIC][Proxy] erro inesperado:", e);
     }
