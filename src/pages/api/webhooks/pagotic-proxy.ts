@@ -1,3 +1,4 @@
+// src/pages/api/webhooks/pagotic-proxy.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as qs from "querystring";
 import { prisma } from "@/lib/prisma";
@@ -5,6 +6,7 @@ import type { Prisma, Ticket } from "@prisma/client";
 import { generateTicketsFromOrder } from "@/modules/ticket/ticket.service";
 import { sendTicketEmail } from "@/modules/sendmail/mailer";
 import { normalizePagoticStatus } from "@/modules/pagotic/pagotic.utils";
+import { webhookPayloadSchema } from "@/modules/pagotic/pagotic.schema";
 
 export const config = { api: { bodyParser: false } };
 
@@ -63,6 +65,7 @@ async function parseNotification(raw: string, ct: string): Promise<PagoTicNotifi
     return {};
   }
 }
+
 // -------------------------
 // Handler
 // -------------------------
@@ -71,11 +74,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const rawBody = await readRawBody(req);
   const ct = String(req.headers["content-type"] ?? "");
-  res.status(200).json({ ok: true }); // ACK imediato
+  res.status(200).json({ ok: true }); // ✅ ACK imediato
 
   (async () => {
     try {
-      const body = await parseNotification(rawBody, ct);
+      // 1) Parse bruto
+      const rawParsed = await parseNotification(rawBody, ct);
+
+      // 2) Validação Zod (igual ao webhook)
+      const parsed = webhookPayloadSchema.safeParse(rawParsed);
+      if (!parsed.success) {
+        console.error("[PagoTIC][Proxy] Payload inválido:", parsed.error.flatten());
+        return;
+      }
+      const body: PagoTicNotification = parsed.data;
+
       console.log("[PagoTIC][Proxy] Notificação recebida:", {
         id: body.id,
         status: body.status,
@@ -83,6 +96,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         payment_number: body.payment_number,
       });
 
+      // Extrair orderId
       const ext = body.external_transaction_id ?? "";
       if (!ext) return console.warn("[PagoTIC][Proxy] sem external_transaction_id");
 
@@ -96,7 +110,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       if (!order) return console.error("[PagoTIC][Proxy] Order não encontrada:", orderId);
 
-      // evita downgrade / duplicado
+      // Evita downgrade / duplicado
       if (order.status === "PAID" && nextStatus === "PAID") return;
 
       const updated = await prisma.order.update({
@@ -109,6 +123,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         include: { user: true, Event: true },
       });
 
+      // Registrar tentativa de pagamento
       if (paymentId) {
         const attemptTag = `${paymentId}:${nextStatus}:${body.status_detail ?? ""}`;
         const exists = await prisma.paymentAttempt.findFirst({
@@ -150,6 +165,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
 
+      // Pós-pagamento
       if (nextStatus === "PAID") {
         try {
           const ticketsAll = await generateTicketsFromOrder(updated.id);

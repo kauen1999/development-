@@ -180,8 +180,8 @@ export const pagoticRouter = router({
       const req = (ctx as { req?: NextApiRequest }).req;
       const ipAddress = req?.headers?.["x-forwarded-for"] as string | undefined;
 
-      // 6) external_transaction_id único por tentativa
-      const externalId = `order_${orderId}_${Date.now()}`;
+      // 6) external_transaction_id compatível com webhook/proxy
+      const externalId = `order_${orderId}`;
 
       // 7) Corpo final
       const cleaned = {
@@ -208,6 +208,7 @@ export const pagoticRouter = router({
         .update({
           where: { id: orderId },
           data: {
+            status: "PENDING", // garante consistência
             paymentNumber: mapped.id,
             formUrl: mapped.formUrl ?? null,
             externalTransactionId: externalId,
