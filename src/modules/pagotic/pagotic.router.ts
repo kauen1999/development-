@@ -18,6 +18,9 @@ import type { NextApiRequest } from "next";
 
 const svc = new PagoticService();
 
+// ------------------------
+// Helpers
+// ------------------------
 function isPublicHttpUrl(value?: string): value is string {
   if (!value) return false;
   try {
@@ -45,13 +48,22 @@ function extractOrderId(ctx: unknown): string | undefined {
   return undefined;
 }
 
+// ------------------------
+// Router
+// ------------------------
 export const pagoticRouter = router({
   startPagoTICPayment: protectedProcedure
     .input(z.object({ orderId: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
       const order = await prisma.order.findUnique({
         where: { id: input.orderId },
-        select: { id: true, userId: true, formUrl: true, paymentNumber: true, status: true },
+        select: {
+          id: true,
+          userId: true,
+          formUrl: true,
+          paymentNumber: true,
+          status: true,
+        },
       });
       if (!order) throw new TRPCError({ code: "NOT_FOUND", message: "Order not found" });
 
@@ -85,16 +97,20 @@ export const pagoticRouter = router({
         typeof input.metadata?.appOrderId === "string" && input.metadata.appOrderId
           ? input.metadata.appOrderId
           : undefined;
-      const orderIdFromExt = input.external_transaction_id?.toLowerCase().startsWith("order_")
-        ? input.external_transaction_id.slice(6)
-        : undefined;
+      const orderIdFromExt =
+        input.external_transaction_id?.toLowerCase().startsWith("order_")
+          ? input.external_transaction_id.slice(6)
+          : undefined;
 
       const orderId = orderIdFromCtx ?? orderIdFromMeta ?? orderIdFromExt;
       if (!orderId) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Missing order id to build external_transaction_id" });
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Missing order id to build external_transaction_id",
+        });
       }
 
-      // 2) Idempotência — se já temos payment para a Order, retorna
+      // 2) Idempotência — se já existe payment pendente
       const existing = await prisma.order.findUnique({
         where: { id: orderId },
         select: { paymentNumber: true, formUrl: true, status: true },
@@ -114,19 +130,19 @@ export const pagoticRouter = router({
         };
       }
 
-      // Se já havia pagamento mas status != PENDING, tenta cancelar
+      // Se já havia pagamento mas status != PENDING → tenta cancelar
       if (existing?.paymentNumber && existing.status !== "PENDING") {
         try {
           await svc.cancelPayment(existing.paymentNumber, "Superseded by new attempt");
         } catch (e) {
           console.warn(
             "[PagoTIC][router.createPayment] cancel previous payment failed:",
-            e instanceof Error ? e.message : String(e)
+            e instanceof Error ? e.message : String(e),
           );
         }
       }
 
-      // 3) Normaliza payer e payment_methods
+      // 3) Monta payer
       const order = await prisma.order.findUnique({
         where: { id: orderId },
         include: { user: true },
@@ -151,22 +167,23 @@ export const pagoticRouter = router({
           : undefined,
       };
 
+      // 4) Enriquecer métodos de pagamento
       const payment_methods = input.payment_methods?.map((pm) => ({
         ...pm,
         holder: {
-          name: order.user?.name ?? undefined, // 🔹 corrige null → undefined
+          name: order.user?.name ?? undefined,
           identification: payer.identification,
         },
       }));
 
-      // Extrai IP do request (se disponível)
+      // 5) IP address (antifraude)
       const req = (ctx as { req?: NextApiRequest }).req;
       const ipAddress = req?.headers?.["x-forwarded-for"] as string | undefined;
 
-      // external_transaction_id único por tentativa
+      // 6) external_transaction_id único por tentativa
       const externalId = `order_${orderId}_${Date.now()}`;
 
-      // 4) Monta body final
+      // 7) Corpo final
       const cleaned = {
         ...input,
         external_transaction_id: externalId,
@@ -186,20 +203,22 @@ export const pagoticRouter = router({
       const resp = await svc.createPayment(cleaned);
       const mapped = mapPayment(resp);
 
-      // 5) Espelha na Order
-      await prisma.order.update({
-        where: { id: orderId },
-        data: {
-          paymentNumber: mapped.id,
-          formUrl: mapped.formUrl ?? null,
-          externalTransactionId: externalId,
-        },
-      }).catch((e: unknown) => {
-        console.error(
-          "[PagoTIC][router.createPayment] Persist error:",
-          e instanceof Error ? e.message : String(e)
-        );
-      });
+      // 8) Espelha na Order
+      await prisma.order
+        .update({
+          where: { id: orderId },
+          data: {
+            paymentNumber: mapped.id,
+            formUrl: mapped.formUrl ?? null,
+            externalTransactionId: externalId,
+          },
+        })
+        .catch((e: unknown) => {
+          console.error(
+            "[PagoTIC][router.createPayment] Persist error:",
+            e instanceof Error ? e.message : String(e),
+          );
+        });
 
       return { ...mapped, reused: false };
     }),

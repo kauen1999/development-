@@ -26,28 +26,25 @@ async function notifyCms(raw: string) {
 export async function pagoticWebhookHandler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
 
-  // ✅ responde imediatamente
+  // 1) Responda 200 imediatamente
   res.status(200).json({ ok: true });
 
+  // 2) Background
   (async () => {
     try {
       const rawBody = JSON.stringify(req.body);
       const parse = webhookPayloadSchema.safeParse(req.body);
-
       if (!parse.success) {
         console.error("[PAGOTIC][Webhook] payload inválido", parse.error.flatten());
         return;
       }
-
       const payload = parse.data;
 
-      // 🔹 Corrige erro do TS
-      const extId =
-        typeof payload.external_transaction_id === "string"
-          ? payload.external_transaction_id
-          : "";
-      const orderId = extId.toLowerCase().startsWith("order_") ? extId.slice(6) : undefined;
+      // 2.a) **Notifique CMS imediatamente em paralelo**
+      void notifyCms(rawBody);
 
+      const extId = typeof payload.external_transaction_id === "string" ? payload.external_transaction_id : "";
+      const orderId = extId.toLowerCase().startsWith("order_") ? extId.slice(6) : undefined;
       if (!orderId) {
         console.warn("[PAGOTIC][Webhook] sem external_transaction_id");
         return;
@@ -61,7 +58,6 @@ export async function pagoticWebhookHandler(req: NextApiRequest, res: NextApiRes
         nextStatus,
       });
 
-      // Busca order
       const order = await prisma.order.findUnique({
         where: { id: orderId },
         include: { user: true, Event: true },
@@ -71,7 +67,12 @@ export async function pagoticWebhookHandler(req: NextApiRequest, res: NextApiRes
         return;
       }
 
-      // Atualiza status
+      // guard idempotente
+      if (order.status === nextStatus && nextStatus === "PAID") {
+        console.log("[PAGOTIC][Webhook] Order já paga:", orderId);
+        return;
+      }
+
       const updated = await prisma.order.update({
         where: { id: orderId },
         data: {
@@ -82,46 +83,53 @@ export async function pagoticWebhookHandler(req: NextApiRequest, res: NextApiRes
         include: { user: true, Event: true },
       });
 
-      // Registra PaymentAttempt
+      // PaymentAttempt idempotente suave
       try {
-        await prisma.paymentAttempt.create({
-          data: {
-            payment: {
-              connectOrCreate: {
-                where: { orderId: orderId },
-                create: {
-                  orderId,
-                  provider: "PAGOTIC",
-                  status:
-                    nextStatus === "PAID"
-                      ? "APPROVED"
-                      : nextStatus === "CANCELLED"
-                      ? "FAILED"
-                      : "PENDING",
-                  amount: payload.final_amount ?? order.total,
-                  rawResponse: payload as unknown as Prisma.InputJsonValue, // ✅ corrigido
+        const paymentId = payload.id ?? "";
+        const attemptTag = `${paymentId}:${nextStatus}:${payload.status ?? ""}`;
+        const exists = await prisma.paymentAttempt.findFirst({
+          where: { payment: { orderId }, attemptTag },
+          select: { id: true },
+        });
+        if (!exists) {
+          await prisma.paymentAttempt.create({
+            data: {
+              attemptTag: `${paymentId}:${nextStatus}:${payload.status ?? ""}`, 
+              payment: {
+                connectOrCreate: {
+                  where: { orderId },
+                  create: {
+                    orderId,
+                    provider: "PAGOTIC",
+                    status:
+                      nextStatus === "PAID"
+                        ? "APPROVED"
+                        : nextStatus === "CANCELLED"
+                        ? "FAILED"
+                        : "PENDING",
+                    amount: payload.final_amount ?? order.total,
+                    rawResponse: payload as unknown as Prisma.InputJsonValue,
+                  },
                 },
               },
+              status:
+                nextStatus === "PAID"
+                  ? "APPROVED"
+                  : nextStatus === "CANCELLED"
+                  ? "FAILED"
+                  : "PENDING",
+              detail: payload.status ?? null,
+              rawResponse: payload as unknown as Prisma.InputJsonValue,
             },
-            status:
-              nextStatus === "PAID"
-                ? "APPROVED"
-                : nextStatus === "CANCELLED"
-                ? "FAILED"
-                : "PENDING",
-            detail: payload.status ?? null,
-            rawResponse: payload as unknown as Prisma.InputJsonValue, // ✅ corrigido
-          },
-        });
-        console.log("[PAGOTIC][Webhook] PaymentAttempt salvo:", {
-          orderId,
-          status: nextStatus,
-        });
+          });
+          console.log("[PAGOTIC][Webhook] PaymentAttempt salvo:", { orderId, status: nextStatus });
+        } else {
+          console.log("[PAGOTIC][Webhook] PaymentAttempt já existente:", { attemptTag });
+        }
       } catch (err) {
         console.error("[PAGOTIC][Webhook] Falha ao salvar PaymentAttempt:", err);
       }
 
-      // Se pago → gera tickets e envia email
       if (nextStatus === "PAID") {
         try {
           const ticketsAll = await generateTicketsFromOrder(updated.id);
@@ -135,9 +143,6 @@ export async function pagoticWebhookHandler(req: NextApiRequest, res: NextApiRes
           console.error("[PAGOTIC][Webhook] Erro pós-pagamento:", err);
         }
       }
-
-      // 🔹 Só agora envia para o CMS
-      await notifyCms(rawBody);
     } catch (e) {
       console.error("[PAGOTIC][Webhook] erro inesperado:", e);
     }
