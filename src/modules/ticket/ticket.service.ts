@@ -3,15 +3,19 @@ import { prisma } from "@/lib/prisma";
 import { TRPCError } from "@trpc/server";
 import { generateTicketAssets } from "./ticketGeneration.service";
 import crypto from "crypto";
+import type { Ticket } from "@prisma/client";
 
+// -------------------------
+// Gerar um ticket a partir de um OrderItem
+// -------------------------
 export async function generateAndSaveTicket(orderItemId: string) {
-  // check if ticket already exists
-  const existing = await prisma.ticket.findUnique({
+  // Verifica se já existe ticket para esse item
+  const existing = await prisma.ticket.findFirst({
     where: { orderItemId },
   });
   if (existing) return existing;
 
-  // find orderItem with relations
+  // Busca o OrderItem com relações necessárias
   const orderItem = await prisma.orderItem.findUnique({
     where: { id: orderItemId },
     include: {
@@ -30,7 +34,7 @@ export async function generateAndSaveTicket(orderItemId: string) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Order item not found" });
   }
 
-  // create ticket with qrId
+  // Cria ticket inicial com UUID
   const ticket = await prisma.ticket.create({
     data: {
       seatId: orderItem.seatId,
@@ -38,18 +42,21 @@ export async function generateAndSaveTicket(orderItemId: string) {
       orderItemId: orderItem.id,
       userId: orderItem.order.userId,
       eventId: orderItem.order.eventId,
-      qrId: crypto.randomUUID(), // ✅ string UUID
+      qrId: crypto.randomUUID(),
       qrCodeUrl: "",
       pdfUrl: "",
     },
   });
 
-  // generate QR + PDF com base no qrId
+  // Gera QR + PDF baseado no qrId
   await generateTicketAssets(ticket.id);
 
   return prisma.ticket.findUnique({ where: { id: ticket.id } });
 }
 
+// -------------------------
+// Gerar todos os tickets de uma Order
+// -------------------------
 export async function generateTicketsFromOrder(orderId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -57,18 +64,25 @@ export async function generateTicketsFromOrder(orderId: string) {
   });
   if (!order) throw new Error("Order not found");
 
-  const tickets = [];
-  for (const item of order.orderItems) {
-    const ticket = await generateAndSaveTicket(item.id);
-    tickets.push(ticket);
-  }
-  return tickets;
+  // Usa Promise.all para paralelizar a geração
+  const tickets = await Promise.all(
+    order.orderItems.map((item) => generateAndSaveTicket(item.id))
+  );
+
+  // Filtra nulos e retorna apenas tickets válidos
+  return tickets.filter((t): t is Ticket => Boolean(t));
 }
 
+// -------------------------
+// Buscar tickets de um OrderItem
+// -------------------------
 export async function getTicketsByOrderItemService(orderItemId: string) {
   return prisma.ticket.findMany({ where: { orderItemId } });
 }
 
+// -------------------------
+// Marcar ticket como usado
+// -------------------------
 export async function markTicketAsUsedService(ticketId: string) {
   return prisma.ticket.update({
     where: { id: ticketId },
@@ -76,14 +90,16 @@ export async function markTicketAsUsedService(ticketId: string) {
   });
 }
 
-// nova validação com logs
+// -------------------------
+// Validar ticket (entrada)
+// -------------------------
 export async function validateTicketService(
   qrId: string,
   validatorId: string,
   device?: string
 ) {
   const ticket = await prisma.ticket.findUnique({
-    where: { qrId }, // ✅ busca por qrId
+    where: { qrId },
     include: { event: true, user: true },
   });
 
@@ -107,9 +123,9 @@ export async function validateTicketService(
 
   return {
     status: "valid",
-    usedAt: usedAt.toISOString(), // ✅ string
+    usedAt: usedAt.toISOString(),
     ticketId: updated.id,
-    qrId: updated.qrId, // ✅ string
+    qrId: updated.qrId,
     eventName: ticket.event.name,
     userEmail: ticket.user.email,
   };
