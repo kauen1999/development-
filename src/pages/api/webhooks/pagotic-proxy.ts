@@ -78,10 +78,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   (async () => {
     try {
-      // 1) Parse bruto
+      // 1) Parse + validação
       const rawParsed = await parseNotification(rawBody, ct);
-
-      // 2) Validação Zod (igual ao webhook)
       const parsed = webhookPayloadSchema.safeParse(rawParsed);
       if (!parsed.success) {
         console.error("[PagoTIC][Proxy] Payload inválido:", parsed.error.flatten());
@@ -96,13 +94,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         payment_number: body.payment_number,
       });
 
-      // Extrair orderId
+      // 2) Extrair orderId
       const ext = body.external_transaction_id ?? "";
       if (!ext) return console.warn("[PagoTIC][Proxy] sem external_transaction_id");
 
       const orderId = resolveOrderIdFromExternal(ext);
       const nextStatus = normalizePagoticStatus(body.status);
       const paymentId = body.id ?? String(body.payment_number ?? "");
+      const detail = (body.status_detail ?? "").trim();
 
       const order = await prisma.order.findUnique({
         where: { id: orderId },
@@ -110,9 +109,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       if (!order) return console.error("[PagoTIC][Proxy] Order não encontrada:", orderId);
 
-      // Evita downgrade / duplicado
-      if (order.status === "PAID" && nextStatus === "PAID") return;
-
+      // 3) Atualizar pedido
       const updated = await prisma.order.update({
         where: { id: orderId },
         data: {
@@ -123,9 +120,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         include: { user: true, Event: true },
       });
 
-      // Registrar tentativa de pagamento
+      // 4) Sempre registrar PaymentAttempt
       if (paymentId) {
-        const attemptTag = `${paymentId}:${nextStatus}:${body.status_detail ?? ""}`;
+        const attemptTag = `${paymentId}:${nextStatus}:${detail}`;
         const exists = await prisma.paymentAttempt.findFirst({
           where: { payment: { orderId }, attemptTag },
           select: { id: true },
@@ -158,20 +155,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   : nextStatus === "CANCELLED"
                   ? "FAILED"
                   : "PENDING",
-              detail: body.status_detail ?? null,
+              detail,
               rawResponse: body as Prisma.InputJsonValue,
             },
           });
+          console.log("[PagoTIC][Proxy] PaymentAttempt salvo:", { orderId, status: nextStatus });
+        } else {
+          console.log("[PagoTIC][Proxy] PaymentAttempt já existente:", { attemptTag });
         }
       }
 
-      // Pós-pagamento
+      // 5) Pós-pagamento só se PagoTIC disse PAID
       if (nextStatus === "PAID") {
         try {
           const ticketsAll = await generateTicketsFromOrder(updated.id);
           const tickets = (ticketsAll as Ticket[]).filter(Boolean);
+          console.log("[PagoTIC][Proxy] Tickets gerados:", tickets.map((t) => t.id));
+
           if (updated.user?.email) {
             await sendTicketEmail(updated.user, updated.Event, tickets);
+            console.log("[PagoTIC][Proxy] Email enviado:", updated.user.email);
           }
         } catch (err) {
           console.error("[PagoTIC][Proxy] pós-pagamento falhou:", err);
