@@ -9,6 +9,8 @@ import { webhookPayloadSchema } from "./pagotic.schema";
 
 export const config = { api: { bodyParser: false } };
 
+const CMS_NOTIFY_URL = "https://app.cmsargentina.com/acquisition/v2/notify";
+
 type PagoTicNotification = {
   id?: string;
   payment_id?: string;
@@ -27,6 +29,44 @@ function resolveOrderIdFromExternal(externalId: string): string {
   return externalId.toLowerCase().startsWith("order_")
     ? externalId.slice(6) // 🔑 remove prefixo
     : externalId;
+}
+
+async function notifyCms(raw: string, orderId: string) {
+  try {
+    await fetch(CMS_NOTIFY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: raw,
+    });
+    console.log("[PagoTIC][Webhook] CMS notificado com sucesso");
+    return true;
+  } catch (err) {
+    console.error("[PagoTIC][Webhook] Falha ao notificar CMS:", err);
+
+    // Logar falha no PaymentAttempt
+    await prisma.paymentAttempt.create({
+      data: {
+        attemptTag: `CMS_NOTIFY_FAILED:${orderId}:${Date.now()}`,
+        payment: {
+          connectOrCreate: {
+            where: { orderId },
+            create: {
+              orderId,
+              provider: "PAGOTIC",
+              status: "FAILED",
+              amount: 0,
+              rawResponse: {},
+            },
+          },
+        },
+        status: "FAILED",
+        detail: "CMS_NOTIFY_FAILED",
+        rawResponse: { error: String(err) } as Prisma.InputJsonValue,
+      },
+    });
+
+    return false;
+  }
 }
 
 // -------------------------
@@ -66,6 +106,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Normalizar status
       const nextStatus = normalizePagoticStatus(payload.status);
       const paymentId = payload.id ?? String(payload.payment_number ?? "");
+
+      // 🔹 Dispara CMS em paralelo (não bloqueia webhook PagoTIC)
+      void notifyCms(JSON.stringify(payload), orderId);
 
       // Buscar order
       const order = await prisma.order.findUnique({

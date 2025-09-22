@@ -2,11 +2,13 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { normalizePagoticStatus } from "@/modules/pagotic/pagotic.utils";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "";
+const ENV_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    // Fallbacks para external_transaction_id
+    // ------------------------
+    // Helpers para capturar external_transaction_id
+    // ------------------------
     const ext =
       (req.query?.external_transaction_id as string | undefined) ??
       (req.query?.externalId as string | undefined) ??
@@ -19,7 +21,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           )
         : undefined);
 
-    // Fallbacks para status
+    // ------------------------
+    // Helpers para capturar status
+    // ------------------------
     const statusRaw =
       (req.query?.status as string | undefined) ??
       (req.query?.statusCode as string | undefined) ??
@@ -32,19 +36,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           )
         : undefined);
 
+    // ------------------------
     // Resolve orderId
+    // ------------------------
     const orderId = ext?.toLowerCase().startsWith("order_")
       ? ext.slice(6)
       : undefined;
 
-    // Normaliza status com função unificada
+    // ------------------------
+    // Normaliza status
+    // ------------------------
     const normalized = normalizePagoticStatus(statusRaw);
 
+    // ------------------------
+    // Resolve BASE_URL de forma robusta
+    // ------------------------
+    const host = req.headers.host;
+    const protocol = host?.includes("localhost") ? "http" : "https";
+    const baseUrl = ENV_BASE_URL || (host ? `${protocol}://${host}` : "");
+
+    // ------------------------
+    // Monta a URL de redirecionamento
+    // ------------------------
     let url: string;
     if (normalized === "PAID") {
-      url = `${BASE_URL}/checkout/confirmation${orderId ? `?orderId=${encodeURIComponent(orderId)}` : ""}`;
+      url = `${baseUrl}/checkout/confirmation${orderId ? `?orderId=${encodeURIComponent(orderId)}` : ""}`;
     } else {
-      url = `${BASE_URL}/checkout/failed${orderId ? `?orderId=${encodeURIComponent(orderId)}` : ""}`;
+      url = `${baseUrl}/checkout/failed${orderId ? `?orderId=${encodeURIComponent(orderId)}` : ""}`;
     }
 
     res.writeHead(302, { Location: url });

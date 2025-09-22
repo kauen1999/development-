@@ -36,7 +36,7 @@ export default function MyActiveEvents() {
         >
           <h3 className="text-lg font-bold text-gray-800">{ev.name}</h3>
           <p className="text-sm text-gray-600 mb-2">
-            Total: {ev.totalSold}/{ev.totalCapacity} vendidos
+            Total: {ev.totalSold}/{ev.totalCapacity} vendidos • {ev.totalValidated} validados
           </p>
 
           <div className="mt-3 space-y-1">
@@ -47,7 +47,7 @@ export default function MyActiveEvents() {
               >
                 <span>{cat.title}</span>
                 <span>
-                  {cat.sold} vendidos / {cat.remaining} restantes
+                  {cat.sold} vendidos • {cat.validated} validados / {cat.remaining} restantes
                 </span>
               </div>
             ))}

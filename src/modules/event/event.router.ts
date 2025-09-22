@@ -120,7 +120,9 @@ export const eventRouter = router({
         eventSessions: {
           include: {
             ticketCategories: {
-              include: { _count: { select: { tickets: true } } },
+              include: {
+                tickets: { select: { id: true, usedAt: true } }, // 👈 pega vendidos + usados
+              },
             },
           },
         },
@@ -139,7 +141,17 @@ export const eventRouter = router({
         (sum, s) =>
           sum +
           s.ticketCategories.reduce(
-            (acc, c) => acc + (c._count.tickets ?? 0),
+            (acc, c) => acc + c.tickets.length, // 👈 total vendidos
+            0
+          ),
+        0
+      );
+
+      const totalValidated = ev.eventSessions.reduce(
+        (sum, s) =>
+          sum +
+          s.ticketCategories.reduce(
+            (acc, c) => acc + c.tickets.filter((t) => t.usedAt !== null).length, // 👈 validados
             0
           ),
         0
@@ -151,16 +163,19 @@ export const eventRouter = router({
         status: ev.status,
         totalCapacity,
         totalSold,
+        totalValidated, // 👈 agora também retorna validados
         categories: ev.eventSessions.flatMap((s) =>
           s.ticketCategories.map((c) => ({
             id: c.id,
             title: c.title,
             capacity: c.capacity,
-            sold: c._count.tickets,
-            remaining: Math.max(0, (c.capacity ?? 0) - (c._count.tickets ?? 0)),
+            sold: c.tickets.length, // 👈 vendidos
+            validated: c.tickets.filter((t) => t.usedAt !== null).length, // 👈 validados
+            remaining: Math.max(0, (c.capacity ?? 0) - c.tickets.length),
           }))
         ),
       };
     });
   }),
+
 });

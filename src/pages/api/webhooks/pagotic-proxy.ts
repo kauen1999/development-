@@ -5,11 +5,42 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma, Ticket } from "@prisma/client";
 import { generateTicketsFromOrder } from "@/modules/ticket/ticket.service";
 import { sendTicketEmail } from "@/modules/sendmail/mailer";
-import { normalizePagoticStatus } from "@/modules/pagotic/pagotic.utils";
+import { normalizePagoticStatus, withTimeout } from "@/modules/pagotic/pagotic.utils";
 import { webhookPayloadSchema } from "@/modules/pagotic/pagotic.schema";
 
 export const config = { api: { bodyParser: false } };
 
+const CMS_NOTIFY_URL = "https://app.cmsargentina.com/acquisition/v2/notify";
+
+// -------------------------
+// CMS Notify (retry simples)
+// -------------------------
+async function notifyCms(raw: string, contentType = "application/json") {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await fetch(CMS_NOTIFY_URL, {
+        method: "POST",
+        headers: { "Content-Type": contentType },
+        body: raw,
+        signal: withTimeout(15000),
+      });
+      console.log("[PagoTIC][Proxy] CMS notificado com sucesso");
+      return true;
+    } catch (err) {
+      console.error(`[PagoTIC][Proxy] CMS falhou (tentativa ${attempt}):`, err);
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, attempt * 2000));
+      }
+    }
+  }
+  console.error("[PagoTIC][Proxy] CMS segue com falha após tentativas");
+  return false;
+}
+
+// -------------------------
+// Helpers
+// -------------------------
 type PagoTicNotification = {
   id?: string;
   payment_id?: string;
@@ -21,9 +52,6 @@ type PagoTicNotification = {
   payment_number?: string | number | null;
 };
 
-// -------------------------
-// Helpers
-// -------------------------
 function toStr(v: string | string[] | number | undefined | null): string | undefined {
   if (typeof v === "string") return v;
   if (Array.isArray(v)) return v[0];
@@ -53,7 +81,6 @@ async function parseNotification(raw: string, ct: string): Promise<PagoTicNotifi
       payment_number: toStr(parsed.payment_number),
     };
   }
-
   try {
     const json = JSON.parse(raw) as PagoTicNotification;
     return {
@@ -75,6 +102,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const rawBody = await readRawBody(req);
     const ct = String(req.headers["content-type"] ?? "");
+
+    // 🔹 Dispara notificação ao CMS em paralelo (não bloqueia fluxo)
+    void notifyCms(rawBody, ct);
 
     // 1) Parse + validação
     const rawParsed = await parseNotification(rawBody, ct);
@@ -148,7 +178,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
 
-    // 4) Pós-pagamento (linear)
+    // 4) Pós-pagamento
     if (nextStatus === "PAID") {
       try {
         const ticketsAll = await generateTicketsFromOrder(updated.id);
@@ -161,7 +191,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log("[PagoTIC][Proxy] Tickets e e-mail enviados para order:", orderId);
       } catch (err) {
         console.error("[PagoTIC][Proxy] Erro pós-pagamento:", err);
-
         await prisma.paymentAttempt.update({
           where: { id: attempt.id },
           data: {
@@ -170,12 +199,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             }`,
           },
         });
-
         return res.status(500).json({ ok: false, error: "Post-payment error" });
       }
     }
 
-    // 5) Resposta final só depois de tudo
+    // 5) Resposta final
     return res.status(200).json({ ok: true });
   } catch (err) {
     console.error("[PagoTIC][Proxy] erro inesperado:", err);
