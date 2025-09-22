@@ -9,7 +9,7 @@ import { webhookPayloadSchema } from "./pagotic.schema";
 
 export const config = { api: { bodyParser: false } };
 
-const CMS_NOTIFY_URL = "https://app.cmsargentina.com/acquisition/v2/notify";
+const CMS_NOTIFY_URL = "https://app.cmsargentina.com/api/acquisition/v2/notify";
 
 type PagoTicNotification = {
   id?: string;
