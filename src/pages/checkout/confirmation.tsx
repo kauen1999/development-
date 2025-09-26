@@ -1,5 +1,5 @@
 // src/pages/checkout/confirmation.tsx
-import React, { useEffect } from "react";
+import React from "react";
 import { useRouter } from "next/router";
 import Image from "next/image";
 import { trpc } from "@/utils/trpc";
@@ -79,14 +79,6 @@ export default function ConfirmationPage() {
     { id: orderId || "" },
     { enabled: Boolean(orderId) }
   );
-
-  // ✅ Redirect automático após 5 segundos
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      router.push("/");
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [router]);
 
   if (!orderId) return <p>Pedido não informado.</p>;
   if (isLoading) return <p>Carregando pedido…</p>;
@@ -210,6 +202,13 @@ export default function ConfirmationPage() {
           Pago confirmado: si no ves el QR aquí, revisa tu correo — los tickets ya fueron enviados.
         </p>
       ) : null}
+      {/* ✅ Botão manual para voltar */}
+      <button
+        onClick={() => router.push("/")}
+        className="mt-8 rounded bg-[#FF5F00] px-6 py-2 text-white font-semibold"
+      >
+        Volver al inicio
+      </button>
     </div>
   );
 }

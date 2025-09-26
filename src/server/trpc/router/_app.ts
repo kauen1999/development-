@@ -10,6 +10,7 @@ import { sessionRouter } from "@/modules/session/session.router";
 import { artistRouter } from "@/modules/artist/artist.router";
 import { searchRouter } from "@/modules/search/search.router";
 import { cartRouter } from "@/modules/cart/cart.router";
+import { ticketRouter } from "@/modules/ticket/ticket.router";
 
 export const appRouter = router({
   auth: authRouter,
@@ -22,5 +23,6 @@ export const appRouter = router({
   eventCategory: categoryRouter,
   search: searchRouter,
   cart: cartRouter,
+  ticket: ticketRouter,
 });
 export type AppRouter = typeof appRouter;

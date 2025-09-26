@@ -4,9 +4,16 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { TRPCError } from "@trpc/server";
 import { validateTicketSchema } from "./ticket.schema";
-import { validateTicketService } from "./ticket.service";
+import { validateTicketService, listUserTicketsService } from "./ticket.service";
 
 export const ticketRouter = router({
+
+   // Lista tickets do usuário autenticado
+  listMyTickets: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
+    return listUserTicketsService(userId);
+  }),
+
   // validate by Ticket ID (legacy)
   validateById: protectedProcedure
     .input(z.object({ ticketId: z.string().cuid("Invalid ticket ID") }))

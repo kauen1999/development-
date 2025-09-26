@@ -90,6 +90,23 @@ export async function markTicketAsUsedService(ticketId: string) {
   });
 }
 
+export async function listUserTicketsService(userId: string) {
+  return prisma.ticket.findMany({
+    where: { userId },
+    include: {
+      event: true,
+      eventSession: true,
+      seat: true,
+      orderItem: {
+        include: {
+          order: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 // -------------------------
 // Validar ticket (entrada)
 // -------------------------
@@ -129,4 +146,5 @@ export async function validateTicketService(
     eventName: ticket.event.name,
     userEmail: ticket.user.email,
   };
+  
 }

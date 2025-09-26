@@ -127,6 +127,7 @@ const HeaderComponent = ({ minimal = false }: Props) => {
                       <p className="border-b py-2 text-center font-semibold">{session?.user?.name}</p>
                       <li><Link href="/profile">Perfil</Link></li>
                       <li><Link href="/cart">🛒 Mi Carrito</Link></li>
+                      <li><Link href="/my-tickets">🎟️ Mis Entradas</Link></li>
                       <li onClick={() => signOut()}><span className="text-red-500">Cerrar Sesión</span></li>
                     </ul>
                   </div>
