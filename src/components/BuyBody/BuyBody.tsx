@@ -59,13 +59,67 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   const [selected, setSelected] = useState<SeatSelection[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
+  const utils = trpc.useUtils();
+
   const selectedSessionId =
     event.type === "SEATED"
-      ? event.sessions?.[0]?.id ?? null
+      ? event.sessions?.[0]?.id ?? ""
       : event.eventSessionId;
 
   const addManyToCart = trpc.cart.addMany.useMutation({
-    onSuccess: () => router.push("/cart"),
+    onMutate: (vars) => {
+      const optimisticItems = vars.items.map((s, idx) => ({
+        id: `optimistic-${Date.now()}-${idx}`,
+        quantity: s.quantity ?? 1,
+        seatId: s.seatId ?? null,
+        ticketCategoryId: s.ticketCategoryId,
+        eventSessionId: vars.eventSessionId,
+        eventSession: {
+          id: vars.eventSessionId,
+          event: {
+            id: event.id,
+            name: event.name,
+            image: event.image,
+            status: "PUBLISHED",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            publishedAt: new Date(),
+            description:
+              event.type === "SEATED"
+                ? "Evento con asientos"
+                : "Evento general",
+            startDate: null,
+            endDate: null,
+            venueName: "",
+            organizerId: "optimistic",
+            slug: event.name.toLowerCase().replace(/\s+/g, "-"),
+            categoryId: "optimistic-category",
+          },
+        },
+        ticketCategory:
+          event.type === "SEATED"
+            ? event.ticketCategories.find((tc) => tc.id === s.ticketCategoryId) ??
+              null
+            : event.categories.find((c) => c.id === s.ticketCategoryId) ?? null,
+        seat:
+          event.type === "SEATED"
+            ? event.ticketCategories
+                .flatMap((tc) => tc.seats)
+                .find((seat) => seat.id === s.seatId) ?? null
+            : null,
+      }));
+
+      // Cast controlado para não quebrar tipagem
+      utils.cart.list.setData(
+        undefined,
+        (old = []) => [...old, ...(optimisticItems as unknown as typeof old)]
+      );
+
+      router.push("/cart");
+    },
+    onSettled: () => {
+      utils.cart.list.invalidate();
+    },
     onError: (error) => {
       console.error("❌ Error al agregar al carrito:", error);
       alert("No se pudo agregar al carrito.");
@@ -145,11 +199,15 @@ const BuyBody: React.FC<Props> = ({ event }) => {
     capacity: number
   ) => {
     setSelected((prev) => {
-      const item = prev.find((s) => s.ticketCategoryId === ticketCategoryId && !s.seatId);
+      const item = prev.find(
+        (s) => s.ticketCategoryId === ticketCategoryId && !s.seatId
+      );
       if (item) {
         const nextQty = item.quantity + delta;
         if (nextQty <= 0) {
-          return prev.filter((s) => !(s.ticketCategoryId === ticketCategoryId && !s.seatId));
+          return prev.filter(
+            (s) => !(s.ticketCategoryId === ticketCategoryId && !s.seatId)
+          );
         }
         if (nextQty > capacity) {
           alert("No hay más entradas disponibles.");
@@ -172,10 +230,11 @@ const BuyBody: React.FC<Props> = ({ event }) => {
   };
 
   const getGeneralQty = (categoryId: string) =>
-    selected.find((s) => s.ticketCategoryId === categoryId && !s.seatId)?.quantity ?? 0;
+    selected.find((s) => s.ticketCategoryId === categoryId && !s.seatId)
+      ?.quantity ?? 0;
 
   // ---------- Add to Cart ----------
-  const handleAddToCart = async () => {
+  const handleAddToCart = () => {
     if (!termsAccepted) {
       alert("Debes aceptar los términos.");
       return;
@@ -188,11 +247,12 @@ const BuyBody: React.FC<Props> = ({ event }) => {
       alert("Seleccione al menos un asiento o entrada.");
       return;
     }
-    await addManyToCart.mutateAsync({
-      eventId: event.id, // ✅ fix
+
+    addManyToCart.mutate({
+      eventId: event.id,
       eventSessionId: selectedSessionId,
       items: selected.map((s) => ({
-        seatId: s.seatId,
+        seatId: s.seatId ?? undefined,
         ticketCategoryId: s.ticketCategoryId,
         quantity: s.quantity,
       })),
@@ -235,7 +295,9 @@ const BuyBody: React.FC<Props> = ({ event }) => {
                   <div>
                     <p className="font-semibold">{tc.title}</p>
                     <p className="text-sm text-gray-500">${tc.price}.00</p>
-                    <p className="text-xs text-gray-400">Disponibles: {tc.capacity}</p>
+                    <p className="text-xs text-gray-400">
+                      Disponibles: {tc.capacity}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button

@@ -13,7 +13,22 @@ import { useSearchStore } from "@/store/searchStore";
 const Hero = () => {
   const { query, city } = useSearchStore();
   const { data, isLoading } = trpc.search.global.useQuery({ query, city });
+
   const artists = data?.artists ?? [];
+
+  // ✅ hoje em formato Date normalizado (meia-noite)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // ✅ só pega artistas que têm pelo menos 1 sessão >= hoje
+  const validArtists = artists.filter((artist) =>
+    artist.appearances.some(
+      (app) =>
+        app.session &&
+        app.session.dateTimeStart &&
+        new Date(app.session.dateTimeStart).getTime() >= today.getTime()
+    )
+  );
 
   if (isLoading) {
     return (
@@ -42,8 +57,14 @@ const Hero = () => {
         }}
         className="!px-0"
       >
-        {artists.map((artist) => {
-          const firstSession = artist.appearances.find((app) => app.session);
+        {validArtists.map((artist) => {
+          // pega a 1ª sessão futura (>= hoje)
+          const futureSession = artist.appearances.find(
+            (app) =>
+              app.session &&
+              app.session.dateTimeStart &&
+              new Date(app.session.dateTimeStart).getTime() >= today.getTime()
+          );
 
           return (
             <SwiperSlide key={artist.id} className="!h-auto">
@@ -53,15 +74,14 @@ const Hero = () => {
                     foto={artist.image || "/banner.jpg"}
                     nombre={artist.name}
                     fecha={
-                      firstSession?.session
-                        ? new Date(firstSession.session.dateTimeStart).toLocaleDateString(
-                            "es-AR",
-                            {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            }
-                          )
+                      futureSession?.session
+                        ? new Date(
+                            futureSession.session.dateTimeStart
+                          ).toLocaleDateString("es-AR", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
                         : "Sin fecha"
                     }
                   />

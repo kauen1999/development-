@@ -14,13 +14,27 @@ import "swiper/css/pagination";
 export default function EventosHoy() {
   useScrollToHash();
 
-  // ✅ garante que today é sempre string
+  // ✅ sempre string YYYY-MM-DD
   const [todayRaw] = new Date().toISOString().split("T");
   const today: string = todayRaw ?? "";
 
   const { data: eventos = [], isLoading } = trpc.event.listByDate.useQuery({
     date: today,
   });
+
+  // 🔎 filtra sessions do dia atual
+  const eventosDeHoy = eventos
+    .map((event) => {
+      const todaySessions = event.eventSessions.filter((s) => {
+        if (!s.dateTimeStart) return false;
+        const sessionDate = new Date(s.dateTimeStart).toISOString().split("T")[0];
+        return sessionDate === today;
+      });
+      return todaySessions.length > 0
+        ? { ...event, eventSessions: todaySessions }
+        : null;
+    })
+    .filter((ev): ev is NonNullable<typeof ev> => ev !== null);
 
   return (
     <section id="eventos-hoy" className="mx-auto mt-10 w-11/12">
@@ -40,6 +54,8 @@ export default function EventosHoy() {
             Cargando eventos...
           </span>
         </div>
+      ) : eventosDeHoy.length === 0 ? (
+        <p className="text-gray-500 text-center">No hay eventos para hoy.</p>
       ) : (
         <Swiper
           modules={[Pagination]}
@@ -51,7 +67,7 @@ export default function EventosHoy() {
             1024: { slidesPerView: 3 },
           }}
         >
-          {eventos.map((event) => (
+          {eventosDeHoy.map((event) => (
             <SwiperSlide key={event.id}>
               <HoyCard event={event} />
             </SwiperSlide>

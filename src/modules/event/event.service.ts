@@ -28,12 +28,6 @@ function toSlug(s: string): string {
     .replace(/-+/g, "-");
 }
 
-function generateSessionSlug(eventName: string, date: Date): string {
-  const iso = date.toISOString();
-  const datePart = iso.split("T")[0] as string;
-  return `${toSlug(eventName)}-${datePart.replace(/-/g, "")}-${Date.now()}`;
-}
-
 /* =========================
  * CREATE / UPDATE SIMPLES
  * ========================= */
@@ -106,14 +100,14 @@ export async function updateEvent(input: UpdateEventInput) {
 }
 
 /* =========================
- * UPDATE COM SESSÕES (GRAFO)
+ * UPDATE COM GRAPH (evento + sessões)
  * ========================= */
 export async function updateEventWithGraph(
   input: UpdateEventWithGraphInput
 ): Promise<ReturnType<typeof getEventById>> {
   const current = await prisma.event.findUnique({
     where: { id: input.id },
-    include: { eventSessions: true },
+    include: { eventSessions: { select: { id: true } } },
   });
 
   if (!current) throw new TRPCError({ code: "NOT_FOUND" });
@@ -131,175 +125,184 @@ export async function updateEventWithGraph(
     });
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
-    const ev = await tx.event.update({
-      where: { id: input.id },
-      data: {
-        name: input.name,
-        description: input.description,
-        image: input.image,
-        startDate: input.startDate,
-        endDate: input.endDate,
-        category: { connect: { id: input.categoryId } },
-      },
-    });
+  // 🔹 Atualiza apenas dados básicos do evento
+  await prisma.event.update({
+    where: { id: input.id },
+    data: {
+      name: input.name,
+      description: input.description,
+      image: input.image,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      category: { connect: { id: input.categoryId } },
+    },
+  });
 
-    // Remove sessões antigas não presentes
-    const currentIds = new Set(current.eventSessions.map((s) => s.id));
-    const incomingIds = new Set(
-      input.sessions.map((s) => s.id).filter(Boolean) as string[]
+  // 🔹 Sincronizar sessões
+  if (input.sessions) {
+    const existingSessionIds = current.eventSessions.map((s) => s.id);
+    const inputSessionIds = input.sessions
+      .map((s) => s.id)
+      .filter((id): id is string => Boolean(id));
+
+    // Sessões removidas → deletar com limpeza de FKs
+    const sessionsToDelete = existingSessionIds.filter(
+      (id) => !inputSessionIds.includes(id)
     );
-    for (const s of current.eventSessions) {
-      if (!incomingIds.has(s.id)) {
-        await tx.sessionArtist.deleteMany({ where: { sessionId: s.id } });
-        await tx.seat.deleteMany({ where: { eventSessionId: s.id } });
-        await tx.row.deleteMany({ where: { eventSessionId: s.id } });
-        await tx.sector.deleteMany({ where: { sessionId: s.id } });
-        await tx.ticketCategory.deleteMany({ where: { sessionId: s.id } });
-        await tx.eventSession.delete({ where: { id: s.id } });
-      }
+    if (sessionsToDelete.length > 0) {
+      await prisma.$transaction(async (tx) => {
+        await tx.sessionArtist.deleteMany({
+          where: { sessionId: { in: sessionsToDelete } },
+        });
+        await tx.seat.deleteMany({
+          where: { eventSessionId: { in: sessionsToDelete } },
+        });
+        await tx.row.deleteMany({
+          where: { eventSessionId: { in: sessionsToDelete } },
+        });
+        await tx.sector.deleteMany({
+          where: { sessionId: { in: sessionsToDelete } },
+        });
+        await tx.ticketCategory.deleteMany({
+          where: { sessionId: { in: sessionsToDelete } },
+        });
+        await tx.eventSession.deleteMany({
+          where: { id: { in: sessionsToDelete } },
+        });
+      });
     }
 
-    // Upsert sessões
-    for (const s of input.sessions) {
-      let sessionId: string | null = s.id ?? null;
-
-      if (sessionId && currentIds.has(sessionId)) {
-        await tx.eventSession.update({
-          where: { id: sessionId },
+    // Sessões novas/atualizadas → upsert
+    for (const session of input.sessions) {
+      let sessionId: string;
+      if (session.id) {
+        const updated = await prisma.eventSession.update({
+          where: { id: session.id },
           data: {
-            dateTimeStart: s.dateTimeStart,
-            durationMin: s.durationMin,
-            timezone: s.timezone,
-            venueName: s.venueName,
-            street: s.street,
-            number: s.number,
-            neighborhood: s.neighborhood ?? undefined,
-            city: s.city,
-            state: s.state,
-            zip: s.zip,
-            country: s.country,
-            ticketingType: s.ticketingType,
+            dateTimeStart: session.dateTimeStart,
+            durationMin: session.durationMin,
+            venueName: session.venueName,
+            street: session.street,
+            number: session.number,
+            neighborhood: session.neighborhood ?? "",
+            city: session.city,
+            state: session.state,
+            zip: session.zip,
+            country: session.country,
           },
         });
+        sessionId = updated.id;
       } else {
-        const session = await tx.eventSession.create({
+        const slug = toSlug(
+          `${session.venueName}-${session.dateTimeStart.getTime()}`
+        );
+        const created = await prisma.eventSession.create({
           data: {
-            eventId: ev.id,
-            slug: generateSessionSlug(ev.name, s.dateTimeStart),
-            dateTimeStart: s.dateTimeStart,
-            durationMin: s.durationMin,
-            timezone: s.timezone,
-            venueName: s.venueName,
-            street: s.street,
-            number: s.number,
-            neighborhood: s.neighborhood ?? "",
-            city: s.city,
-            state: s.state ?? "",
-            zip: s.zip ?? "",
-            country: s.country,
-            ticketingType: s.ticketingType,
+            eventId: input.id,
+            slug,
+            dateTimeStart: session.dateTimeStart,
+            durationMin: session.durationMin,
+            venueName: session.venueName,
+            street: session.street,
+            number: session.number,
+            neighborhood: session.neighborhood ?? "",
+            city: session.city,
+            state: session.state,
+            zip: session.zip,
+            country: session.country,
           },
         });
-        sessionId = session.id;
+        sessionId = created.id;
       }
 
-      if (!sessionId) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to resolve sessionId after creation.",
+      // 🔹 se for GENERAL → sincronizar categorias
+      if (session.ticketingType === "GENERAL" && "categories" in session) {
+        const incomingIds: string[] = session.categories
+          .map((c) => c.id)
+          .filter((id): id is string => Boolean(id));
+
+        await prisma.ticketCategory.deleteMany({
+          where: { sessionId, id: { notIn: incomingIds } },
         });
-      }
 
-      // Se for SEATED → cria setores, rows e seats
-      if (s.ticketingType === SessionTicketingType.SEATED && "sectors" in s) {
-        for (const sector of s.sectors) {
-          const createdSector = await tx.sector.create({
-            data: {
-              sessionId,
-              name: sector.name,
-              code: toSlug(sector.name),
-            },
-          });
-
-          for (const row of sector.rows) {
-            const createdRow = await tx.row.create({
+        for (const c of session.categories) {
+          if (c.id) {
+            await prisma.ticketCategory.update({
+              where: { id: c.id },
               data: {
-                sectorId: createdSector.id,
-                name: row.name,
-                order: 0,
-                eventSessionId: sessionId,
+                title: c.title,
+                price: c.price,
+                capacity: c.capacity,
+                currency: "ARS",
               },
             });
-
-            const seatsData = Array.from({ length: row.seatCount }, (_, i) => {
-              const seatNumber = i + 1;
-              return {
-                eventId: ev.id,
-                eventSessionId: sessionId as string,
-                sectorId: createdSector.id,
-                rowId: createdRow.id,
-                rowName: row.name,
-                number: seatNumber,
-                status: SeatStatus.AVAILABLE,
-                labelShort: `${row.name}${seatNumber}`,
-                labelFull: `${sector.name}-${row.name}${seatNumber}`,
-              };
+          } else {
+            await prisma.ticketCategory.create({
+              data: {
+                sessionId,
+                title: c.title,
+                price: c.price,
+                capacity: c.capacity,
+                currency: "ARS",
+              },
             });
-
-            await tx.seat.createMany({ data: seatsData });
           }
         }
       }
-    }
 
-    return tx.event.findUniqueOrThrow({
-      where: { id: ev.id },
-      include: {
-        category: true,
-        organizer: true,
-        eventSessions: {
-          orderBy: { dateTimeStart: "asc" },
-          include: {
-            ticketCategories: {
-              select: {
-                id: true,
-                title: true,
-                price: true,
-                capacity: true,
-                currency: true,
-                createdAt: true,
-                updatedAt: true,
-                _count: { select: { tickets: true } },
-              },
+      // 🔹 se for SEATED → aqui entraria lógica de setores/assentos
+      if (session.ticketingType === "SEATED" && "sectors" in session) {
+        for (const sector of session.sectors) {
+          await prisma.sector.upsert({
+            where: { sessionId_code: { sessionId, code: toSlug(sector.name) } },
+            update: { name: sector.name },
+            create: {
+              sessionId,
+              name: sector.name,
+              code: toSlug(sector.name),
+              order: sector.order ?? 0,
             },
-            artists: {
-              include: {
-                artist: {
-                  select: {
-                    id: true,
-                    name: true,
-                    slug: true,
-                    bio: true,
-                    image: true,
-                  },
-                },
-              },
+          });
+        }
+      }
+    }
+  }
+
+  return prisma.event.findUniqueOrThrow({
+    where: { id: input.id },
+    include: {
+      category: { select: { id: true, title: true } },
+      organizer: { select: { id: true, name: true, email: true } },
+      eventSessions: {
+        orderBy: { dateTimeStart: "asc" },
+        include: {
+          ticketCategories: {
+            select: {
+              id: true,
+              title: true,
+              price: true,
+              capacity: true,
+              currency: true,
             },
-            sectors: {
-              include: {
-                rows: {
-                  include: { seats: true },
+          },
+          artists: {
+            include: {
+              artist: {
+                select: {
+                  id: true,
+                  name: true,
+                  image: true,
+                  slug: true,
+                  isGlobal: true,
+                  createdByUserId: true,
                 },
               },
             },
           },
         },
       },
-    });
+    },
   });
-
-  return updated;
 }
 
 /* =========================
@@ -489,19 +492,8 @@ export function getEventById(id: string) {
   return prisma.event.findUniqueOrThrow({
     where: { id },
     include: {
-      category: {
-        select: {
-          id: true,
-          title: true,
-        },
-      },
-      organizer: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
+      category: { select: { id: true, title: true } },
+      organizer: { select: { id: true, name: true, email: true } },
       eventSessions: {
         orderBy: { dateTimeStart: "asc" },
         include: {
@@ -515,13 +507,15 @@ export function getEventById(id: string) {
             },
           },
           artists: {
-            select: {
+            include: {
               artist: {
                 select: {
                   id: true,
                   name: true,
                   image: true,
                   slug: true,
+                  isGlobal: true,
+                  createdByUserId: true,
                 },
               },
             },

@@ -1,41 +1,19 @@
 // src/modules/artist/artist.router.ts
 import { router, protectedProcedure, publicProcedure } from "@/server/trpc/trpc";
-import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import {
-  createLocalArtistSchema,
-  promoteArtistSchema,
-  updateArtistImageSchema,
-} from "./artist.schema";
-import {
-  createLocalArtist,
-  promoteToGlobal,
-  searchArtists,
-  updateArtistImage,
-} from "./artist.service";
+import { createArtistSchema, updateArtistImageSchema } from "./artist.schema";
+import { createArtist, searchArtists, updateArtistImage } from "./artist.service";
 import { prisma } from "@/lib/prisma";
-
-const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.session.user.role !== "ADMIN") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized" });
-  }
-  return next();
-});
 
 export const artistRouter = router({
   search: publicProcedure
     .input(z.object({ q: z.string().min(1) }))
     .query(({ input }) => searchArtists(input.q)),
 
-  createLocal: protectedProcedure
-    .input(createLocalArtistSchema)
-    .mutation(({ input }) => createLocalArtist(input)),
+  create: protectedProcedure
+    .input(createArtistSchema)
+    .mutation(({ input }) => createArtist(input)),
 
-  promoteToGlobal: adminProcedure
-    .input(promoteArtistSchema)
-    .mutation(({ input }) => promoteToGlobal(input)),
-
-  /** ✅ persistir banner (image) do artista */
   updateImage: protectedProcedure
     .input(updateArtistImageSchema)
     .mutation(({ ctx, input }) =>
@@ -45,7 +23,6 @@ export const artistRouter = router({
       })
     ),
 
-  /** ✅ nova rota: lista artistas + sessões futuras */
   listWithSessions: publicProcedure.query(async () => {
     const artists = await prisma.artist.findMany({
       include: {

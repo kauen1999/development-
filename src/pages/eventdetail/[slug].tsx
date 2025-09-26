@@ -60,7 +60,7 @@ const EventDetailPage: NextPage<PageProps> = ({ event }) => {
         city={event.nextCity ?? ""}
         price={event.minPrice ?? undefined}
         buyId={event.nextSessionSlug}
-        minimalHeader 
+        minimalHeader
       />
       <Details
         artist={event.name}
@@ -80,11 +80,25 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 
   const event = await prisma.event.findUnique({
     where: { slug },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      image: true,
+      description: true,
       eventSessions: {
         orderBy: { dateTimeStart: "asc" },
+        select: {
+          id: true,
+          slug: true,
+          dateTimeStart: true,
+          venueName: true,
+          city: true,
+        },
       },
-      ticketCategories: true,
+      ticketCategories: {
+        select: { price: true },
+      },
     },
   });
 

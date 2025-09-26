@@ -1,4 +1,3 @@
-// src/modules/event/event.router.ts
 import { router, publicProcedure, protectedProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -41,7 +40,7 @@ export const eventRouter = router({
 
   updateWithGraph: adminProcedure
     .input(updateEventWithGraphSchema)
-    .mutation(({ input }) => updateEventWithGraph(input)),
+    .mutation(({ input }) => updateEventWithGraph(input)), // ✅ só atualiza dados do evento
 
   /* =========================
    * STATUS
@@ -75,7 +74,18 @@ export const eventRouter = router({
         eventSessions: {
           include: {
             ticketCategories: true,
-            artists: { include: { artist: true } },
+            artists: {
+              include: {
+                artist: {
+                  select: {
+                    id: true,
+                    name: true,
+                    image: true,
+                    slug: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -87,18 +97,39 @@ export const eventRouter = router({
     .input(z.object({ date: z.string() }))
     .query(async ({ input }) => {
       const targetDate = new Date(input.date);
+      const startOfDay = new Date(targetDate);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
       return prisma.event.findMany({
         where: {
           status: "PUBLISHED",
           publishedAt: { lte: new Date() },
-          eventSessions: { some: { dateTimeStart: { gte: targetDate } } },
+          eventSessions: {
+            some: {
+              dateTimeStart: { gte: startOfDay, lte: endOfDay },
+            },
+          },
         },
         include: {
           category: true,
           eventSessions: {
             include: {
               ticketCategories: true,
-              artists: { include: { artist: true } },
+              artists: {
+                include: {
+                  artist: {
+                    select: {
+                      id: true,
+                      name: true,
+                      image: true,
+                      slug: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -110,7 +141,7 @@ export const eventRouter = router({
    * QUERIES ADMIN
    * ========================= */
   getForEdit: adminProcedure.input(idSchema).query(({ input }) =>
-    getEventById(input.id) // ✅ já retorna ticketCategories, artistas, setores, etc.
+    getEventById(input.id) // ✅ retorna eventSessions, categories, artistas, setores etc.
   ),
 
   listActiveEventsWithStats: protectedProcedure.query(async ({ ctx }) => {
@@ -121,7 +152,7 @@ export const eventRouter = router({
           include: {
             ticketCategories: {
               include: {
-                tickets: { select: { id: true, usedAt: true } }, // 👈 pega vendidos + usados
+                tickets: { select: { id: true, usedAt: true } },
               },
             },
           },
@@ -133,17 +164,13 @@ export const eventRouter = router({
     return events.map((ev) => {
       const totalCapacity = ev.eventSessions.reduce(
         (sum, s) =>
-          sum + s.ticketCategories.reduce((acc, c) => acc + (c.capacity ?? 0), 0),
+          sum +
+          s.ticketCategories.reduce((acc, c) => acc + (c.capacity ?? 0), 0),
         0
       );
 
       const totalSold = ev.eventSessions.reduce(
-        (sum, s) =>
-          sum +
-          s.ticketCategories.reduce(
-            (acc, c) => acc + c.tickets.length, // 👈 total vendidos
-            0
-          ),
+        (sum, s) => sum + s.ticketCategories.reduce((acc, c) => acc + c.tickets.length, 0),
         0
       );
 
@@ -151,7 +178,7 @@ export const eventRouter = router({
         (sum, s) =>
           sum +
           s.ticketCategories.reduce(
-            (acc, c) => acc + c.tickets.filter((t) => t.usedAt !== null).length, // 👈 validados
+            (acc, c) => acc + c.tickets.filter((t) => t.usedAt !== null).length,
             0
           ),
         0
@@ -163,19 +190,18 @@ export const eventRouter = router({
         status: ev.status,
         totalCapacity,
         totalSold,
-        totalValidated, // 👈 agora também retorna validados
+        totalValidated,
         categories: ev.eventSessions.flatMap((s) =>
           s.ticketCategories.map((c) => ({
             id: c.id,
             title: c.title,
             capacity: c.capacity,
-            sold: c.tickets.length, // 👈 vendidos
-            validated: c.tickets.filter((t) => t.usedAt !== null).length, // 👈 validados
+            sold: c.tickets.length,
+            validated: c.tickets.filter((t) => t.usedAt !== null).length,
             remaining: Math.max(0, (c.capacity ?? 0) - c.tickets.length),
           }))
         ),
       };
     });
   }),
-
 });

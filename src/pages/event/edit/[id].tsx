@@ -17,12 +17,12 @@ export default function EditEventPage() {
     { enabled: !!id }
   );
 
-  // Mapeia TRPC -> shape do EventForm
+  // Mapeia TRPC -> shape do EventForm (EditableEvent)
   const formEvent = useMemo(() => {
     if (!event) return undefined;
 
     const sessions = (event.eventSessions ?? []).map((s) => ({
-      id: s.id, // ✅ preservar id
+      id: s.id,
       dateTimeStart: s.dateTimeStart,
       durationMin: s.durationMin,
       timezone: s.timezone,
@@ -35,15 +35,16 @@ export default function EditEventPage() {
       zip: s.zip,
       ticketingType: s.ticketingType,
       ticketCategories: (s.ticketCategories ?? []).map((c) => ({
-        id: c.id,             // (se quiser também preservar ids de categorias)
+        id: c.id,
         title: c.title,
         price: c.price,
         capacity: c.capacity ?? 0,
       })),
+      // ✅ alinhar ao tipo que o EventForm espera
       artists: (s.artists ?? []).map((a) => ({
         artist: {
           name: a.artist?.name ?? "",
-          image: a.artist?.image ?? undefined,
+          image: a.artist?.image ?? null,
         },
       })),
     }));
@@ -60,12 +61,11 @@ export default function EditEventPage() {
     };
   }, [event]);
 
-  // Logs
+  // Logs de debug
   useEffect(() => {
     if (process.env.NODE_ENV === "production") return;
     console.group("[DEBUG] EditEventPage data");
-    if (!event) {
-    } else {
+    if (event) {
       (event.eventSessions ?? []).forEach((s, i) => {
         console.log(`[Session ${i + 1}]`, {
           id: s.id,

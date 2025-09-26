@@ -1,9 +1,8 @@
+// src/modules/artist/artist.service.ts
 import { prisma } from "@/lib/prisma";
-import type { z } from "zod";
-import type { createLocalArtistSchema, promoteArtistSchema } from "./artist.schema";
 import { TRPCError } from "@trpc/server";
-import type { UpdateArtistImageInput } from "./artist.schema";
-import { EventStatus } from "@prisma/client"; // ✅ enum para filtrar eventos publicados
+import type { z } from "zod";
+import type { createArtistSchema, UpdateArtistImageInput } from "./artist.schema";
 
 function toCode(s: string) {
   return s
@@ -24,37 +23,33 @@ function normalizeName(s: string) {
 
 export async function searchArtists(q: string) {
   const norm = normalizeName(q);
+
   return prisma.artist.findMany({
     where: {
       OR: [
         { name: { contains: q, mode: "insensitive" } },
         { normalizedName: { contains: norm } },
       ],
-      // ✅ Regra adicionada: artista deve aparecer em pelo menos uma sessão cujo evento está PUBLISHED
-      appearances: {
-        some: {
-          session: {
-            event: {
-              status: EventStatus.PUBLISHED,
-            },
-          },
-        },
-      },
     },
     take: 20,
-    orderBy: { isGlobal: "desc" },
+    orderBy: { createdAt: "desc" },
   });
 }
 
-export async function createLocalArtist(input: z.infer<typeof createLocalArtistSchema>) {
+export async function createArtist(input: z.infer<typeof createArtistSchema>) {
   const normalizedName = normalizeName(input.name);
+
+  const existing = await prisma.artist.findFirst({
+    where: { normalizedName },
+  });
+  if (existing) return existing;
 
   return prisma.artist.create({
     data: {
       name: input.name,
       slug: toCode(input.name),
       normalizedName,
-      isGlobal: false,
+      isGlobal: true, // 🔥 sempre global
       image: input.image,
       bio: input.bio,
       createdBy: { connect: { id: input.createdByUserId } },
@@ -62,24 +57,6 @@ export async function createLocalArtist(input: z.infer<typeof createLocalArtistS
   });
 }
 
-export async function promoteToGlobal(input: z.infer<typeof promoteArtistSchema>) {
-  const art = await prisma.artist.findUnique({ where: { id: input.artistId } });
-  if (!art) throw new TRPCError({ code: "NOT_FOUND" });
-
-  const dup = await prisma.artist.findFirst({
-    where: { normalizedName: art.normalizedName, isGlobal: true, NOT: { id: art.id } },
-  });
-  if (dup) {
-    throw new TRPCError({ code: "CONFLICT", message: "ARTIST_DUPLICATE_GLOBAL" });
-  }
-
-  return prisma.artist.update({
-    where: { id: art.id },
-    data: { isGlobal: true, approvedByAdminAt: new Date() },
-  });
-}
-
-/** ✅ novo: atualizar banner do artista (image) com autorização */
 export async function updateArtistImage(
   input: UpdateArtistImageInput,
   user: { id: string; role: "ADMIN" | "USER" | "PROMOTER" | "FINANCE" | "SUPPORT" }
@@ -94,7 +71,7 @@ export async function updateArtistImage(
   if (!artist) throw new TRPCError({ code: "NOT_FOUND", message: "Artista não encontrado" });
 
   const isAdmin = user.role === "ADMIN";
-  const isOwner = !!artist.createdByUserId && artist.createdByUserId === user.id;
+  const isOwner = artist.createdByUserId === user.id;
 
   if (!isAdmin && !isOwner) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Não autorizado a atualizar este artista" });

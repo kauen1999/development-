@@ -35,6 +35,15 @@ async function uploadToSupabase(file: File, folder = "artists"): Promise<string>
   return publicData.publicUrl;
 }
 
+function normalizeArtistBanners(ab: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  Object.entries(ab).forEach(([k, v]) => {
+    const vv = v.trim();
+    if (k.trim() && vv) out[k.trim()] = vv;
+  });
+  return out;
+}
+
 // ───────────────── Esquemas ─────────────────
 const eventFormSchema = z
   .object({
@@ -102,6 +111,7 @@ interface EditableSession {
   ticketCategories: Array<{ title: string; price: number; capacity: number }>;
   // ✅ aqui sim fica o campo dos artistas
   artists?: { artist: { name: string; image?: string | null } }[];
+  artistBanners?: Record<string, string>;
 }
 
 
@@ -143,23 +153,18 @@ function ArtistPicker({
 }: ArtistPickerProps) {
   const [q, setQ] = useState<string>("");
 
+  // busca artistas globais
   const { data: results = [] } = trpc.artist.search.useQuery(
     { q },
     { enabled: q.trim().length >= 2, keepPreviousData: true, staleTime: 30_000 }
   );
 
-  const createLocalArtistMutation = trpc.artist.createLocal.useMutation();
-  // opcional: se existir no backend (se não existir, apenas não use)
-  const updateArtistImageMutation = trpc.artist.updateImage.useMutation();
+  // cria artista global
+  const createArtistMutation = trpc.artist.create.useMutation();
 
-
-  const createLocal = async (maybeFile?: File, maybeUrl?: string) => {
+  const createArtist = async (maybeFile?: File, maybeUrl?: string) => {
     const name = q.trim();
     if (!name) return;
-    if (!userId) {
-      alert("Usuario no autenticado");
-      return;
-    }
 
     try {
       let imageUrl = maybeUrl?.trim() ?? "";
@@ -167,19 +172,23 @@ function ArtistPicker({
         imageUrl = await uploadToSupabase(maybeFile, "artist-banners");
       }
 
-      // cria o artista local (somente com nome)
-      await createLocalArtistMutation.mutateAsync({ name, createdByUserId: userId });
-
-      // se houver URL de imagem e existir mutação de updateImage, atualiza
-      if (imageUrl && updateArtistImageMutation) {
-        await updateArtistImageMutation.mutateAsync({ name, image: imageUrl });
+      if (!userId) {
+        alert("Usuario no autenticado");
+        return;
       }
 
-      onAdd(name);
-      if (imageUrl) onBannerChange(name, imageUrl);
+      const created = await createArtistMutation.mutateAsync({
+        name,
+        createdByUserId: userId, // agora sempre string
+        image: imageUrl || undefined,
+      });
+
+      onAdd(created.name);
+      if (created.image) onBannerChange(created.name, created.image);
+
       setQ("");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Error al crear artista local.";
+      const msg = e instanceof Error ? e.message : "Error al crear artista global.";
       alert(msg);
     }
   };
@@ -189,6 +198,7 @@ function ArtistPicker({
     <div className="mb-6">
       <h4 className="mb-2 font-semibold text-gray-700">Artistas</h4>
 
+      {/* chips dos artistas selecionados */}
       {selected.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {selected.map((name) => (
@@ -219,16 +229,14 @@ function ArtistPicker({
         {q.trim().length >= 2 && results.length > 0 && (
           <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded border bg-white shadow">
             {results.map(
-              (a: { id: string; name: string; image?: string | null; isGlobal?: boolean }) => (
+              (a: { id: string; name: string; image?: string | null }) => (
                 <button
                   key={a.id}
                   type="button"
                   className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50"
                   onClick={() => {
                     onAdd(a.name);
-                    if (a.image) {
-                      onBannerChange(a.name, a.image);
-                    }
+                    if (a.image) onBannerChange(a.name, a.image);
                     setQ("");
                   }}
                 >
@@ -236,29 +244,25 @@ function ArtistPicker({
                     <Image
                       src={a.image}
                       alt={a.name}
-                      width={24}   // equivalente a h-6
-                      height={24}  // equivalente a w-6
+                      width={24}
+                      height={24}
                       className="rounded-full object-cover"
                     />
                   )}
-
-                  <span>
-                    {a.name} {a.isGlobal ? "(global)" : "(local)"}
-                  </span>
+                  <span>{a.name}</span>
                 </button>
               )
             )}
-
           </div>
         )}
       </div>
 
       {/* Crear rápido con banner */}
-      {q.trim().length >= 2 && (
+      {q.trim().length >= 2 && results.length === 0 && (
         <CreateArtistQuick
           queryName={q.trim()}
-          onCreate={(file, url) => createLocal(file, url)}
-          isLoading={!!createLocalArtistMutation.isLoading}
+          onCreate={(file, url) => createArtist(file, url)}
+          isLoading={!!createArtistMutation.isLoading}
           isDisabled={!userId}
         />
       )}
@@ -281,7 +285,7 @@ function ArtistPicker({
   );
 }
 
-// Componente: criar artista rapidamente com banner (arquivo ou URL)
+// Componente: criar artista global rapidamente com banner (arquivo ou URL)
 function CreateArtistQuick({
   queryName,
   onCreate,
@@ -299,7 +303,7 @@ function CreateArtistQuick({
   return (
     <div className="mt-2 rounded border p-3">
       <p className="text-sm text-gray-700 mb-2">
-        Crear artista local “<strong>{queryName}</strong>” con banner (opcional)
+        Crear artista global &quot;<strong>{queryName}</strong>&quot; con banner (opcional)
       </p>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -333,7 +337,7 @@ function CreateArtistQuick({
           onClick={() => onCreate(file ?? undefined, url.trim() || undefined)}
           disabled={isLoading || isDisabled}
           className="rounded bg-primary-100 px-4 py-2 text-white hover:bg-primary-200 disabled:cursor-not-allowed disabled:opacity-60"
-          title={!isDisabled ? "Crear artista" : "Requiere autenticación"}
+          title={!isDisabled ? "Crear artista global" : "Requiere autenticación"}
         >
           {isLoading ? "Creando…" : "Crear artista"}
         </button>
@@ -479,41 +483,11 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
         d.getMinutes()
       )}`;
     };
-
-    const artistNamesFrom = (
-        arr?: { artist: { name: string; image?: string | null } }[]
-      ): string[] => {
-        if (!arr || arr.length === 0) return [];
-        return arr
-          .map((a) => a.artist?.name ?? "")
-          .filter((n): n is string => n.trim().length > 0);
-      };
-
-      const artistBannersFrom = (
-          arr?: { artist: { name: string; image?: string | null } }[]
-        ): Record<string, string> => {
-          if (!arr || arr.length === 0) return {};
-          const out: Record<string, string> = {};
-          arr.forEach((a) => {
-            if (a.artist?.name) {
-              // ✅ se o artista já tem imagem no banco, usa
-              if (a.artist.image && a.artist.image.trim().length > 0) {
-                out[a.artist.name] = a.artist.image;
-              } else {
-                out[a.artist.name] = ""; // se não tiver, mantém vazio para edição manual
-              }
-            }
-          });
-          console.log("DEBUG artistBannersFrom:", out);
-          return out;
-        };
-
-
-
     return event.sessions.map<SessionRow>((s) => {
       const base = {
         dateTimeLocal: toLocal(s.dateTimeStart),
-        durationMin: s.durationMin,
+        durationMin: Number(s.durationMin) || 0,
+        timezone: "America/Buenos_Aires",
         venueName: s.venueName,
         street: s.street,
         number: s.number,
@@ -521,10 +495,10 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
         city: s.city,
         state: s.state,
         zip: s.zip,
+        country: "AR",
         artists: artistNamesFrom(s.artists),
-        artistBanners: artistBannersFrom(s.artists),
+        artistBanners: normalizeArtistBanners(s.artistBanners ?? {}),
       };
-
       if (s.ticketingType === "SEATED") {
         const sectors: SeatedSectorSpec[] =
           s.ticketCategories.length > 0
@@ -813,10 +787,8 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
       });
       return out;
     };
-
     try {
       if (mode === "create") {
-        // cria o evento
         const createdEvent = await createEventMutation.mutateAsync({
           name: data.name,
           description: data.description,
@@ -862,25 +834,22 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
             ticketCategories,
           });
 
-          // anexa artistas (nomes)
+          // anexa artistas
           if (s.artists.length > 0) {
             await attachArtistsMutation.mutateAsync({
               sessionId: createdSession.id,
               artists: s.artists,
             });
 
-            // se existir mutação de imagem, atualiza banner do artista
-            if (updateArtistImageMutation) {
-              const banners = normalizeArtistBanners(s.artistBanners);
-              // por artista distinto na sessão
-              for (const name of s.artists) {
-                const img = banners[name];
-                if (img) {
-                  try {
-                    await updateArtistImageMutation.mutateAsync({ name, image: img });
-                  } catch {
-                    // // não quebra fluxo se backend ainda não suporta
-                  }
+            // atualiza banners se houver
+            const banners = normalizeArtistBanners(s.artistBanners ?? {});
+            for (const name of s.artists) {
+              const img = banners[name];
+              if (img) {
+                try {
+                  await updateArtistImageMutation.mutateAsync({ name, image: img });
+                } catch {
+                  // ignora se backend não suportar
                 }
               }
             }
@@ -907,12 +876,12 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
             venueName: s.venueName,
             street: s.street,
             number: s.number,
-            neighborhood: s.neighborhood || null,
+            neighborhood: s.neighborhood ?? "",
             city: s.city,
             state: s.state,
             zip: s.zip,
             country: "AR",
-            artists: s.artists as string[],
+            artists: s.artists ?? [],
           };
 
           if (s.ticketingType === "GENERAL") {
@@ -1468,3 +1437,13 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
     </div>
   );
 }
+function artistNamesFrom(
+  artists: { artist: { name: string; image?: string | null } }[] | undefined
+): string[] {
+  if (!artists || artists.length === 0) return [];
+  return artists
+    .map((a) => a.artist?.name ?? "")
+    .filter((n): n is string => n.trim().length > 0);
+}
+
+

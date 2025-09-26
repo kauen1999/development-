@@ -14,6 +14,7 @@ interface HoyCardProps {
     category: { title: string };
     eventSessions: {
       id: string;
+      slug: string;
       dateTimeStart: Date;
       durationMin: number;
       venueName: string;
@@ -109,7 +110,7 @@ const HoyCard: React.FC<HoyCardProps> = ({ event }) => {
             </div>
           </div>
 
-          <Link href={`/buydetails/${event.slug}`}>
+          <Link href={`/buydetails/${session.slug}`}>
             <div className="cursor-pointer rounded-lg bg-primary-100 py-2 px-5 text-center text-xl font-bold text-white lg:text-base">
               Comprar ahora
             </div>

@@ -42,19 +42,23 @@ export type IdInput = z.infer<typeof idSchema>;
 
 // General (sem assentos)
 const generalCategorySchema = z.object({
+  id: z.string().cuid().optional(), // 👈 permite editar categorias existentes
   title: z.string().min(1),
   price: z.number().nonnegative(),
   capacity: z.number().int().nonnegative(),
 });
 
-// Seated (com assentos) — definimos setores e filas
+// Seated (com assentos)
 const seatedRowSchema = z.object({
+  id: z.string().cuid().optional(), // 👈 permite editar filas existentes
   name: z.string().min(1),
   seatCount: z.number().int().nonnegative(), // quantidade de assentos na fila
 });
 
 const seatedSectorSchema = z.object({
+  id: z.string().cuid().optional(), // 👈 permite editar setores existentes
   name: z.string().min(1),
+  order: z.number().int().optional(), // 👈 opcional para edição
   price: z.number().nonnegative(),
   rows: z.array(seatedRowSchema).min(1, "El sector debe tener al menos una fila"),
 });
@@ -79,13 +83,19 @@ const sessionUpdateSchema = z.discriminatedUnion("ticketingType", [
   z
     .object({
       ticketingType: z.literal(SessionTicketingType.GENERAL),
-      categories: z.array(generalCategorySchema).min(1),
+      categories: z.array(generalCategorySchema).min(
+        1,
+        "Debe enviar al menos una categoría"
+      ),
     })
     .merge(baseSessionUpdateSchema),
   z
     .object({
       ticketingType: z.literal(SessionTicketingType.SEATED),
-      sectors: z.array(seatedSectorSchema).min(1),
+      sectors: z.array(seatedSectorSchema).min(
+        1,
+        "Debe enviar al menos un sector"
+      ),
     })
     .merge(baseSessionUpdateSchema),
 ]);
@@ -107,4 +117,6 @@ export const updateEventWithGraphSchema = z.object({
   sessions: z.array(sessionUpdateSchema).min(1, "Debe enviar al menos una sesión"),
 });
 
-export type UpdateEventWithGraphInput = z.infer<typeof updateEventWithGraphSchema>;
+export type UpdateEventWithGraphInput = z.infer<
+  typeof updateEventWithGraphSchema
+>;

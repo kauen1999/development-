@@ -2,13 +2,11 @@
 import Header from "../../components/principal/header/Header";
 import Footer from "../../components/principal/footer/Footer";
 import BuyHero from "../../components/buydetailsComponent/BuyHero/BuyHero";
-import BuyBody from "../../components/BuyBody/BuyBody"; // ✅ agora só 1
+import BuyBody from "../../components/BuyBody/BuyBody";
 
-import type { GetServerSidePropsContext, NextPage } from "next";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/modules/auth/auth-options";
+import type { GetStaticPropsContext, NextPage, GetStaticPaths } from "next";
 import { prisma } from "@/lib/prisma";
-import { SessionTicketingType, OrderStatus } from "@prisma/client";
+import { SessionTicketingType } from "@prisma/client";
 
 type SeatStatusDTO = "AVAILABLE" | "RESERVED" | "SOLD";
 
@@ -27,10 +25,10 @@ interface EventSeated {
   date: string;
   city: string;
   venueName: string;
-  sessions: { id: string; slug: string; date: string; venueName: string }[]; // ✅ sessions
+  sessions: { id: string; slug: string; date: string; venueName: string }[];
   ticketCategories: { id: string; title: string; price: number; seats: SeatDTO[] }[];
   category: { id: string; name: string };
-  type: "SEATED"; // ✅ discriminador
+  type: "SEATED";
 }
 
 interface GeneralCategory {
@@ -49,7 +47,7 @@ interface EventGeneral {
   eventSessionId: string;
   sessionDateISO?: string;
   categories: GeneralCategory[];
-  type: "GENERAL"; // ✅ discriminador
+  type: "GENERAL";
 }
 
 type PageProps =
@@ -102,56 +100,49 @@ const BuyDetails: NextPage<PageProps> = (props) => {
 export default BuyDetails;
 
 // ==========================
-// getServerSideProps ajustado
+// ISR (getStaticPaths + getStaticProps)
 // ==========================
-export async function getServerSideProps(context: GetServerSidePropsContext) {
-  const session = await getServerSession(context.req, context.res, authOptions);
-  if (!session) {
-    return { redirect: { destination: "/login", permanent: false } };
-  }
 
-  const slug = context.query.slug as string;
+export const getStaticPaths: GetStaticPaths = async () => {
+  return { paths: [], fallback: "blocking" };
+};
+
+export async function getStaticProps(context: GetStaticPropsContext) {
+  const slug = context.params?.slug as string | undefined;
   if (!slug) return { notFound: true };
 
-  let base = await prisma.event.findUnique({
+  const sessionDetail = await prisma.eventSession.findUnique({
     where: { slug },
     include: {
-      category: true,
-      eventSessions: {
-        orderBy: { dateTimeStart: "asc" },
+      event: {
+        include: {
+          category: true,
+          eventSessions: { orderBy: { dateTimeStart: "asc" } },
+        },
       },
+      ticketCategories: {
+        include: {
+          _count: {
+            select: {
+              orderItems: {
+                where: { order: { status: { in: ["PENDING", "PAID"] } } },
+              },
+            },
+          },
+        },
+      },
+      seats: true,
     },
   });
 
-  let firstSession;
+  if (!sessionDetail) return { notFound: true };
 
-  if (base) {
-    firstSession = base.eventSessions[0];
-  } else {
-    const sessionDetail = await prisma.eventSession.findUnique({
-      where: { slug },
-      include: {
-        event: { include: { category: true, eventSessions: true } },
-        ticketCategories: true,
-        seats: true,
-      },
-    });
-    if (!sessionDetail) return { notFound: true };
-    base = sessionDetail.event;
-    firstSession = sessionDetail;
-  }
+  const base = sessionDetail.event;
+  const firstSession = sessionDetail;
 
   if (!base || !firstSession) return { notFound: true };
 
-  const isSeated = firstSession.ticketingType === SessionTicketingType.SEATED;
-
-  if (isSeated) {
-    const sessionDetail = await prisma.eventSession.findUnique({
-      where: { id: firstSession.id },
-      include: { ticketCategories: true, seats: true },
-    });
-    if (!sessionDetail) return { notFound: true };
-
+  if (firstSession.ticketingType === SessionTicketingType.SEATED) {
     const seatsByCategory = new Map<string, SeatDTO[]>();
     for (const s of sessionDetail.seats) {
       const catId = s.ticketCategoryId ?? "UNASSIGNED";
@@ -188,43 +179,24 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
       })),
       ticketCategories,
       category: { id: base.category.id, name: base.category.title },
-      type: "SEATED", // ✅
+      type: "SEATED",
     };
 
-    return { props: { kind: "SEATED", event: eventSeated } as PageProps };
+    return { props: { kind: "SEATED", event: eventSeated } as PageProps, revalidate: 10 };
   }
 
-  const sessionWithCats = await prisma.eventSession.findUnique({
-    where: { id: firstSession.id },
-    include: { ticketCategories: true },
+  // GENERAL
+  const categories: GeneralCategory[] = sessionDetail.ticketCategories.map((tc) => {
+    const vendidosOuPendentes = tc._count.orderItems ?? 0;
+    const disponivel = Math.max(0, (tc.capacity ?? 0) - vendidosOuPendentes);
+
+    return {
+      id: tc.id,
+      title: tc.title,
+      price: tc.price,
+      capacity: disponivel,
+    };
   });
-  if (!sessionWithCats) return { notFound: true };
-
-  const categories: GeneralCategory[] = await Promise.all(
-    sessionWithCats.ticketCategories.map(async (tc) => {
-      const usedAgg = await prisma.orderItem.aggregate({
-        where: {
-          ticketCategoryId: tc.id,
-          order: {
-            eventId: base.id,
-            eventSessionId: firstSession.id,
-            status: { in: [OrderStatus.PENDING, OrderStatus.PAID] },
-          },
-        },
-        _sum: { qty: true },
-      });
-
-      const vendidosOuPendentes = usedAgg._sum.qty ?? 0;
-      const disponivel = Math.max(0, (tc.capacity ?? 0) - vendidosOuPendentes);
-
-      return {
-        id: tc.id,
-        title: tc.title,
-        price: tc.price,
-        capacity: disponivel,
-      };
-    })
-  );
 
   const eventGeneral: EventGeneral = {
     id: base.id,
@@ -238,5 +210,5 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
     type: "GENERAL",
   };
 
-  return { props: { kind: "GENERAL", event: eventGeneral } as PageProps };
+  return { props: { kind: "GENERAL", event: eventGeneral } as PageProps, revalidate: 10 };
 }

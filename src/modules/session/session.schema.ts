@@ -24,8 +24,12 @@ export const createSessionSchema = z.object({
   country: z.string().min(1),
 
   ticketingType: z.nativeEnum(SessionTicketingType),
-
   ticketCategories: z.array(ticketCategorySchema).min(1), // sempre por sessão
+
+  // 👇 novos campos opcionais para artistas
+  artists: z.array(z.string().min(1)).optional(),
+  artistBanners: z.record(z.string()).optional(),
+  createdByUserId: z.string().optional(),
 });
 
 export const updateSessionSchema = z.object({
@@ -45,15 +49,20 @@ export const updateSessionSchema = z.object({
   country: z.string().min(1).optional(),
 
   ticketingType: z.nativeEnum(SessionTicketingType).optional(),
+
+  // 👇 idem aqui para edição
+  artists: z.array(z.string().min(1)).optional(),
+  artistBanners: z.record(z.string()).optional(),
+  createdByUserId: z.string().optional(),
 });
 
 // SeatMap: Sector → Row → Seats-per-row
 export const seatMapRowSchema = z.object({
-  name: z.string().min(1),     // ex: "A"
+  name: z.string().min(1), // ex: "A"
   seats: z.number().int().positive(), // qtd de assentos na fileira
 });
 export const seatMapSectorSchema = z.object({
-  name: z.string().min(1),     // ex: "West Central"
+  name: z.string().min(1), // ex: "West Central"
   order: z.number().int().min(0).default(0),
   ticketCategoryTitle: z.string().min(1).optional(), // resolve para a categoria
   rows: z.array(seatMapRowSchema).min(1),

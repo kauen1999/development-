@@ -1,4 +1,3 @@
-// src/modules/session/session.router.ts
 import { router, publicProcedure, protectedProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -13,6 +12,7 @@ import {
   attachArtists,
   cancelSession,
   createSession,
+  deleteSession,
   listEventsByDate,
   pauseSession,
   publishSession,
@@ -28,20 +28,42 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 });
 
 export const sessionRouter = router({
-  create: adminProcedure.input(createSessionSchema).mutation(({ input }) => createSession(input)),
-  update: adminProcedure.input(updateSessionSchema).mutation(({ input }) => updateSession(input)),
-  publish: adminProcedure.input(z.object({ id: z.string().cuid() })).mutation(({ input }) => publishSession(input.id)),
-  pause:   adminProcedure.input(z.object({ id: z.string().cuid() })).mutation(({ input }) => pauseSession(input.id)),
-  cancel:  adminProcedure.input(z.object({ id: z.string().cuid() })).mutation(({ input }) => cancelSession(input.id)),
+  // ── CRUD ───────────────────────────────────────────────
+  create: adminProcedure.input(createSessionSchema).mutation(({ input }) =>
+    createSession(input)
+  ),
+  update: adminProcedure.input(updateSessionSchema).mutation(({ input }) =>
+    updateSession(input)
+  ),
+  delete: adminProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .mutation(({ input }) => deleteSession(input.id)),
 
-  // 👇 passa o userId do criador para que o service procure artistas locais dele
+  // ── STATUS ─────────────────────────────────────────────
+  publish: adminProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .mutation(({ input }) => publishSession(input.id)),
+  pause: adminProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .mutation(({ input }) => pauseSession(input.id)),
+  cancel: adminProcedure
+    .input(z.object({ id: z.string().cuid() }))
+    .mutation(({ input }) => cancelSession(input.id)),
+
+  // ── ARTISTS ────────────────────────────────────────────
   attachArtists: protectedProcedure
     .input(attachArtistsSchema)
     .mutation(({ input, ctx }) =>
       attachArtists(input, { createdByUserId: ctx.session.user.id })
     ),
 
-  upsertSeatMap: adminProcedure.input(upsertSeatMapSchema).mutation(({ input }) => upsertSeatMap(input)),
+  // ── SEAT MAP ───────────────────────────────────────────
+  upsertSeatMap: adminProcedure
+    .input(upsertSeatMapSchema)
+    .mutation(({ input }) => upsertSeatMap(input)),
 
-  listByDate: publicProcedure.input(listByDateSchema).query(({ input }) => listEventsByDate(input.date)),
+  // ── LIST ───────────────────────────────────────────────
+  listByDate: publicProcedure
+    .input(listByDateSchema)
+    .query(({ input }) => listEventsByDate(input.date)),
 });

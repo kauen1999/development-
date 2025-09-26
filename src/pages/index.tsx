@@ -47,7 +47,7 @@ const Home: NextPage = () => {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <Header home={true} buyPage={undefined} />
+      <Header home={true} />
 
       <main>
         <Hero />
