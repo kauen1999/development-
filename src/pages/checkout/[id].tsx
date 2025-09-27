@@ -64,7 +64,6 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      // Relações do pedido (nomes das relações conforme o schema)
       Event: true,
       EventSession: true,
       orderItems: {
@@ -90,23 +89,26 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => 
   if (!order || (order.orderItems?.length ?? 0) === 0) {
     return { notFound: true };
   }
+  
+    // ✅ Só limpa o carrinho depois que o usuário já entrou no checkout
+  await prisma.cartItem.deleteMany({
+    where: { userId: session.user.id },
+  });
 
-  // Esse arquivo deve existir em /public/images/
+  // Imagem padrão caso o evento não tenha
   const pictureFallback = "/images/default-event.jpg";
 
   const items: CheckoutLineItem[] = order.orderItems.map((it) => {
     const qty = Math.max(1, Number(it.qty ?? 1));
-    const lineAmount = Number(it.amount ?? 0); // total da linha
+    const lineAmount = Number(it.amount ?? 0);
     const unitAmount = qty > 0 ? lineAmount / qty : 0;
 
-    // Sessão do item (com fallback para a sessão do pedido)
     const session =
       it.seat?.eventSession ??
       it.ticketCategory?.session ??
       order.EventSession ??
       null;
 
-    // Evento do item (com fallbacks em cascata)
     const ev =
       it.seat?.event ??
       it.ticketCategory?.session?.event ??

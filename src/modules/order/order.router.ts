@@ -23,6 +23,7 @@ function requireUser(ctx: unknown): string {
 }
 
 export const orderRouter = router({
+  // ───────── General tickets (sem assento) ─────────
   createGeneral: protectedProcedure
     .input(createOrderGeneralInput)
     .mutation(async ({ input, ctx }) => {
@@ -35,6 +36,7 @@ export const orderRouter = router({
       );
     }),
 
+  // ───────── Seated tickets (com assento) ─────────
   createSeated: protectedProcedure
     .input(createOrderSeatedInput)
     .mutation(async ({ input, ctx }) => {
@@ -47,12 +49,15 @@ export const orderRouter = router({
       );
     }),
 
+  // ───────── Criar pedido a partir do carrinho ─────────
+  // 👉 Já cria o pedido, inicia pagamento e só depois limpa o cart
   createFromCart: protectedProcedure
     .mutation(async ({ ctx }) => {
       const userId = requireUser(ctx);
       return createOrderFromCartService(userId);
     }),
 
+  // ───────── Consultas ─────────
   getOrder: protectedProcedure
     .input(getOrderInput)
     .query(async ({ input }) => getOrderByIdService(input.id)),
@@ -64,6 +69,7 @@ export const orderRouter = router({
       return listOrdersService(userId, input.page, input.limit);
     }),
 
+  // ───────── Cancelamento ─────────
   cancelOrder: protectedProcedure
     .input(cancelOrderInput)
     .mutation(async ({ input }) => cancelOrderService(input.id)),

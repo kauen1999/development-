@@ -61,8 +61,6 @@ export default function CartPage() {
       try {
         // 🔥 Redireciona primeiro
         await router.push(`/checkout/${order.id}`);
-        // 🔥 Só depois limpa o carrinho
-        await utils.cart.list.invalidate();
       } finally {
         setIsRedirecting(false);
       }

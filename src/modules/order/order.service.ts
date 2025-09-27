@@ -250,6 +250,7 @@ export async function createOrderSeatedService(
 }
 
 // ---------- FROM CART ----------
+// src/modules/order/order.service.ts
 export async function createOrderFromCartService(userId: string) {
   const cartItems = await prisma.cartItem.findMany({
     where: { userId, expiresAt: { gt: new Date() } },
@@ -284,39 +285,35 @@ export async function createOrderFromCartService(userId: string) {
     return sum + price * (item.quantity ?? 1);
   }, 0);
 
-  const order = await prisma.$transaction(async (tx) => {
-    const created = await tx.order.create({
-      data: {
-        userId,
-        eventId,
-        eventSessionId: sessionId,
-        status: OrderStatus.PENDING,
-        total,
-        expiresAt: calculateExpirationDate(),
-        orderItems: {
-          create: cartItems.map((item, idx) => {
-            const price = item.seat?.ticketCategory?.price ?? item.ticketCategory?.price ?? 0;
-            return {
-              seatId: item.seatId ?? undefined,
-              ticketCategoryId: item.ticketCategoryId ?? undefined,
-              qty: item.quantity ?? 1,
-              amount: price * (item.quantity ?? 1),
-              title: item.seat
-                ? `Asiento ${item.seat.labelFull}`
-                : item.ticketCategory?.title ?? "Ticket",
-              description: item.seat ? "Assigned seat" : "General ticket",
-              conceptId: ORDER_RULES.CONCEPT_ID, // 🔹 fixo
-              currency: process.env.PAGOTIC_CURRENCY_ID ?? "ARS",
-              externalReference: `${item.id}-${idx + 1}`,
-            };
-          }),
-        },
+  // cria o pedido
+  const order = await prisma.order.create({
+    data: {
+      userId,
+      eventId,
+      eventSessionId: sessionId,
+      status: OrderStatus.PENDING,
+      total,
+      expiresAt: calculateExpirationDate(),
+      orderItems: {
+        create: cartItems.map((item, idx) => {
+          const price = item.seat?.ticketCategory?.price ?? item.ticketCategory?.price ?? 0;
+          return {
+            seatId: item.seatId ?? undefined,
+            ticketCategoryId: item.ticketCategoryId ?? undefined,
+            qty: item.quantity ?? 1,
+            amount: price * (item.quantity ?? 1),
+            title: item.seat
+              ? `Asiento ${item.seat.labelFull}`
+              : item.ticketCategory?.title ?? "Ticket",
+            description: item.seat ? "Assigned seat" : "General ticket",
+            conceptId: ORDER_RULES.CONCEPT_ID,
+            currency: process.env.PAGOTIC_CURRENCY_ID ?? "ARS",
+            externalReference: `${item.id}-${idx + 1}`,
+          };
+        }),
       },
-      include: { orderItems: true },
-    });
-
-    await tx.cartItem.deleteMany({ where: { userId } });
-    return created;
+    },
+    include: { orderItems: true },
   });
 
   try {
@@ -324,7 +321,10 @@ export async function createOrderFromCartService(userId: string) {
     return toOrderDTO(updated);
   } catch {
     await prisma.$transaction(async (tx) => {
-      await tx.order.update({ where: { id: order.id }, data: { status: OrderStatus.CANCELLED } });
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.CANCELLED },
+      });
       const seatIds = order.orderItems.map((i) => i.seatId).filter((id): id is string => !!id);
       if (seatIds.length) {
         await tx.seat.updateMany({
@@ -333,7 +333,10 @@ export async function createOrderFromCartService(userId: string) {
         });
       }
     });
-    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "No fue posible iniciar el pago." });
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "No fue posible iniciar el pago.",
+    });
   }
 }
 
