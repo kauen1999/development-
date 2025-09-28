@@ -48,4 +48,6 @@ export const ticketRouter = router({
     .mutation(async ({ input, ctx }) => {
       return validateTicketService(input.qrId, ctx.session.user.id, input.device);
     }),
+
+    
 });

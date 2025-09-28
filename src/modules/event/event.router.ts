@@ -145,63 +145,79 @@ export const eventRouter = router({
   ),
 
   listActiveEventsWithStats: protectedProcedure.query(async ({ ctx }) => {
-    const events = await prisma.event.findMany({
-      where: { organizerId: ctx.session.user.id },
-      include: {
-        eventSessions: {
-          include: {
-            ticketCategories: {
-              include: {
-                tickets: { select: { id: true, usedAt: true } },
-              },
+  const events = await prisma.event.findMany({
+    where: { organizerId: ctx.session.user.id },
+    include: {
+      eventSessions: {
+        include: {
+          tickets: {
+            select: {
+              id: true,
+              usedAt: true,
+              orderItem: { select: { ticketCategoryId: true } }, // 👈 pega via OrderItem
+            },
+          },
+          ticketCategories: {
+            select: {
+              id: true,
+              title: true,
+              capacity: true,
             },
           },
         },
       },
-      orderBy: { createdAt: "desc" },
-    });
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
-    return events.map((ev) => {
-      const totalCapacity = ev.eventSessions.reduce(
-        (sum, s) =>
-          sum +
-          s.ticketCategories.reduce((acc, c) => acc + (c.capacity ?? 0), 0),
-        0
-      );
+  return events.map((ev) => {
+    const totalCapacity = ev.eventSessions.reduce(
+      (sum, s) =>
+        sum +
+        s.ticketCategories.reduce((acc, c) => acc + (c.capacity ?? 0), 0),
+      0
+    );
 
-      const totalSold = ev.eventSessions.reduce(
-        (sum, s) => sum + s.ticketCategories.reduce((acc, c) => acc + c.tickets.length, 0),
-        0
-      );
+    const totalSold = ev.eventSessions.reduce(
+      (sum, s) => sum + s.tickets.length,
+      0
+    );
 
-      const totalValidated = ev.eventSessions.reduce(
-        (sum, s) =>
-          sum +
-          s.ticketCategories.reduce(
-            (acc, c) => acc + c.tickets.filter((t) => t.usedAt !== null).length,
-            0
-          ),
-        0
-      );
+    const totalValidated = ev.eventSessions.reduce(
+      (sum, s) => sum + s.tickets.filter((t) => t.usedAt !== null).length,
+      0
+    );
 
-      return {
-        id: ev.id,
-        name: ev.name,
-        status: ev.status,
-        totalCapacity,
-        totalSold,
-        totalValidated,
-        categories: ev.eventSessions.flatMap((s) =>
-          s.ticketCategories.map((c) => ({
-            id: c.id,
-            title: c.title,
-            capacity: c.capacity,
-            sold: c.tickets.length,
-            validated: c.tickets.filter((t) => t.usedAt !== null).length,
-            remaining: Math.max(0, (c.capacity ?? 0) - c.tickets.length),
-          }))
-        ),
-      };
-    });
-  }),
+    const categories = ev.eventSessions.flatMap((s) =>
+      s.ticketCategories.map((c) => {
+        const ticketsInCategory = s.tickets.filter(
+          (t) => t.orderItem?.ticketCategoryId === c.id // 👈 usa o orderItem
+        );
+
+        const sold = ticketsInCategory.length;
+        const validated = ticketsInCategory.filter((t) => t.usedAt !== null).length;
+
+        return {
+          id: c.id,
+          title: c.title,
+          capacity: c.capacity,
+          sold,
+          validated,
+          remaining: Math.max(0, (c.capacity ?? 0) - sold),
+        };
+      })
+    );
+
+    return {
+      id: ev.id,
+      name: ev.name,
+      status: ev.status,
+      totalCapacity,
+      totalSold,
+      totalValidated,
+      categories,
+    };
+  });
+}),
+
 });
