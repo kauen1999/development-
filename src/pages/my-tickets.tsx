@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-html-link-for-pages */
 // src/pages/my-tickets.tsx
 import { trpc } from "@/utils/trpc";
 import Head from "next/head";
