@@ -3,6 +3,7 @@ import React, { useState, useMemo } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { MdLock, MdArrowBack, MdCheckCircle, MdError, MdVisibility, MdVisibilityOff } from "react-icons/md";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -15,6 +16,8 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [msg, setMsg] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,83 +44,165 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
       <Head>
-        <title>Definir nueva contraseña • Entrada Master</title>
+        <title>Definir Nueva Contraseña - EntradaMaster</title>
+        <meta name="robots" content="noindex" />
       </Head>
-      <main className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div className="w-full max-w-md rounded-2xl shadow-md bg-white p-8">
-          <h1 className="text-xl font-semibold mb-2">Definir nueva contraseña</h1>
-          <p className="text-gray-600 mb-6">
-            Crea tu nueva contraseña para acceder a tu cuenta.
+      
+      <div className="w-full max-w-md">
+        {/* Header da página */}
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-primary-100">
+            <MdLock className="text-4xl text-white" />
+          </div>
+          <h1 className="mb-4 text-3xl md:text-4xl font-bold text-gray-900">
+            Definir Nueva Contraseña
+          </h1>
+          <p className="text-base md:text-lg text-gray-600">
+            Creá tu nueva contraseña para acceder a tu cuenta
           </p>
+        </div>
 
+        {/* Card principal */}
+        <div className="rounded-xl bg-white p-6 md:p-8 shadow-lg">
           {!token ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
-              Falta el token en la URL.
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+                <MdError className="text-3xl text-red-500" />
+              </div>
+              <h2 className="mb-4 text-xl font-semibold text-red-700">Token Inválido</h2>
+              <div className="rounded-lg bg-red-50 p-4 text-red-800">
+                Falta el token en la URL. Verificá el enlace que recibiste por correo.
+              </div>
+              <div className="mt-6">
+                <Link 
+                  href="/forgot-password" 
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary-100 px-6 py-3 font-semibold text-white transition-all hover:bg-orange-600 hover:shadow-lg"
+                >
+                  <MdArrowBack className="text-xl" />
+                  Solicitar Nuevo Enlace
+                </Link>
+              </div>
             </div>
           ) : state === "done" ? (
-            <div className="space-y-4">
-              <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-green-800">
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                <MdCheckCircle className="text-3xl text-green-500" />
+              </div>
+              <h2 className="mb-4 text-xl font-semibold text-green-700">¡Contraseña Actualizada!</h2>
+              <div className="rounded-lg bg-green-50 p-4 text-green-800">
                 {msg}
               </div>
-              <div className="text-center">
-                <Link href="/login" className="underline underline-offset-2">
-                  Ir al login
+              <div className="mt-6">
+                <Link 
+                  href="/login" 
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary-100 px-6 py-3 font-semibold text-white transition-all hover:bg-orange-600 hover:shadow-lg"
+                >
+                  <MdArrowBack className="text-xl" />
+                  Ir al Login
                 </Link>
               </div>
             </div>
           ) : (
-            <form onSubmit={onSubmit} className="space-y-4">
+            <form onSubmit={onSubmit} className="space-y-6">
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                  Nueva contraseña
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                  Nueva Contraseña
                 </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-black"
-                  placeholder="********"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <MdLock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+                    placeholder="Ingresá tu nueva contraseña"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <MdVisibilityOff className="h-5 w-5" /> : <MdVisibility className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
 
               <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                  Confirmar contraseña
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                  Confirmar Contraseña
                 </label>
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-gray-300 px-3 py-2 outline-none focus:ring-2 focus:ring-black"
-                  placeholder="********"
-                />
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <MdLock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+                    placeholder="Confirmá tu nueva contraseña"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                  >
+                    {showConfirmPassword ? <MdVisibilityOff className="h-5 w-5" /> : <MdVisibility className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
 
               {state === "error" && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
-                  {msg}
+                <div className="rounded-lg bg-red-50 p-4 flex items-start gap-3">
+                  <MdError className="text-xl text-red-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-red-800">Error</h3>
+                    <p className="text-red-700">{msg}</p>
+                  </div>
                 </div>
               )}
 
               <button
                 type="submit"
                 disabled={state === "loading"}
-                className="w-full rounded-xl bg-black text-white py-2 hover:opacity-90 transition disabled:opacity-60"
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-100 px-6 py-3 font-semibold text-white transition-all hover:bg-orange-600 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {state === "loading" ? "Guardando..." : "Guardar contraseña"}
+                {state === "loading" ? (
+                  <>
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <MdLock className="text-xl" />
+                    Guardar Contraseña
+                  </>
+                )}
               </button>
             </form>
           )}
+
+          <div className="mt-6 text-center">
+            <Link 
+              href="/login" 
+              className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-primary-100 transition-colors"
+            >
+              <MdArrowBack className="text-lg" />
+              Volver al Login
+            </Link>
+          </div>
         </div>
-      </main>
-    </>
+      </div>
+    </div>
   );
 }

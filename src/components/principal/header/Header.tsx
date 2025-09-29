@@ -5,7 +5,7 @@ import Image from "next/image";
 import logo from "../../../../public/images/logo_new.png";
 
 import { AiOutlineClose } from "react-icons/ai";
-import { MdNotificationsNone } from "react-icons/md";
+import { MdNotificationsNone, MdShoppingCart } from "react-icons/md";
 import { HiMenuAlt3 } from "react-icons/hi";
 import { IoMdArrowDropdown } from "react-icons/io";
 import { useSession, signOut } from "next-auth/react";
@@ -21,6 +21,12 @@ const HeaderComponent = ({ minimal = false }: Props) => {
   const { data: session } = useSession();
   const { query, setQuery, city, setCity } = useSearchStore();
   const { data: cities = [] } = trpc.search.getAvailableCities.useQuery();
+  const { data: cart = [] } = trpc.cart.list.useQuery(undefined, {
+    enabled: !!session,
+  });
+
+  // Calcular quantidade total de itens no carrinho
+  const cartItemsCount = cart.reduce((total, item) => total + item.quantity, 0);
 
   const [openNotifications, setOpenNotifications] = useState(false);
   const [nav, setNav] = useState(false);
@@ -103,6 +109,19 @@ const HeaderComponent = ({ minimal = false }: Props) => {
               </Link>
             ) : (
               <>
+                {/* Carrinho com badge */}
+                <Link href="/cart" className="relative">
+                  <MdShoppingCart
+                    className="cursor-pointer text-gray-700 hover:text-primary-100 transition-colors"
+                    size={24}
+                  />
+                  {cartItemsCount > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-primary-100 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                      {cartItemsCount > 99 ? '99+' : cartItemsCount}
+                    </span>
+                  )}
+                </Link>
+
                 <MdNotificationsNone
                   className="cursor-pointer text-gray-700"
                   size={22}
@@ -220,8 +239,26 @@ const HeaderComponent = ({ minimal = false }: Props) => {
             ) : (
               <div>
                 <p className="font-bold mb-4">{session?.user?.name}</p>
+                
+                {/* Carrinho mobile com badge */}
+                <div className="mb-4">
+                  <Link 
+                    href="/cart" 
+                    onClick={() => setNav(false)}
+                    className="flex items-center gap-2 text-gray-700 hover:text-primary-100 transition-colors"
+                  >
+                    <MdShoppingCart size={20} />
+                    <span>Mi Carrito</span>
+                    {cartItemsCount > 0 && (
+                      <span className="bg-primary-100 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                        {cartItemsCount > 99 ? '99+' : cartItemsCount}
+                      </span>
+                    )}
+                  </Link>
+                </div>
+                
                 <Link href="/profile" onClick={() => setNav(false)}>Perfil</Link><br />
-                <Link href="/cart" onClick={() => setNav(false)}>🛒 Mi Carrito</Link><br />
+                <Link href="/my-tickets" onClick={() => setNav(false)}>🎟️ Mis Entradas</Link><br />
                 <button
                   onClick={() => signOut()}
                   className="mt-4 text-red-500"

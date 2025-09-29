@@ -1,10 +1,12 @@
-// src/pages/index.tsx
+// src/pages/cart/index.tsx
 import { useEffect, useState } from "react";
 import { trpc } from "@/utils/trpc";
 import { useRouter } from "next/router";
+import Head from "next/head";
+import Image from "next/image";
 import Header from "@/components/principal/header/Header";
 import FooterComponent from "@/components/principal/footer/Footer";
-import Image from "next/image";
+import { MdShoppingCart, MdAdd, MdRemove, MdDelete, MdArrowBack, MdPayment } from "react-icons/md";
 
 export default function CartPage() {
   const router = useRouter();
@@ -85,30 +87,52 @@ export default function CartPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header minimal />
-
-      <main className="flex-1 max-w-3xl mx-auto px-4 py-8 w-full">
-        <h1 className="text-2xl font-bold text-primary-100 mb-6">🛒 Mi Carrito</h1>
+      <Head>
+        <title>Mi Carrito - EntradaMaster</title>
+        <meta name="robots" content="noindex" />
+      </Head>
+      
+      <Header />
+      
+      <main className="flex-1 py-8">
+        <div className="max-w-4xl mx-auto px-4">
+          {/* Header da página */}
+          <div className="mb-8 text-center">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-primary-100">
+              <MdShoppingCart className="text-4xl text-white" />
+            </div>
+            <h1 className="mb-4 text-3xl md:text-4xl font-bold text-gray-900">Mi Carrito</h1>
+          </div>
 
         {isLoading && (!cart || cart.length === 0) ? (
-          <p className="text-gray-500">Cargando carrito...</p>
+          <div className="max-w-md mx-auto rounded-lg bg-white p-6 shadow-md text-center">
+            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary-100 border-t-transparent"></div>
+            <h2 className="mb-2 text-xl font-bold text-gray-700">Cargando carrito...</h2>
+          </div>
         ) : cart && cart.length === 0 ? (
-          <div className="bg-white shadow rounded-lg p-6 text-center">
-            <p className="text-gray-500">Tu carrito está vacío.</p>
-            <div className="mt-4">
-              <button
-                onClick={() => router.push("/")}
-                className="px-5 py-2 rounded-lg border border-primary-100 text-primary-100 font-semibold hover:bg-primary-50 transition"
-              >
-                Continuar comprando
-              </button>
-            </div>
+          <div className="max-w-md mx-auto rounded-lg bg-white p-6 shadow-md text-center">
+            <MdShoppingCart className="mx-auto mb-4 text-6xl text-gray-400" />
+            <h2 className="mb-2 text-xl font-bold text-gray-600">Tu carrito está vacío</h2>
+            <p className="mb-6 text-gray-500">Agrega algunos eventos para comenzar tu compra.</p>
+            <button
+              onClick={() => router.push("/")}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary-100 px-6 py-3 font-semibold text-white transition-all hover:bg-orange-600 hover:shadow-lg"
+            >
+              <MdArrowBack className="text-xl" />
+              Continuar comprando
+            </button>
           </div>
         ) : (
-          <>
-            {isFetching && <p className="text-xs text-gray-400 mb-2">🔄 Actualizando carrito...</p>}
+          <div className="space-y-6">
+            {/* Indicador de atualização */}
+            {isFetching && (
+              <div className="rounded-lg bg-blue-50 p-4 text-center">
+                <p className="text-sm text-blue-700">🔄 Actualizando carrito...</p>
+              </div>
+            )}
 
-            <ul className="space-y-4">
+            {/* Lista de itens */}
+            <div className="space-y-4">
               {cart?.map((item) => {
                 const price = item.seat?.ticketCategory?.price ?? item.ticketCategory?.price ?? 0;
                 const event = item.eventSession?.event;
@@ -117,102 +141,113 @@ export default function CartPage() {
                   : "Fecha no disponible";
 
                 return (
-                  <li
+                  <div
                     key={item.id}
-                    className="bg-white shadow rounded-lg p-4 flex justify-between items-center"
+                    className="rounded-xl bg-white p-4 md:p-6 shadow-lg"
                   >
-                    <div className="flex items-center gap-3">
-                      {event?.image && (
-                        <Image
-                          src={event.image}
-                          alt={event.name}
-                          width={80}
-                          height={60}
-                          className="rounded object-cover"
-                        />
-                      )}
-                      <div>
-                        <p className="font-semibold text-gray-800">{event?.name}</p>
-                        <p className="text-sm text-gray-500">{sessionDate}</p>
-                        <p className="text-sm text-gray-500">
-                          {item.ticketCategory?.title ??
-                            (item.seat ? `Asiento ${item.seat.labelFull}` : "Entrada")}{" "}
-                          — ${price.toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() =>
-                            updateQuantityMutation.mutate({
-                              cartItemId: item.id,
-                              quantity: item.quantity - 1,
-                            })
-                          }
-                          className="px-2 py-1 rounded bg-gray-200 hover:bg-gray-300"
-                          disabled={updateQuantityMutation.isPending || item.quantity <= 1}
-                        >
-                          −
-                        </button>
-                        <span className="w-6 text-center">{item.quantity}</span>
-                        <button
-                          onClick={() =>
-                            updateQuantityMutation.mutate({
-                              cartItemId: item.id,
-                              quantity: item.quantity + 1,
-                            })
-                          }
-                          className="px-2 py-1 rounded bg-gray-200 hover:bg-gray-300"
-                          disabled={updateQuantityMutation.isPending}
-                        >
-                          +
-                        </button>
+                    <div className="flex flex-col md:flex-row md:items-center gap-4">
+                      {/* Imagem e informações do evento */}
+                      <div className="flex items-center gap-4">
+                        {event?.image && (
+                          <div className="flex-shrink-0">
+                            <Image
+                              src={event.image}
+                              alt={event.name}
+                              width={80}
+                              height={80}
+                              className="rounded-lg object-cover"
+                            />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-semibold text-gray-900 truncate">{event?.name}</h3>
+                          <p className="text-sm text-gray-500">{sessionDate}</p>
+                          <p className="text-sm text-gray-600">
+                            {item.ticketCategory?.title ??
+                              (item.seat ? `Asiento ${item.seat.labelFull}` : "Entrada")}
+                          </p>
+                          <p className="text-lg font-bold text-primary-100">${price.toFixed(2)}</p>
+                        </div>
                       </div>
 
-                      <button
-                        className="text-red-600 hover:text-red-800 text-sm font-medium"
-                        onClick={() => removeMutation.mutate({ cartItemId: item.id })}
-                        disabled={removeMutation.isPending}
-                      >
-                        Eliminar
-                      </button>
+                      {/* Controles de quantidade e remoção */}
+                      <div className="flex items-center justify-between md:justify-end gap-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() =>
+                              updateQuantityMutation.mutate({
+                                cartItemId: item.id,
+                                quantity: item.quantity - 1,
+                              })
+                            }
+                            className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={updateQuantityMutation.isPending || item.quantity <= 1}
+                          >
+                            <MdRemove className="text-sm" />
+                          </button>
+                          <span className="w-8 text-center font-semibold">{item.quantity}</span>
+                          <button
+                            onClick={() =>
+                              updateQuantityMutation.mutate({
+                                cartItemId: item.id,
+                                quantity: item.quantity + 1,
+                              })
+                            }
+                            className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={updateQuantityMutation.isPending}
+                          >
+                            <MdAdd className="text-sm" />
+                          </button>
+                        </div>
+
+                        <button
+                          className="flex items-center gap-1 text-red-600 hover:text-red-800 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => removeMutation.mutate({ cartItemId: item.id })}
+                          disabled={removeMutation.isPending}
+                        >
+                          <MdDelete className="text-lg" />
+                          Eliminar
+                        </button>
+                      </div>
                     </div>
-                  </li>
+                  </div>
                 );
               })}
-            </ul>
+            </div>
 
-            <div className="mt-8 bg-white shadow rounded-lg p-6">
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-lg font-semibold text-gray-700">Total</span>
-                <span className="text-xl font-bold text-primary-100">${total.toFixed(2)}</span>
+            {/* Resumo e botões de ação */}
+            <div className="rounded-xl bg-white p-6 shadow-lg">
+              <div className="flex justify-between items-center mb-6">
+                <span className="text-xl font-semibold text-gray-700">Total</span>
+                <span className="text-2xl font-bold text-primary-100">${total.toFixed(2)}</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <button
-                  className="w-full bg-white text-primary-100 border border-primary-100 py-3 rounded-lg font-semibold hover:bg-primary-50 transition"
+                  className="flex items-center justify-center gap-2 rounded-lg border-2 border-primary-100 bg-white px-6 py-3 font-semibold text-primary-100 transition-all hover:bg-primary-50 hover:border-orange-600"
                   onClick={() => router.push("/")}
                 >
+                  <MdArrowBack className="text-xl" />
                   Vamos a seguir comprando
                 </button>
 
                 <button
-                  className="w-full bg-primary-100 text-white py-3 rounded-lg font-semibold hover:bg-primary-200 transition"
+                  className="flex items-center justify-center gap-2 rounded-lg bg-primary-100 px-6 py-3 font-semibold text-white transition-all hover:bg-orange-600 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={createFromCart.isPending || isRedirecting}
                   onClick={handleCheckout}
                 >
+                  <MdPayment className="text-xl" />
                   {isRedirecting || createFromCart.isPending
                     ? "Redirigiendo..."
                     : "Proceder al Checkout"}
                 </button>
               </div>
             </div>
-          </>
+          </div>
         )}
+        </div>
       </main>
-
+      
       <FooterComponent />
     </div>
   );

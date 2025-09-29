@@ -1,26 +1,29 @@
 // src/components/dashboard/components/LastTransactions.tsx
 import React from "react";
+import { MdReceipt, MdArrowForward } from "react-icons/md";
 
 const LastTransactions = () => {
   return (
-    <div className="mb-8 rounded-lg bg-white p-4 shadow sm:p-6 xl:p-8 ">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h3 className="mb-2 text-xl font-bold text-gray-900">
-            Últimas transacciones
-          </h3>
-          <span className="text-base font-normal text-gray-500">
-            Lista de las últimas transacciones
-          </span>
+    <div className="rounded-xl bg-white p-6 shadow-lg">
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+            <MdReceipt className="text-xl text-green-600" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-gray-900">
+              Últimas Transacciones
+            </h3>
+            <p className="text-sm text-gray-500">Lista de transacciones recientes</p>
+          </div>
         </div>
-        <div className="flex-shrink-0">
-          <a
-            href="#"
-            className="rounded-lg p-2 text-sm font-medium text-cyan-600 hover:bg-gray-100"
-          >
-            Ver todo
-          </a>
-        </div>
+        <a
+          href="#"
+          className="inline-flex items-center gap-2 rounded-lg bg-green-50 px-4 py-2 text-sm font-medium text-green-600 transition-all hover:bg-green-100 hover:shadow-md"
+        >
+          Ver Todo
+          <MdArrowForward className="text-lg" />
+        </a>
       </div>
       <div className="mt-8 flex flex-col">
         <div className="overflow-x-auto rounded-lg">

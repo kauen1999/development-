@@ -1,12 +1,21 @@
 // src/components/dashboard/components/AdquisitionsOverview.tsx
 import React from "react";
+import { MdBarChart, MdTrendingUp } from "react-icons/md";
 
 const AdquisitionsOverview = () => {
   return (
-    <div className="rounded-lg bg-white p-4 shadow sm:p-6 xl:p-8 ">
-      <h3 className="mb-10 text-xl font-bold leading-none text-gray-900">
-        Visión general
-      </h3>
+    <div className="rounded-xl bg-white p-6 shadow-lg">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100">
+          <MdBarChart className="text-xl text-orange-600" />
+        </div>
+        <div>
+          <h3 className="text-xl font-bold text-gray-900">
+            Visión General
+          </h3>
+          <p className="text-sm text-gray-500">Top artistas por usuarios</p>
+        </div>
+      </div>
       <div className="block w-full overflow-x-auto">
         <table className="w-full border-collapse items-center bg-transparent">
           <thead>

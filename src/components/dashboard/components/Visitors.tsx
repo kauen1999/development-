@@ -1,33 +1,33 @@
 // src/components/dashboard/components/Visitors.tsx
 import React from "react";
+import { MdPeople, MdTrendingUp } from "react-icons/md";
 
 const Visitors = () => {
   return (
-    <div className="rounded-lg bg-white p-4 shadow sm:p-6 xl:p-8 ">
-      <div className="flex items-center">
-        <div className="flex-shrink-0">
-          <span className="text-2xl font-bold leading-none text-gray-900 sm:text-3xl">
-            152
-          </span>
-          <h3 className="text-base font-normal text-gray-500">
-          Visitantes esta semana
-          </h3>
+    <div className="rounded-xl bg-white p-6 shadow-lg transition-all hover:shadow-xl">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100">
+            <MdPeople className="text-2xl text-purple-600" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-600">Visitantes</p>
+            <p className="text-2xl font-bold text-gray-900">152</p>
+            <p className="text-xs text-gray-500">Esta semana</p>
+          </div>
         </div>
-        <div className="ml-5 flex w-0 flex-1 items-center justify-end text-base font-bold text-green-500">
-          100%
-          <svg
-            className="h-5 w-5"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              fillRule="evenodd"
-              d="M5.293 7.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L6.707 7.707a1 1 0 01-1.414 0z"
-              clipRule="evenodd"
-            ></path>
-          </svg>
+        
+        <div className="flex items-center gap-1 text-green-600">
+          <MdTrendingUp className="text-lg" />
+          <span className="text-sm font-semibold">100%</span>
         </div>
+      </div>
+      
+      <div className="mt-4">
+        <div className="h-2 w-full rounded-full bg-gray-200">
+          <div className="h-2 w-full rounded-full bg-purple-500"></div>
+        </div>
+        <p className="mt-2 text-xs text-gray-500">Crecimiento excelente</p>
       </div>
     </div>
   );

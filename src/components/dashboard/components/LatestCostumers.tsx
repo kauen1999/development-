@@ -1,19 +1,29 @@
 // src/components/dashboard/components/LatestCostumers.tsx
 import Image from "next/image";
 import React from "react";
+import { MdPeople, MdArrowForward } from "react-icons/md";
 
 const LatestCostumers = () => {
   return (
-    <div className="mb-4 h-full rounded-lg bg-white p-4 shadow sm:p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-xl font-bold leading-none text-gray-900">
-          Últimos Registros
-        </h3>
+    <div className="h-full rounded-xl bg-white p-6 shadow-lg">
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-100">
+            <MdPeople className="text-xl text-cyan-600" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-gray-900">
+              Últimos Registros
+            </h3>
+            <p className="text-sm text-gray-500">Usuarios recientes</p>
+          </div>
+        </div>
         <a
           href="#"
-          className="inline-flex items-center rounded-lg p-2 text-sm font-medium text-cyan-600 hover:bg-gray-100"
+          className="inline-flex items-center gap-2 rounded-lg bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-600 transition-all hover:bg-cyan-100 hover:shadow-md"
         >
           Ver Todos
+          <MdArrowForward className="text-lg" />
         </a>
       </div>
       <div className="flow-root">

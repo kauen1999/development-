@@ -9,6 +9,21 @@ import { useSession } from "next-auth/react";
 import { trpc } from "@/utils/trpc";
 import { getBrowserSupabase } from "@/lib/supabaseClient";
 import type { SessionTicketingType } from "@prisma/client";
+import { 
+  MdEvent, 
+  MdDescription, 
+  MdCategory, 
+  MdCalendarToday, 
+  MdImage, 
+  MdLocationOn, 
+  MdPerson, 
+  MdAdd, 
+  MdDelete, 
+  MdSave,
+  MdArrowBack,
+  MdMusicNote,
+  MdAttachMoney,
+} from "react-icons/md";
 
 // ───────────────── Helpers ─────────────────
 function parseDateOnlyToDate(value?: string): Date | undefined {
@@ -196,17 +211,21 @@ function ArtistPicker({
   // UI
   return (
     <div className="mb-6">
-      <h4 className="mb-2 font-semibold text-gray-700">Artistas</h4>
+      <div className="mb-4 flex items-center gap-2">
+        <MdPerson className="text-xl text-primary-100" />
+        <h4 className="text-lg font-semibold text-gray-800">Artistas</h4>
+      </div>
 
       {/* chips dos artistas selecionados */}
       {selected.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-2">
+        <div className="mb-4 flex flex-wrap gap-2">
           {selected.map((name) => (
-            <span key={name} className="inline-flex items-center rounded-full border px-3 py-1 text-sm">
+            <span key={name} className="inline-flex items-center gap-2 rounded-lg bg-primary-100 px-3 py-2 text-sm text-white">
+              <MdPerson className="text-sm" />
               {name}
               <button
                 type="button"
-                className="ml-2 text-red-600"
+                className="text-white hover:text-red-200 transition-colors"
                 onClick={() => onRemove(name)}
                 aria-label={`Quitar ${name}`}
               >
@@ -219,21 +238,26 @@ function ArtistPicker({
 
       {/* Buscar/crear */}
       <div className="relative">
-        <label className="block text-sm text-gray-700 mb-1">Buscar o crear artista</label>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Escribe el nombre del artista…"
-          className="w-full rounded border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-200 placeholder-gray-400"
-        />
+        <label className="block text-sm font-medium text-gray-700 mb-2">Buscar o Crear Artista</label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <MdPerson className="h-5 w-5 text-gray-400" />
+          </div>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Escribí el nombre del artista…"
+            className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+          />
+        </div>
         {q.trim().length >= 2 && results.length > 0 && (
-          <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded border bg-white shadow">
+          <div className="absolute z-10 mt-2 max-h-56 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
             {results.map(
               (a: { id: string; name: string; image?: string | null }) => (
                 <button
                   key={a.id}
                   type="button"
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-gray-50"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
                   onClick={() => {
                     onAdd(a.name);
                     if (a.image) onBannerChange(a.name, a.image);
@@ -244,12 +268,12 @@ function ArtistPicker({
                     <Image
                       src={a.image}
                       alt={a.name}
-                      width={24}
-                      height={24}
+                      width={32}
+                      height={32}
                       className="rounded-full object-cover"
                     />
                   )}
-                  <span>{a.name}</span>
+                  <span className="font-medium text-gray-800">{a.name}</span>
                 </button>
               )
             )}
@@ -269,8 +293,11 @@ function ArtistPicker({
 
       {/* Editor de banner por artista seleccionado */}
       {selected.length > 0 && (
-        <div className="mt-4 space-y-4">
-          <p className="text-sm text-gray-700 font-medium">Banner por artista (opcional)</p>
+        <div className="mt-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <MdImage className="text-lg text-primary-100" />
+            <p className="text-sm font-medium text-gray-700">Banner por Artista (Opcional)</p>
+          </div>
           {selected.map((name) => (
             <ArtistBannerEditor
               key={name}
@@ -949,136 +976,228 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
   };
 
   // ───────────────── UI ─────────────────
-  const input =
-    "w-full rounded border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-100 focus:border-primary-200 placeholder-gray-400";
-  const err = "mt-1 text-xs text-red-600";
-  const card = "space-y-4 rounded-lg bg-white p-6 shadow-md";
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10">
-      <h1 className="mb-8 text-3xl font-bold text-gray-800">
-        {mode === "create" ? "Crear Evento" : "Editar Evento"}
-      </h1>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-10">
-        {/* Información básica */}
-        <div className={card}>
-          <h2 className="text-xl font-semibold text-gray-700">Información básica</h2>
-
-          <label className="block text-sm text-gray-700 mb-1">Nombre del evento</label>
-          <input {...register("name")} placeholder="Ej.: Festival Internacional de Música 2025" className={input} />
-          {errors.name && <p className={err}>{errors.name.message}</p>}
-
-          <label className="block text-sm text-gray-700 mt-4 mb-1">Descripción</label>
-          <textarea
-            {...register("description")}
-            placeholder="Agrega una descripción: artistas principales, género, público objetivo…"
-            className={input}
-          />
-          {errors.description && <p className={err}>{errors.description.message}</p>}
-        </div>
-
-        {/* Categoría */}
-        <div className={card}>
-          <h2 className="text-xl font-semibold text-gray-700">Categoría</h2>
-          <label className="block text-sm text-gray-700 mb-1">Seleccione la categoría</label>
-          <select {...register("categoryId")} className={input} defaultValue="">
-            <option value="">Selecciona la categoría del evento</option>
-            {categories.map((c: { id: string; title: string }) => (
-              <option key={c.id} value={c.id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
-          {errors.categoryId && <p className={err}>{errors.categoryId.message}</p>}
-        </div>
-
-        {/* Fechas (opcional) */}
-        <div className={card}>
-          <h2 className="text-xl font-semibold text-gray-700">Fechas (opcional)</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="block text-sm text-gray-700">Fecha de inicio</label>
-              <input type="date" {...register("startDate")} className={input} />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-700">Fecha de fin</label>
-              <input type="date" {...register("endDate")} className={input} />
-              {errors.endDate && <p className={err}>{errors.endDate.message}</p>}
-            </div>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="mx-auto max-w-4xl px-4">
+        {/* Header da página */}
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-primary-100">
+            <MdEvent className="text-4xl text-white" />
           </div>
+          <h1 className="mb-4 text-3xl md:text-4xl font-bold text-gray-900">
+            {mode === "create" ? "Crear Evento" : "Editar Evento"}
+          </h1>
+          <p className="text-base md:text-lg text-gray-600">
+            {mode === "create" 
+              ? "Completá la información de tu evento y sus sesiones" 
+              : "Modificá la información de tu evento"}
+          </p>
         </div>
 
-        {/* Imagen del evento */}
-        <div className={card}>
-          <h2 className="mb-2 text-xl font-semibold text-gray-700">Imagen</h2>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+          {/* Información básica */}
+          <div className="rounded-xl bg-white p-6 md:p-8 shadow-lg">
+            <div className="mb-6 flex items-center gap-3">
+              <MdDescription className="text-2xl text-primary-100" />
+              <h2 className="text-xl font-semibold text-gray-800">Información Básica</h2>
+            </div>
 
-          <div className="flex items-center gap-3">
-            <input
-              id="event-image"
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.currentTarget.files?.[0] ?? null;
-                setImageFile(file);
-                setImagePreview(file ? URL.createObjectURL(file) : null);
-              }}
-              className="sr-only"
-            />
-            <label htmlFor="event-image" className="cursor-pointer rounded bg-primary-100 px-4 py-2 text-white hover:bg-primary-200">
-              Seleccionar archivo
-            </label>
-            <span className="truncate text-sm text-gray-600">
-              {imageFile ? imageFile.name : imagePreview ? "Imagen existente" : "Ningún archivo seleccionado"}
-            </span>
-          </div>
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nombre del Evento
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <MdEvent className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input 
+                    {...register("name")} 
+                    placeholder="Ej.: Festival Internacional de Música 2025" 
+                    className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors" 
+                  />
+                </div>
+                {errors.name && <p className="mt-2 text-sm text-red-600">{errors.name.message}</p>}
+              </div>
 
-          {imagePreview && (
-            <div className="mt-4">
-              <p className="mb-2 text-sm text-gray-500">Vista previa:</p>
-              <div className="relative h-64 w-full overflow-hidden rounded">
-                <Image
-                  src={imagePreview}
-                  alt="Vista previa"
-                  fill
-                  sizes="100vw"
-                  className="object-cover"
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Descripción
+                </label>
+                <textarea
+                  {...register("description")}
+                  placeholder="Agregá una descripción: artistas principales, género, público objetivo…"
+                  rows={4}
+                  className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors resize-none"
                 />
+                {errors.description && <p className="mt-2 text-sm text-red-600">{errors.description.message}</p>}
               </div>
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Sesiones */}
-        <div className={card}>
-          <h2 className="mb-2 text-xl font-semibold text-gray-700">Sesiones</h2>
+          {/* Categoría */}
+          <div className="rounded-xl bg-white p-6 md:p-8 shadow-lg">
+            <div className="mb-6 flex items-center gap-3">
+              <MdCategory className="text-2xl text-primary-100" />
+              <h2 className="text-xl font-semibold text-gray-800">Categoría del Evento</h2>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Seleccioná la categoría
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <MdCategory className="h-5 w-5 text-gray-400" />
+                </div>
+                <select 
+                  {...register("categoryId")} 
+                  className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors appearance-none bg-white" 
+                  defaultValue=""
+                >
+                  <option value="">Seleccioná la categoría del evento</option>
+                  {categories.map((c: { id: string; title: string }) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {errors.categoryId && <p className="mt-2 text-sm text-red-600">{errors.categoryId.message}</p>}
+            </div>
+          </div>
+
+          {/* Fechas (opcional) */}
+          <div className="rounded-xl bg-white p-6 md:p-8 shadow-lg">
+            <div className="mb-6 flex items-center gap-3">
+              <MdCalendarToday className="text-2xl text-primary-100" />
+              <h2 className="text-xl font-semibold text-gray-800">Fechas del Evento (Opcional)</h2>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Fecha de Inicio
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <MdCalendarToday className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input 
+                    type="date" 
+                    {...register("startDate")} 
+                    className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors" 
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Fecha de Fin
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <MdCalendarToday className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input 
+                    type="date" 
+                    {...register("endDate")} 
+                    className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors" 
+                  />
+                </div>
+                {errors.endDate && <p className="mt-2 text-sm text-red-600">{errors.endDate.message}</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* Imagen del evento */}
+          <div className="rounded-xl bg-white p-6 md:p-8 shadow-lg">
+            <div className="mb-6 flex items-center gap-3">
+              <MdImage className="text-2xl text-primary-100" />
+              <h2 className="text-xl font-semibold text-gray-800">Imagen del Evento</h2>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <input
+                  id="event-image"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.currentTarget.files?.[0] ?? null;
+                    setImageFile(file);
+                    setImagePreview(file ? URL.createObjectURL(file) : null);
+                  }}
+                  className="sr-only"
+                />
+                <label 
+                  htmlFor="event-image" 
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary-100 px-6 py-3 font-semibold text-white transition-all hover:bg-orange-600 hover:shadow-lg cursor-pointer"
+                >
+                  <MdImage className="text-xl" />
+                  Seleccionar Imagen
+                </label>
+                <span className="truncate text-sm text-gray-600">
+                  {imageFile ? imageFile.name : imagePreview ? "Imagen existente" : "Ningún archivo seleccionado"}
+                </span>
+              </div>
+
+              {imagePreview && (
+                <div className="mt-6">
+                  <p className="mb-3 text-sm font-medium text-gray-700">Vista Previa:</p>
+                  <div className="relative h-64 w-full overflow-hidden rounded-lg border-2 border-gray-200">
+                    <Image
+                      src={imagePreview}
+                      alt="Vista previa del evento"
+                      fill
+                      sizes="100vw"
+                      className="object-cover"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sesiones */}
+          <div className="rounded-xl bg-white p-6 md:p-8 shadow-lg">
+            <div className="mb-6 flex items-center gap-3">
+              <MdMusicNote className="text-2xl text-primary-100" />
+              <h2 className="text-xl font-semibold text-gray-800">Sesiones del Evento</h2>
+            </div>
 
           {sessions.map((s, sIdx) => {
             const isGeneral = s.ticketingType === "GENERAL";
 
             return (
-              <div key={sIdx} className="rounded border p-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-700">Sesión {sIdx + 1}</h3>
+              <div key={sIdx} className="rounded-lg border-2 border-gray-200 p-6 mb-6">
+                <div className="mb-6 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100">
+                      <span className="text-sm font-bold text-white">{sIdx + 1}</span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-800">Sesión {sIdx + 1}</h3>
+                  </div>
                   <button
                     type="button"
                     onClick={() => removeSession(sIdx)}
                     disabled={sessions.length === 1}
-                    className="rounded border px-3 py-2 text-sm text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition-all hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                     title={sessions.length === 1 ? "Mínimo 1 sesión" : "Eliminar sesión"}
                   >
-                    Eliminar sesión
+                    <MdDelete className="text-lg" />
+                    Eliminar Sesión
                   </button>
                 </div>
 
                 {/* Tipo + Fecha/Hora + Duración */}
-                <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
                   <div>
-                    <label className="block text-sm text-gray-700 mb-1">Tipo de sesión</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Sesión</label>
                     <select
                       value={s.ticketingType}
                       onChange={(e) => (e.target.value === "GENERAL" ? switchToGeneral(sIdx) : switchToSeated(sIdx))}
-                      className={input}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
                     >
                       <option value="GENERAL">General (sin asientos)</option>
                      {/* <option value="SEATED">Seated (con asientos)</option>*/}
@@ -1086,25 +1205,25 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
                   </div>
 
                   <div>
-                    <label className="block text-sm text-gray-700 mb-1">Fecha y hora</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Fecha y Hora</label>
                     <input
                       type="datetime-local"
                       value={s.dateTimeLocal}
                       onChange={(e) => updateBaseField(sIdx, "dateTimeLocal", e.target.value)}
                       placeholder="Ej.: 2025-12-20T21:00"
-                      className={input}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm text-gray-700 mb-1">Duración (min)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Duración (minutos)</label>
                     <input
                       type="number"
                       min={1}
                       value={s.durationMin}
                       onChange={(e) => updateBaseField(sIdx, "durationMin", Math.max(1, Number(e.target.value) || 1))}
                       placeholder="Duración (ej.: 120)"
-                      className={input}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
                     />
                   </div>
                 </div>
@@ -1150,68 +1269,83 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
                   </div>
 
                 {/* Lugar y dirección */}
-                <div className="mb-4">
-                  <label className="block text-sm text-gray-700 mb-1">Lugar</label>
-                  <input
-                    value={s.venueName}
-                    onChange={(e) => updateBaseField(sIdx, "venueName", e.target.value)}
-                    placeholder="Lugar (ej.: Teatro Gran Rex)"
-                    className={`${input} mb-3`}
-                  />
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="mb-6">
+                  <div className="mb-4 flex items-center gap-2">
+                    <MdLocationOn className="text-xl text-primary-100" />
+                    <h4 className="text-lg font-semibold text-gray-800">Lugar y Dirección</h4>
+                  </div>
+                  
+                  <div className="space-y-4">
                     <div>
-                      <label className="block text-sm text-gray-700 mb-1">Calle</label>
-                      <input
-                        value={s.street}
-                        onChange={(e) => updateBaseField(sIdx, "street", e.target.value)}
-                        placeholder="Calle (ej.: Av. Corrientes)"
-                        className={input}
-                      />
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Lugar</label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <MdLocationOn className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                          value={s.venueName}
+                          onChange={(e) => updateBaseField(sIdx, "venueName", e.target.value)}
+                          placeholder="Lugar (ej.: Teatro Gran Rex)"
+                          className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-1">Número</label>
-                      <input
-                        value={s.number}
-                        onChange={(e) => updateBaseField(sIdx, "number", e.target.value)}
-                        placeholder="Número (ej.: 857)"
-                        className={input}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-1">Barrio (opcional)</label>
-                      <input
-                        value={s.neighborhood}
-                        onChange={(e) => updateBaseField(sIdx, "neighborhood", e.target.value)}
-                        placeholder="Barrio (opcional)"
-                        className={input}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-1">Ciudad</label>
-                      <input
-                        value={s.city}
-                        onChange={(e) => updateBaseField(sIdx, "city", e.target.value)}
-                        placeholder="Ciudad"
-                        className={input}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-1">Provincia/Estado</label>
-                      <input
-                        value={s.state}
-                        onChange={(e) => updateBaseField(sIdx, "state", e.target.value)}
-                        placeholder="Provincia/Estado"
-                        className={input}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-1">Código postal</label>
-                      <input
-                        value={s.zip}
-                        onChange={(e) => updateBaseField(sIdx, "zip", e.target.value)}
-                        placeholder="Código postal"
-                        className={input}
-                      />
+                    
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Calle</label>
+                        <input
+                          value={s.street}
+                          onChange={(e) => updateBaseField(sIdx, "street", e.target.value)}
+                          placeholder="Calle (ej.: Av. Corrientes)"
+                          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Número</label>
+                        <input
+                          value={s.number}
+                          onChange={(e) => updateBaseField(sIdx, "number", e.target.value)}
+                          placeholder="Número (ej.: 857)"
+                          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Barrio (Opcional)</label>
+                        <input
+                          value={s.neighborhood}
+                          onChange={(e) => updateBaseField(sIdx, "neighborhood", e.target.value)}
+                          placeholder="Barrio (opcional)"
+                          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Ciudad</label>
+                        <input
+                          value={s.city}
+                          onChange={(e) => updateBaseField(sIdx, "city", e.target.value)}
+                          placeholder="Ciudad"
+                          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Provincia/Estado</label>
+                        <input
+                          value={s.state}
+                          onChange={(e) => updateBaseField(sIdx, "state", e.target.value)}
+                          placeholder="Provincia/Estado"
+                          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Código Postal</label>
+                        <input
+                          value={s.zip}
+                          onChange={(e) => updateBaseField(sIdx, "zip", e.target.value)}
+                          placeholder="Código postal"
+                          className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1219,59 +1353,73 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
                 {/* Categorías / Sectores */}
                 {isGeneral ? (
                   <div>
-                    <h4 className="mb-2 font-semibold text-gray-700">Categorías de la sesión</h4>
-                    {s.categories.map((c, cIdx) => (
-                      <div key={cIdx} className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                        <div>
-                          <label className="block text-sm text-gray-700 mb-1">Nombre de la categoría</label>
-                          <input
-                            value={c.title}
-                            onChange={(e) => updateCategoryField(sIdx, cIdx, "title", e.target.value)}
-                            placeholder="Nombre (VIP, Pista, Pullman...)"
-                            className={input}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm text-gray-700 mb-1">Precio (ARS)</label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={c.price}
-                            onChange={(e) => updateCategoryField(sIdx, cIdx, "price", Number(e.target.value) || 0)}
-                            placeholder="Precio (ARS)"
-                            className={input}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm text-gray-700 mb-1">Capacidad</label>
-                          <div className="flex gap-2">
-                            <input
-                              type="number"
-                              min={0}
-                              value={c.capacity}
-                              onChange={(e) =>
-                                updateCategoryField(sIdx, cIdx, "capacity", Number(e.target.value) || 0)
-                              }
-                              placeholder="Capacidad (GENERAL)"
-                              className={input}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeCategory(sIdx, cIdx)}
-                              disabled={s.categories.length === 1}
-                              className="min-w-[96px] rounded border px-3 py-2 text-sm text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
-                              title={s.categories.length === 1 ? "Mínimo 1 categoría" : "Eliminar"}
-                            >
-                              Eliminar
-                            </button>
+                    <div className="mb-4 flex items-center gap-2">
+                      <MdAttachMoney className="text-xl text-primary-100" />
+                      <h4 className="text-lg font-semibold text-gray-800">Categorías de la Sesión</h4>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {s.categories.map((c, cIdx) => (
+                        <div key={cIdx} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Nombre de la Categoría</label>
+                              <input
+                                value={c.title}
+                                onChange={(e) => updateCategoryField(sIdx, cIdx, "title", e.target.value)}
+                                placeholder="Nombre (VIP, Pista, Pullman...)"
+                                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Precio (ARS)</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={c.price}
+                                onChange={(e) => updateCategoryField(sIdx, cIdx, "price", Number(e.target.value) || 0)}
+                                placeholder="Precio (ARS)"
+                                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Capacidad</label>
+                              <div className="flex gap-2">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={c.capacity}
+                                  onChange={(e) =>
+                                    updateCategoryField(sIdx, cIdx, "capacity", Number(e.target.value) || 0)
+                                  }
+                                  placeholder="Capacidad (GENERAL)"
+                                  className="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeCategory(sIdx, cIdx)}
+                                  disabled={s.categories.length === 1}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-red-300 bg-red-50 px-3 py-3 text-sm font-medium text-red-700 transition-all hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                  title={s.categories.length === 1 ? "Mínimo 1 categoría" : "Eliminar"}
+                                >
+                                  <MdDelete className="text-lg" />
+                                  Eliminar
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
 
-                    <button type="button" onClick={() => addCategory(sIdx)} className="text-sm text-blue-600 underline">
-                      + Añadir categoría
-                    </button>
+                      <button 
+                        type="button" 
+                        onClick={() => addCategory(sIdx)} 
+                        className="inline-flex items-center gap-2 rounded-lg border border-primary-100 bg-primary-50 px-4 py-2 text-sm font-medium text-primary-100 transition-all hover:bg-primary-100 hover:text-white"
+                      >
+                        <MdAdd className="text-lg" />
+                        Añadir Categoría
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div>
@@ -1286,7 +1434,7 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
                               value={sec.name}
                               onChange={(e) => updateSectorField(sIdx, secIdx, "name", e.target.value)}
                               placeholder="Nombre del sector (ej.: Platea A)"
-                              className={input}
+                              className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
                             />
                           </div>
                           <div>
@@ -1297,7 +1445,7 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
                               value={sec.price}
                               onChange={(e) => updateSectorField(sIdx, secIdx, "price", Number(e.target.value) || 0)}
                               placeholder="Precio del sector (ARS)"
-                              className={input}
+                              className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
                             />
                           </div>
                           <div className="flex items-end justify-end">
@@ -1327,7 +1475,7 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
                                 value={row.name}
                                 onChange={(e) => updateRowField(sIdx, secIdx, rowIdx, "name", e.target.value)}
                                 placeholder="Ej.: A, B, C…"
-                                className={input}
+                                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
                               />
                             </div>
                             <div>
@@ -1346,7 +1494,7 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
                                   )
                                 }
                                 placeholder="Ej.: 20"
-                                className={input}
+                                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
                               />
                             </div>
                             <div className="flex items-end">
@@ -1378,65 +1526,81 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
             );
           })}
 
-          <div className="mt-4">
-            <button type="button" onClick={addSession} className="text-sm text-blue-600 underline">
-              + Añadir otra sesión
-            </button>
+            <div className="mt-6 text-center">
+              <button 
+                type="button" 
+                onClick={addSession} 
+                className="inline-flex items-center gap-2 rounded-lg border border-primary-100 bg-primary-50 px-6 py-3 font-semibold text-primary-100 transition-all hover:bg-primary-100 hover:text-white"
+              >
+                <MdAdd className="text-xl" />
+                Añadir Otra Sesión
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Acciones */}
-        <div className="flex items-center justify-end gap-3">
-          {mode === "edit" && (
+          {/* Acciones */}
+          <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:justify-end">
+            {mode === "edit" && (
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-700 transition-all hover:bg-gray-50"
+              >
+                <MdArrowBack className="text-xl" />
+                Volver
+              </button>
+            )}
+
             <button
-              type="button"
-              onClick={() => router.back()}
-              className="hover:bg-primary-200 rounded bg-primary-100 px-6 py-3 font-semibold text-white transition"
+              type="submit"
+              disabled={
+                isSubmitting ||
+                createEventMutation.isLoading ||
+                createSessionMutation.isLoading ||
+                updateEventMutation.isLoading ||
+                attachArtistsMutation.isLoading ||
+                updateEventGraphMutation.isLoading
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-100 px-6 py-3 font-semibold text-white transition-all hover:bg-orange-600 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Volver
-            </button>
-          )}
-
-          <button
-            type="submit"
-            disabled={
-              isSubmitting ||
+              {isSubmitting ||
               createEventMutation.isLoading ||
               createSessionMutation.isLoading ||
               updateEventMutation.isLoading ||
-              attachArtistsMutation.isLoading ||
-              updateEventGraphMutation.isLoading
-            }
-            className="hover:bg-primary-200 rounded bg-primary-100 px-6 py-3 font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isSubmitting ||
-            createEventMutation.isLoading ||
-            createSessionMutation.isLoading ||
-            updateEventMutation.isLoading ||
-            updateEventGraphMutation.isLoading
-              ? "Guardando…"
-              : mode === "create"
-              ? "Crear Evento y Sesiones"
-              : "Guardar Cambios"}
-          </button>
+              updateEventGraphMutation.isLoading ? (
+                <>
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                  Guardando…
+                </>
+              ) : (
+                <>
+                  <MdSave className="text-xl" />
+                  {mode === "create" ? "Crear Evento y Sesiones" : "Guardar Cambios"}
+                </>
+              )}
+            </button>
 
-          {(createEventMutation.error ||
-            createSessionMutation.error ||
-            updateEventMutation.error ||
-            updateEventGraphMutation.error) && (
-            <span className="text-sm text-red-600">
-              {createEventMutation.error?.message ??
-                createSessionMutation.error?.message ??
-                updateEventMutation.error?.message ??
-                updateEventGraphMutation.error?.message ??
-                "Error al guardar"}
-            </span>
-          )}
-        </div>
-      </form>
+            {(createEventMutation.error ||
+              createSessionMutation.error ||
+              updateEventMutation.error ||
+              updateEventGraphMutation.error) && (
+              <div className="rounded-lg bg-red-50 p-4 text-center">
+                <p className="text-sm text-red-600">
+                  {createEventMutation.error?.message ??
+                    createSessionMutation.error?.message ??
+                    updateEventMutation.error?.message ??
+                    updateEventGraphMutation.error?.message ??
+                    "Error al guardar"}
+                </p>
+              </div>
+            )}
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
+
 function artistNamesFrom(
   artists: { artist: { name: string; image?: string | null } }[] | undefined
 ): string[] {
