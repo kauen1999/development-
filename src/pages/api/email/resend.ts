@@ -56,6 +56,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Sempre 200 com mensagem neutra
   return res.status(200).json({
     ok: true,
-    message: "Se esse e-mail existir, enviaremos um link de verificação em instantes.",
+    message: "Si ese email existe, te enviaremos un enlace de verificación en instantes.",
   });
 }

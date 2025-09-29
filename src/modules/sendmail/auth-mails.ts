@@ -65,7 +65,7 @@ function wrapHtml(title: string, bodyHtml: string) {
         ${bodyHtml}
         <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
         <p style="margin:0;color:${brand.muted};font-size:12px">
-          Se não foi você, ignore esta mensagem.
+          Si no fuiste vos, ignorá este mensaje.
         </p>
       </div>
     </div>
@@ -85,7 +85,7 @@ function linkBlock(url: string, label = "Abrir link") {
       </a>
     </p>
     <p style="color:${brand.muted};font-size:12px;margin-top:12px">
-      Se o botão não funcionar, copie e cole este link no seu navegador:<br/>
+      Si el botón no funciona, copiá y pegá este link en tu navegador:<br/>
       <span style="word-break:break-all">${safe}</span>
     </p>
   `;
@@ -97,19 +97,19 @@ function asText(subject: string, url: string, extra?: string) {
     extra ? `\n${extra}\n` : "",
     "Link:",
     url,
-    "\nSe não foi você, ignore esta mensagem.",
+    "\nSi no fuiste vos, ignorá este mensaje.",
   ].join("\n");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // E-mails
 export async function sendVerificationEmail(to: string, link: string) {
-  const subject = "Confirme seu e-mail";
+  const subject = "Confirmá tu email";
   const html = wrapHtml(
-    "Confirme seu e-mail",
+    "Confirmá tu email",
     `
-      <p>Para concluir seu cadastro, clique no botão abaixo:</p>
-      ${linkBlock(link, "Confirmar e-mail")}
+      <p>Para completar tu registro, hacé clic en el botón de abajo:</p>
+      ${linkBlock(link, "Confirmar email")}
     `
   );
   await transporter.sendMail({
@@ -117,19 +117,19 @@ export async function sendVerificationEmail(to: string, link: string) {
     to,
     subject,
     html,
-    text: asText(subject, link, "Para concluir seu cadastro, acesse:"),
+    text: asText(subject, link, "Para completar tu registro, accedé a:"),
   });
 }
 
 export async function sendPasswordResetEmail(to: string, link: string) {
-  const subject = "Redefinir sua senha";
+  const subject = "Restablecé tu contraseña";
   const html = wrapHtml(
-    "Redefinir senha",
+    "Restablecé tu contraseña",
     `
-      <p>Você solicitou a redefinição da sua senha. Clique no botão para continuar:</p>
-      ${linkBlock(link, "Redefinir senha")}
+      <p>Solicitaste restablecer tu contraseña. Hacé clic en el botón para continuar:</p>
+      ${linkBlock(link, "Restablecer contraseña")}
       <p style="margin-top:12px;color:${brand.muted};font-size:12px">
-        Este link expira em breve por motivos de segurança.
+        Este link expira pronto por motivos de seguridad.
       </p>
     `
   );
@@ -138,6 +138,6 @@ export async function sendPasswordResetEmail(to: string, link: string) {
     to,
     subject,
     html,
-    text: asText(subject, link, "Use o link abaixo para redefinir sua senha:"),
+    text: asText(subject, link, "Usá el link de abajo para restablecer tu contraseña:"),
   });
 }
