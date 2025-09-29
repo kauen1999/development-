@@ -145,6 +145,7 @@ const HeaderComponent = ({ minimal = false }: Props) => {
                     >
                       <p className="border-b py-2 text-center font-semibold">{session?.user?.name}</p>
                       <li><Link href="/profile">Perfil</Link></li>
+                      <li><Link href="/dashboard">📊 Dashboard</Link></li>
                       <li><Link href="/cart">🛒 Mi Carrito</Link></li>
                       <li><Link href="/my-tickets">🎟️ Mis Entradas</Link></li>
                       <li onClick={() => signOut()}><span className="text-red-500">Cerrar Sesión</span></li>
@@ -258,6 +259,7 @@ const HeaderComponent = ({ minimal = false }: Props) => {
                 </div>
                 
                 <Link href="/profile" onClick={() => setNav(false)}>Perfil</Link><br />
+                <Link href="/dashboard" onClick={() => setNav(false)}>📊 Dashboard</Link><br />
                 <Link href="/my-tickets" onClick={() => setNav(false)}>🎟️ Mis Entradas</Link><br />
                 <button
                   onClick={() => signOut()}

@@ -38,7 +38,24 @@ const RegisterSection: React.FC = () => {
           router.push("/login");
         }, 2000);
       },
-      onError: (err) => setError(err.message || "Erro ao registrar"),
+      onError: (err) => {
+        // Tratar erros de validação de forma mais amigável
+        console.log("Error structure:", err);
+        
+        // Verificar se a mensagem contém erros de validação
+        if (err.message && err.message.includes("Senha deve ter pelo menos 8 caracteres")) {
+          setError("La contraseña debe tener al menos 8 caracteres y las contraseñas deben coincidir.");
+        } else if (err.message && err.message.includes("As senhas não conferem")) {
+          setError("Las contraseñas no coinciden. Por favor, verifica que ambas sean iguales.");
+        } else if (err.message && err.message.includes("Email inválido")) {
+          setError("El email ingresado no es válido. Por favor, verifica el formato.");
+        } else if (err.message && err.message.includes("Nome deve ter pelo menos 3 caracteres")) {
+          setError("El nombre debe tener al menos 3 caracteres.");
+        } else {
+          // Para outros erros, mostrar uma mensagem genérica
+          setError("Error al registrar. Por favor, verifica que todos los campos estén completos y correctos.");
+        }
+      },
     });
   };
 
@@ -82,7 +99,9 @@ const RegisterSection: React.FC = () => {
           </h2>
           {error && (
             <div className="alert alert-error -mb-5 mt-3 shadow-lg">
-              <span>¡Error! {error}</span>
+              <div className="whitespace-pre-line">
+                <span>¡Error! {error}</span>
+              </div>
             </div>
           )}
           <form

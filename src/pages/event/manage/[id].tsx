@@ -1,8 +1,11 @@
 // src/pages/event/manage/[id].tsx
 import { useRouter } from "next/router";
+import Head from "next/head";
 import { trpc } from "@/utils/trpc";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
+import Header from "@/components/principal/header/Header";
+import Footer from "@/components/principal/footer/Footer";
 
 export default function ManageEventPage() {
   const router = useRouter();
@@ -56,8 +59,16 @@ export default function ManageEventPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="mx-auto max-w-6xl px-4">
+    <div className="min-h-screen bg-gray-50">
+      <Head>
+        <title>Gestión del Evento - EntradaMaster</title>
+        <meta name="description" content="Administra tu evento y seguí el rendimiento" />
+      </Head>
+      
+      <Header />
+      
+      <main className="py-8">
+        <div className="mx-auto max-w-6xl px-4">
         {/* Header da página */}
         <div className="mb-8 text-center">
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-primary-100">
@@ -274,7 +285,10 @@ export default function ManageEventPage() {
             Volver al Dashboard
           </button>
         </div>
-      </div>
+        </div>
+      </main>
+      
+      <Footer />
     </div>
   );
 }

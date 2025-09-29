@@ -20,7 +20,7 @@ const Home: NextPage = () => {
     if (status !== "authenticated") return;
     if (session?.user?.profileCompleted === undefined) return;
 
-    if (session.user.role === "ADMIN") {
+    if (session.user.role === "ADMIN" && router.pathname === "/") {
       router.replace("/dashboard");
       return;
     }

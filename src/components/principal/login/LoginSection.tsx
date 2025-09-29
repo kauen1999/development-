@@ -31,6 +31,8 @@ const LoginSection: React.FC = () => {
   const redirectAfterLogin = async (defaultPath = "/") => {
     const session = await getSession();
     if (session?.user?.profileCompleted) {
+      // Não redireciona admins automaticamente para dashboard
+      // Deixa eles navegarem livremente
       router.push(defaultPath);
     } else {
       router.push(`/auth?redirect=${encodeURIComponent(defaultPath)}`);

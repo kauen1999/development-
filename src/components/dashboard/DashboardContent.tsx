@@ -50,11 +50,15 @@ const DashboardContent = () => {
             </div>
           </div>
 
-          {/* Grid de métricas */}
-          <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Grid de métricas - apenas os 3 primeiros cards */}
+          <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <NewFunctions />
             <Visitors />
             <UserSignUp />
+          </div>
+
+          {/* Mis Eventos em linha separada */}
+          <div className="mb-8">
             <MyActiveEvents />
           </div>
 

@@ -483,6 +483,16 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
     return uploadToSupabase(imageFile, "event-banners");
   };
 
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    // Limpar o input file
+    const fileInput = document.getElementById('event-image') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
+    }
+  };
+
   const makeEmptyGeneral = (): SessionRow => ({
     ticketingType: "GENERAL",
     dateTimeLocal: "",
@@ -1081,13 +1091,10 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
                   Fecha de Inicio
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <MdCalendarToday className="h-5 w-5 text-gray-400" />
-                  </div>
                   <input 
                     type="date" 
                     {...register("startDate")} 
-                    className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors" 
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors" 
                   />
                 </div>
               </div>
@@ -1096,13 +1103,10 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
                   Fecha de Fin
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <MdCalendarToday className="h-5 w-5 text-gray-400" />
-                  </div>
                   <input 
                     type="date" 
                     {...register("endDate")} 
-                    className="w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors" 
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors" 
                   />
                 </div>
                 {errors.endDate && <p className="mt-2 text-sm text-red-600">{errors.endDate.message}</p>}
@@ -1144,7 +1148,17 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
 
               {imagePreview && (
                 <div className="mt-6">
-                  <p className="mb-3 text-sm font-medium text-gray-700">Vista Previa:</p>
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-sm font-medium text-gray-700">Vista Previa:</p>
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-red-600 hover:shadow-lg"
+                    >
+                      <MdDelete className="text-lg" />
+                      Remover Imagen
+                    </button>
+                  </div>
                   <div className="relative h-64 w-full overflow-hidden rounded-lg border-2 border-gray-200">
                     <Image
                       src={imagePreview}
@@ -1376,37 +1390,42 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
                               <input
                                 type="number"
                                 min={0}
-                                value={c.price}
-                                onChange={(e) => updateCategoryField(sIdx, cIdx, "price", Number(e.target.value) || 0)}
+                                value={c.price === 0 ? "" : c.price}
+                                onChange={(e) => {
+                                  const value = e.target.value === "" ? 0 : Number(e.target.value);
+                                  updateCategoryField(sIdx, cIdx, "price", value);
+                                }}
                                 placeholder="Precio (ARS)"
                                 className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
                               />
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-2">Capacidad</label>
-                              <div className="flex gap-2">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={c.capacity}
-                                  onChange={(e) =>
-                                    updateCategoryField(sIdx, cIdx, "capacity", Number(e.target.value) || 0)
-                                  }
-                                  placeholder="Capacidad (GENERAL)"
-                                  className="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => removeCategory(sIdx, cIdx)}
-                                  disabled={s.categories.length === 1}
-                                  className="inline-flex items-center gap-1 rounded-lg border border-red-300 bg-red-50 px-3 py-3 text-sm font-medium text-red-700 transition-all hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                                  title={s.categories.length === 1 ? "Mínimo 1 categoría" : "Eliminar"}
-                                >
-                                  <MdDelete className="text-lg" />
-                                  Eliminar
-                                </button>
-                              </div>
+                              <input
+                                type="number"
+                                min={0}
+                                value={c.capacity === 0 ? "" : c.capacity}
+                                onChange={(e) => {
+                                  const value = e.target.value === "" ? 0 : Number(e.target.value);
+                                  updateCategoryField(sIdx, cIdx, "capacity", value);
+                                }}
+                                placeholder="Capacidad (GENERAL)"
+                                className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
+                              />
                             </div>
+                          </div>
+                          
+                          <div className="mt-4 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => removeCategory(sIdx, cIdx)}
+                              disabled={s.categories.length === 1}
+                              className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition-all hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                              title={s.categories.length === 1 ? "Mínimo 1 categoría" : "Eliminar"}
+                            >
+                              <MdDelete className="text-lg" />
+                              Eliminar
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -1442,8 +1461,11 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
                             <input
                               type="number"
                               min={0}
-                              value={sec.price}
-                              onChange={(e) => updateSectorField(sIdx, secIdx, "price", Number(e.target.value) || 0)}
+                              value={sec.price === 0 ? "" : sec.price}
+                              onChange={(e) => {
+                                const value = e.target.value === "" ? 0 : Number(e.target.value);
+                                updateSectorField(sIdx, secIdx, "price", value);
+                              }}
                               placeholder="Precio del sector (ARS)"
                               className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
                             />
@@ -1483,16 +1505,11 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
                               <input
                                 type="number"
                                 min={0}
-                                value={row.seatCount}
-                                onChange={(e) =>
-                                  updateRowField(
-                                    sIdx,
-                                    secIdx,
-                                    rowIdx,
-                                    "seatCount",
-                                    Math.max(0, Number(e.target.value) || 0)
-                                  )
-                                }
+                                value={row.seatCount === 0 ? "" : row.seatCount}
+                                onChange={(e) => {
+                                  const value = e.target.value === "" ? 0 : Math.max(0, Number(e.target.value));
+                                  updateRowField(sIdx, secIdx, rowIdx, "seatCount", value);
+                                }}
                                 placeholder="Ej.: 20"
                                 className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-100 focus:border-primary-100 outline-none transition-colors"
                               />
@@ -1526,7 +1543,7 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
             );
           })}
 
-            <div className="mt-6 text-center">
+          <div className="mt-6 text-center">
               <button 
                 type="button" 
                 onClick={addSession} 

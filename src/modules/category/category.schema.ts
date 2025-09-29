@@ -3,7 +3,7 @@ import { z } from "zod";
 export const createCategorySchema = z.object({
   sessionId: z.string().cuid(),
   title: z.string().min(1),
-  price: z.number().positive().min(51), // mínimo provedor
+  price: z.number().positive().min(1), // preço mínimo 1 ARS
   capacity: z.number().int().nonnegative().default(0),
   currency: z.literal("ARS").optional(),
 });
