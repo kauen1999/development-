@@ -1,3 +1,4 @@
+// src/modules/category/category.schema.ts
 import { z } from "zod";
 
 export const createCategorySchema = z.object({

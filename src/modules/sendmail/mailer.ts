@@ -1,3 +1,4 @@
+//src/modules/sendmail/mailler.ts
 import nodemailer from "nodemailer";
 import type { User, Event, Ticket } from "@prisma/client";
 

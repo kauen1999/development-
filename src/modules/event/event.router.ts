@@ -1,3 +1,4 @@
+// src/modules/event/event.router.ts
 import { router, publicProcedure, protectedProcedure } from "@/server/trpc/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";

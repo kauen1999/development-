@@ -1,3 +1,4 @@
+// src/modules/session/session.schema.ts
 import { z } from "zod";
 import { SessionTicketingType, SessionStatus } from "@prisma/client";
 

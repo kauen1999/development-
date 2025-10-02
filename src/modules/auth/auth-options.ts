@@ -1,3 +1,4 @@
+// src/modules/auth/auth-options.ts
 import type { NextAuthOptions, User } from "next-auth";
 import type { Provider } from "next-auth/providers";
 import Credentials from "next-auth/providers/credentials";

@@ -1,3 +1,4 @@
+// src/moduls/pagotic/pagotic.service.ts
 import { getPagoticToken } from "./pagotic.auth";
 import { PAGOTIC_ENDPOINTS } from "./pagotic.endpoints";
 import { toPagoticError } from "./pagotic.errors";

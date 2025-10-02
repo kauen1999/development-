@@ -1,12 +1,6 @@
 import React from "react";
 import Header from "../principal/header/Header";
 import Footer from "../principal/footer/Footer";
-import LastTransactios from "./components/LastTransactions";
-import AdquisitionsOverview from "./components/AdquisitionsOverview";
-import LatestCostumers from "./components/LatestCostumers";
-import NewFunctions from "./components/NewFunctions";
-import Visitors from "./components/Visitors";
-import UserSignUp from "./components/UserSignUp";
 import Link from "next/link";
 import MyActiveEvents from "./components/MyActiveEvents";
 import { MdAdd, MdQrCode, MdDashboard } from "react-icons/md";
@@ -50,28 +44,28 @@ const DashboardContent = () => {
             </div>
           </div>
 
-          {/* Grid de métricas - apenas os 3 primeiros cards */}
+          {/* Grid de métricas - apenas os 3 primeiros cards 
           <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <NewFunctions />
             <Visitors />
             <UserSignUp />
-          </div>
+          </div>*/}
 
           {/* Mis Eventos em linha separada */}
           <div className="mb-8">
             <MyActiveEvents />
           </div>
 
-          {/* Grid de conteúdo principal */}
+          {/* Grid de conteúdo principal 
           <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
             <LatestCostumers />
             <AdquisitionsOverview />
-          </div>
+          </div>*/}
 
-          {/* Transacciones */}
+          {/* Transacciones 
           <div className="grid grid-cols-1 gap-6">
             <LastTransactios />
-          </div>
+          </div>*/}
         </div>
       </main>
       

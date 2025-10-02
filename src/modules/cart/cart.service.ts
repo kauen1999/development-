@@ -1,3 +1,4 @@
+// src/modules/cart/cart.service.ts
 import { prisma } from "@/lib/prisma";
 import { TRPCError } from "@trpc/server";
 import { SeatStatus } from "@prisma/client";

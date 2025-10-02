@@ -1,3 +1,4 @@
+// src/modules/category/category.service.ts
 import { prisma } from "@/lib/prisma";
 import { TRPCError } from "@trpc/server";
 import type { z } from "zod";
