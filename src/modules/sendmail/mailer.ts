@@ -133,7 +133,7 @@ export async function sendTicketEmail(user: User, event: Event, tickets: Ticket[
 
   const text = `Compra confirmada - ${event.name}
 ${tickets.map((t, i) => `Ticket #${i + 1} - ID: ${t.id}`).join("\n")}
-Apresenta o QR no acesso. PDFs anexos.`;
+Presenta el código QR en el acceso. PDFs adjuntos.`;
 
   try {
     await transporter.verify();
@@ -141,7 +141,7 @@ Apresenta o QR no acesso. PDFs anexos.`;
     const info = await transporter.sendMail({
       from: `"${event.name}" <${MAIL_FROM}>`,
       to: user.email,
-      subject: `Seus ingressos - ${event.name}`,
+      subject: `tus tickets - ${event.name}`,
       html,
       text,
       attachments: [
