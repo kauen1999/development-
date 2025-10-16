@@ -862,7 +862,7 @@ export default function EventForm({ mode, event, onSuccess }: EventFormProps) {
             venueName: s.venueName,
             street: s.street,
             number: s.number,
-            neighborhood: s.neighborhood,
+            neighborhood: s.neighborhood?.trim() || undefined,
             city: s.city,
             state: s.state,
             zip: s.zip,
